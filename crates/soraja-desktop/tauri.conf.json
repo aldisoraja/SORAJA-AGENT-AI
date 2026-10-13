@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "SORAJA ENGINE — Command Center",
+        "title": "Soraja Engine — Command Center",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
