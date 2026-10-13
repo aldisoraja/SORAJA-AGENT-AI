@@ -1,0 +1,6 @@
+packages:
+  - 'desktop-ui'
+  - 'web-landing'
+allowBuilds:
+  esbuild: true
+  node-pty: true

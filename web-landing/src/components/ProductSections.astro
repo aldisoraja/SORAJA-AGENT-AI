@@ -1,0 +1,70 @@
+---
+/** Katalog agen & model (diambil dari daftar model CLI asli, 13 Okt 2026) dan fitur utama aplikasi. */
+const agents = [
+  {
+    tag: 'Claude', cls: 'claude-tag', title: 'Claude Code (claude)',
+    desc: 'Agen coding Anthropic untuk refactor terstruktur, membaca gambar & PDF, dan verifikasi build/tes.',
+    pills: ['Opus 5.5 · Sonnet 5.5 · Haiku 5.5', 'Effort hingga Maksimum'],
+  },
+  {
+    tag: 'Codex', cls: 'openai-tag', title: 'OpenAI Codex (codex)',
+    desc: 'Agen OpenAI dengan gambar terlampir langsung ke prompt dan penalaran hingga xhigh.',
+    pills: ['gpt-6-luna · gpt-5.6-terra · gpt-5.6-luna', 'Akun ChatGPT/OpenAI Anda'],
+  },
+  {
+    tag: 'Antigravity', cls: 'google-tag', title: 'Google Antigravity (agy)',
+    desc: 'Agen otonom Google untuk vibe coding; varian model sudah memuat level penalaran.',
+    pills: ['Gemini 3.8 Flash (Low/Medium/High)', 'Claude 4.6 · GPT-OSS 120B'],
+  },
+  {
+    tag: 'OpenCode', cls: 'open-tag', title: 'OpenCode (opencode)',
+    desc: 'Agen multi-provider — puluhan model, termasuk model gratis. Model tanpa dukungan gambar ditandai di aplikasi.',
+    pills: ['Multi-provider', 'Indikator model vision'],
+  },
+];
+
+const features = [
+  { icon: '🧠', title: 'Penalaran Chat lebih dalam', body: 'Di Chat GUI, setiap agen bernalar lebih dalam daripada di Terminal. Pilih Tinggi, Sangat tinggi, atau Maksimum di Pengaturan.' },
+  { icon: '🖼️', title: 'Hingga 10 gambar per pesan', body: 'Tempel atau seret screenshot & dokumen. Lampiran disimpan sebagai berkas lokal dan dibaca langsung oleh keempat agen.' },
+  { icon: '🧭', title: 'Proses kerja yang transparan', body: 'Timeline langsung: berpikir, membaca berkas, mencari, menjalankan perintah, dan mengubah kode — lengkap dengan durasi.' },
+  { icon: '🔍', title: 'Tinjau perubahan sebelum diterima', body: 'Setiap berkas yang diubah agen tampil sebagai diff +/− dan bisa ditinjau satu per satu sebelum Anda menerimanya.' },
+  { icon: '📋', title: 'Salin dengan satu klik', body: 'Salin pesan Anda, jawaban agen, atau blok kode mana pun. Jawaban berformat rapi: heading, tabel, dan kode berlabel.' },
+  { icon: '🖥️', title: 'Chat GUI + Terminal asli', body: 'Satu percakapan bisa dilanjutkan di tab Terminal (ConPTY) dengan CLI aslinya — slash command, login, dan /model tetap utuh.' },
+  { icon: '💬', title: 'Jawaban Bahasa Indonesia', body: 'Semua agen otomatis menjawab dalam Bahasa Indonesia yang jelas, baik di Chat maupun di Terminal.' },
+  { icon: '🔐', title: 'Akun & kredensial aman', body: 'Memakai login CLI Anda sendiri. API key opsional disimpan di Windows Credential Manager (DPAPI), bukan teks biasa.' },
+];
+---
+
+<section id="model-ai" class="matrix-section">
+  <div class="section-badge-center">4 AGEN CLI RESMI</div>
+  <h2 class="section-heading">Satu aplikasi, empat agen coding</h2>
+  <p class="section-desc">Soraja menjalankan CLI resmi di komputer Anda — langganan Anda sendiri, tanpa perantara.</p>
+
+  <div class="matrix-grid">
+    {agents.map((a) => (
+      <div class="matrix-card">
+        <div class="matrix-header">
+          <span class={`vendor-tag ${a.cls}`}>{a.tag}</span>
+          <h4>{a.title}</h4>
+        </div>
+        <p class="matrix-desc">{a.desc}</p>
+        <div class="matrix-pills">{a.pills.map((p) => <span>{p}</span>)}</div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<section id="fitur" class="pillars-section">
+  <div class="section-badge-center">FITUR UTAMA</div>
+  <h2 class="section-heading">Dirancang agar hasil agen akurat & mudah dipahami</h2>
+
+  <div class="pillars-grid features-grid">
+    {features.map((f) => (
+      <div class="pillar-card">
+        <div class="pillar-icon">{f.icon}</div>
+        <h3>{f.title}</h3>
+        <p>{f.body}</p>
+      </div>
+    ))}
+  </div>
+</section>

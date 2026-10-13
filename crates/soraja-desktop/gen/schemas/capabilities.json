@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Izin window utama: core (event listen/emit untuk stream PTY & agen), opener, dan dialog folder native.","local":true,"windows":["main"],"permissions":["core:default","opener:default","dialog:default"]}}

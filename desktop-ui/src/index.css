@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --app-bg: #07090e;
+  --app-fg: #e2e8f0;
+  --app-accent: #06b6d4;
+  --app-border: #1e293b;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--app-bg, #07090e);
+    color: var(--app-fg, #e2e8f0);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+}
+
+html.light, body.light, #root.light {
+  --app-bg: #f8fafc;
+  --app-fg: #0f172a;
+  --app-accent: #0284c7;
+  --app-border: #cbd5e1;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Chat GUI: teks status agen yang sedang bekerja & caret streaming */
+.soraja-shimmer {
+  background: linear-gradient(90deg, currentColor 0%, currentColor 40%, rgba(148, 163, 184, 0.45) 50%, currentColor 60%, currentColor 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: soraja-shimmer 2.2s linear infinite;
+}
+@keyframes soraja-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+.soraja-caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-top: 4px;
+  border-radius: 2px;
+  animation: soraja-blink 1s steps(2, start) infinite;
+}
+@keyframes soraja-blink {
+  to { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soraja-shimmer, .soraja-caret { animation: none; }
+  .soraja-shimmer { -webkit-text-fill-color: currentColor; }
+}

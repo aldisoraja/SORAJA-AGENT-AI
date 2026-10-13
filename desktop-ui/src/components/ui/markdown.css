@@ -1,0 +1,156 @@
+/* Tipografi jawaban agen (MarkdownContent). Tema lewat variabel: .md-dark / .md-light. */
+.md-root {
+  --md-fg: #dbe3ee;
+  --md-strong: #ffffff;
+  --md-muted: #94a3b8;
+  --md-heading: #f1f5f9;
+  --md-accent: #38bdf8;
+  --md-border: rgba(148, 163, 184, 0.16);
+  --md-code-bg: #0a0e17;
+  --md-code-head: #111827;
+  --md-inline-bg: rgba(56, 189, 248, 0.09);
+  --md-inline-fg: #7dd3fc;
+  --md-row-alt: rgba(255, 255, 255, 0.025);
+  --md-th-bg: rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+  line-height: 1.72;
+  color: var(--md-fg);
+  overflow-wrap: anywhere;
+}
+.md-root.md-light {
+  --md-fg: #1e293b;
+  --md-strong: #0f172a;
+  --md-muted: #64748b;
+  --md-heading: #0f172a;
+  --md-accent: #0369a1;
+  --md-border: rgba(15, 23, 42, 0.12);
+  --md-code-bg: #f8fafc;
+  --md-code-head: #eef2f7;
+  --md-inline-bg: rgba(3, 105, 161, 0.07);
+  --md-inline-fg: #075985;
+  --md-row-alt: rgba(15, 23, 42, 0.025);
+  --md-th-bg: rgba(15, 23, 42, 0.045);
+}
+.md-root.md-compact { font-size: 12.5px; line-height: 1.65; }
+
+.md-root > :first-child { margin-top: 0; }
+.md-root > :last-child { margin-bottom: 0; }
+.md-root p { margin: 0.55em 0; }
+.md-root strong { color: var(--md-strong); font-weight: 650; }
+.md-root em { color: var(--md-fg); }
+
+.md-root h1, .md-root h2, .md-root h3, .md-root h4 {
+  color: var(--md-heading);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.md-root h1 { font-size: 1.4em; margin: 1.3em 0 0.5em; }
+.md-root h2 {
+  font-size: 1.2em;
+  margin: 1.4em 0 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--md-border);
+}
+.md-root h3 { font-size: 1.06em; margin: 1.25em 0 0.4em; }
+.md-root h4 { font-size: 0.98em; margin: 1em 0 0.3em; color: var(--md-fg); }
+
+.md-root ul, .md-root ol { margin: 0.45em 0 0.7em; padding-left: 1.45em; }
+.md-root ul { list-style: disc; }
+.md-root ol { list-style: decimal; }
+.md-root ul ul { list-style: circle; }
+.md-root li { margin: 0.22em 0; padding-left: 0.15em; }
+.md-root li::marker { color: var(--md-muted); }
+.md-root li > p { margin: 0.2em 0; }
+.md-root li input[type='checkbox'] { margin-right: 0.45em; accent-color: var(--md-accent); vertical-align: -0.1em; }
+
+.md-root a { color: var(--md-accent); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: transparent; cursor: pointer; }
+.md-root a:hover { text-decoration-color: currentColor; }
+
+.md-root code {
+  font-family: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-size: 0.86em;
+}
+.md-root :not(pre) > code {
+  padding: 0.12em 0.4em;
+  border-radius: 0.35rem;
+  background: var(--md-inline-bg);
+  color: var(--md-inline-fg);
+  overflow-wrap: anywhere;
+}
+
+/* Blok kode dengan header bahasa + tombol salin */
+.md-root .md-code {
+  margin: 0.8em 0;
+  border: 1px solid var(--md-border);
+  border-radius: 0.7rem;
+  overflow: hidden;
+  background: var(--md-code-bg);
+}
+.md-root .md-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem 0.3rem 0.85rem;
+  background: var(--md-code-head);
+  border-bottom: 1px solid var(--md-border);
+  font-size: 11px;
+}
+.md-root .md-code-lang {
+  color: var(--md-muted);
+  font-family: ui-monospace, Consolas, monospace;
+  text-transform: lowercase;
+}
+.md-root .md-copy {
+  color: var(--md-muted);
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.md-root .md-copy:hover { color: var(--md-strong); background: var(--md-th-bg); }
+.md-root .md-copy.md-copied { color: #10b981; }
+.md-root pre {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.md-root pre code { color: var(--md-fg); white-space: pre; overflow-wrap: normal; }
+
+/* Tabel */
+.md-root .md-table-wrap {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  border: 1px solid var(--md-border);
+  border-radius: 0.65rem;
+}
+.md-root table { width: 100%; border-collapse: collapse; font-size: 0.93em; }
+.md-root th, .md-root td {
+  padding: 0.5rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--md-border);
+}
+.md-root th { background: var(--md-th-bg); color: var(--md-heading); font-weight: 650; white-space: nowrap; }
+.md-root tr:last-child td { border-bottom: 0; }
+.md-root tbody tr:nth-child(even) { background: var(--md-row-alt); }
+
+/* Kutipan & callout */
+.md-root blockquote {
+  margin: 0.8em 0;
+  padding: 0.55em 0.95em;
+  border-left: 3px solid var(--md-border);
+  border-radius: 0 0.55rem 0.55rem 0;
+  color: var(--md-muted);
+}
+.md-root blockquote p { margin: 0.25em 0; }
+.md-root .md-callout { color: var(--md-fg); }
+.md-root .md-callout-info { border-left-color: #38bdf8; background: rgba(56, 189, 248, 0.07); }
+.md-root .md-callout-tip { border-left-color: #10b981; background: rgba(16, 185, 129, 0.07); }
+.md-root .md-callout-warn { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+.md-root .md-callout-error { border-left-color: #f43f5e; background: rgba(244, 63, 94, 0.08); }
+.md-root .md-callout-muted { border-left-color: var(--md-muted); background: var(--md-th-bg); }
+
+.md-root hr { border: 0; border-top: 1px solid var(--md-border); margin: 1.3em 0; }
+.md-root img { max-width: 100%; border-radius: 0.5rem; }

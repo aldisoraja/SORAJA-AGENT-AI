@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "crates/soraja-core",
+    "crates/soraja-desktop",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = "s"         # Optimize for binary size
+lto = true              # Enable Link Time Optimization
+codegen-units = 1       # Reduce codegen units for better optimization
+panic = "abort"         # Strip unwind panic code to save space
+strip = true            # Strip symbols from the binary

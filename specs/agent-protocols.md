@@ -1,0 +1,179 @@
+# Agent Protocols — 4 CLI Native ↔ Soraja UI
+
+> Prinsip dasar: **Soraja tidak mengimplementasikan agen sendiri.** Keempat agen adalah biner CLI resmi yang
+> sudah terpasang di mesin pengguna. Soraja hanya (1) menjalankan, (2) mengalirkan output, dan (3) menerjemahkan
+> output tersebut menjadi UI. Tools (baca/tulis berkas, shell, MCP) adalah milik CLI masing-masing.
+> Kontrak IPC terkait: [`ipc-contracts.md`](./ipc-contracts.md).
+>
+> Implementasi: `desktop-ui/src/services/cli/agentCommands.ts` (argumen), `desktop-ui/src/services/cli/streamParsers.ts`
+> (parser), `desktop-ui/src/hooks/useAgentStreamBridge.ts` (event → pesan chat).
+
+## 1. Dua Mode Operasi per Agen
+
+| Mode | Tujuan | IPC | Transport | Tampilan |
+| :--- | :--- | :--- | :--- | :--- |
+| **Terminal (PTY interaktif)** | Pengalaman 1:1 seperti membuka CLI aslinya (TUI, slash command, login, `/model`, dsb.) | `start_interactive_pty` | ConPTY → `pty:output` (ANSI mentah) | Tab xterm.js (`components/terminal/`) |
+| **Chat GUI (headless)** | Pengalaman ala Antigravity Desktop (bubble, trajectory, diff panel) | `spawn_headless_agent` | stdout NDJSON → `agent:token_stream` | `ChatFeed` (`AgentMessage` + `work/AgentWorkTimeline`) + `DiffReviewPanel` |
+
+Kedua mode berbagi **direktori kerja dan sesi CLI**: `cli_session_id` dari mode chat disimpan di percakapan
+(`ConversationRecord.cliSessionId`) dan dipakai untuk (a) me-resume pesan berikutnya di chat, dan (b) tombol
+**"Buka di Terminal"** yang membuka tab PTY dengan flag resume (§2).
+
+---
+
+## 2. Matriks Perintah per Agen
+
+Biner di-resolve lewat `PATH` + unwrap shim npm (`agent_catalog::detect_cli`, `resolve_npm_shim_target`) — **jangan hardcode path absolut**.
+Semua flag diverifikasi dari `--help` dan uji nyata CLI terpasang (12 Okt 2026: codex-cli 0.161.0, opencode, agy, Claude Code).
+
+| Agen (`agent_id`) | Biner | Headless (Chat GUI) | Interaktif (Terminal) | Resume | Model |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `antigravity` | `agy` | `agy -p "<prompt>" --output-format stream-json --add-dir <cwd>` | `agy` | `--conversation <id>` | `--model <id>` | `--effort low\|medium\|high` |
+| `claude` | `claude` | `claude -p "<prompt>" --output-format stream-json --verbose` | `claude` | `--resume <session_id>` | `--model <id>` |
+| `codex` | `codex` | `codex exec --json --skip-git-repo-check -C <cwd> "<prompt>"` | `codex` | headless: `codex exec resume … <id> "<prompt>"` · terminal: `codex resume <id>` | `-m <id>` |
+| `opencode` | `opencode` | `opencode run --format json --dir <cwd> "<prompt>"` | `opencode` | `-s <session_id>` | `-m <provider/model>` |
+
+* `--model` tidak dikirim bila model = `cli-default` (CLI memakai konfigurasi pengguna).
+* **Effort/penalaran** (keputusan 13 Okt 2026): mode **Chat GUI** sengaja bernalar lebih dalam dari Terminal. Nilai dari
+  `AppSettings.chatReasoningEffort` (`high` default · `xhigh` · `max`, Pengaturan → Umum → "Kedalaman penalaran Chat")
+  dipetakan per CLI (diverifikasi dari `--help`): `claude --effort <e>`, `agy --effort <e>`,
+  `codex -c model_reasoning_effort="<e>"` (`max` → `xhigh`), `opencode --thinking --variant high|max`.
+  Mode **Terminal** tidak menerima effort dari Soraja (pengguna mengaturnya lewat slash command CLI).
+* **Aturan Chat GUI** (`CHAT_REASONING_RULE`, `services/cli/chatPrompt.ts`): pahami pesan kalimat demi kalimat, baca semua
+  lampiran, verifikasi asumsi dengan membaca sumber, laporkan hasil build/tes apa adanya, dan susun jawaban Markdown
+  terstruktur. Dikirim lewat `--append-system-prompt` (claude), `developer_instructions` (codex, nilai TOML via
+  `JSON.stringify`), atau prefiks prompt (antigravity, opencode). Tidak dipakai di mode Terminal.
+
+### Lampiran Chat GUI (gambar & dokumen)
+1. Hingga 10 gambar (paste/drag/unggah) + dokumen. Gambar ≤ 5 MB berformat umum dikirim **tanpa kompresi**; yang lebih
+   besar dirender ulang maks. 2560 px (`utils/imageUtils.ts processChatImage`). Riwayat chat hanya menyimpan thumbnail
+   720 px (`previewUrl`) + `savedPath` agar kuota localStorage tidak penuh.
+2. Sebelum spawn, setiap lampiran disimpan via IPC `save_chat_attachment` → `<proyek>/.soraja/attachments/<id pesan>/NN-nama.ext`.
+3. Prompt disusun `buildChatPrompt`: teks pengguna apa adanya + daftar bernomor (`Gambar #1 "nama": <path>`) + instruksi
+   wajib membaca semua lampiran. Claude & Antigravity membacanya dengan tool baca berkas (gambar dibaca visual).
+   Flag native tambahan: `codex --image=<path>` (setelah `exec`/`resume`), `opencode run --file=<path>` (sebelum `--format`);
+   bentuk `=` mencegah opsi variadik menelan argumen prompt.
+4. **Model tanpa vision:** OpenCode memuat `capabilities.input.image` dari `opencode models --verbose`
+   (`CliModelItem.supportsImages`). Model bernilai `false` (mis. `opencode/big-pickle`) diberi ikon mata dicoret di
+   pemilih model, dan kolom input menampilkan peringatan bila gambar dilampirkan.
+5. **Uji langsung 13 Okt 2026** (gambar berisi kode + prompt multi-baris ber-`" & | % <>`): claude ✓ (`Read`),
+   codex ✓ (`--image=`), antigravity ✓ (`view_file`), opencode ✓ dengan model vision (`mimo-v2.6-flash-free`).
+6. **Integritas teks prompt:** shim npm `.cmd` dibuka ke biner aslinya (`agent_catalog::resolve_cli_launch`: `.exe` langsung,
+   `.js` via `node`) sehingga prompt multi-baris & karakter `" & | % < >` tidak melewati `cmd.exe`. Prompt berawalan `-`
+   diberi spasi di depan agar tidak dibaca sebagai flag.
+* `codex exec resume` **tidak** menerima `-C` maupun `--approve-for-me`; direktori kerja diatur oleh `cwd` proses.
+
+### Kebijakan izin (permission) mode headless
+Diatur oleh **Pengaturan → Preset Keamanan** (`AppSettings.securityPreset`): `Permissive` = otonom, selainnya = aman.
+
+| Agen | Mode aman (default) | Mode otonom (`Permissive`) | Perilaku mode aman yang terverifikasi |
+| :--- | :--- | :--- | :--- |
+| `antigravity` | `--mode accept-edits` | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) → UI menampilkan notice + saran "Buka di Terminal". |
+| `claude` | `--permission-mode acceptEdits` | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna ditolak oleh CLI. |
+| `codex` | `--approve-for-me` | `--dangerously-bypass-approvals-and-sandbox` | Permintaan izin ditinjau otomatis oleh Codex. *Catatan: `--sandbox workspace-write` di Windows memblokir bahkan `Set-Content` sehingga tidak dipakai.* |
+| `opencode` | tanpa `--auto` | `--auto` | Mengikuti aturan `permission` di config OpenCode pengguna. |
+
+---
+
+## 3. Pemetaan Stream → Event UI
+
+Setiap baris `agent:token_stream.chunk` di-parse sebagai satu objek JSON (NDJSON). Baris non-JSON (log stderr CLI)
+menjadi event `log` dan disimpan di `MessageRecord.logs` (tombol "Log CLI" di panel Proses kerja), bukan di jawaban. Keluaran parser:
+
+```ts
+type UiAgentEvent =
+  | { kind: 'session'; cliSessionId: string; model?: string }      // → ConversationRecord.cliSessionId
+  | { kind: 'text'; delta: string }                                 // → isi bubble jawaban
+  | { kind: 'thinking'; delta: string }                             // → langkah timeline 'thought' (+ reasoning)
+  | { kind: 'tool'; id: string; name: string; input: object; status: 'running' | 'done' | 'error'; output?: string } // → trajectory
+  | { kind: 'file_change'; path: string }                           // → git diff → pill "Edited" + DiffReviewPanel
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number }
+  | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
+  | { kind: 'log'; line: string }
+  | { kind: 'done'; ok: boolean; summary?: string };
+```
+
+Field di bawah **sudah diverifikasi** dari output nyata; fixture tes: `desktop-ui/tests/fixtures/*.ndjson`
+(diuji oleh `desktop-ui/tests/cliStreamParsers.test.mjs`). Jika versi CLI baru mengubah format, tangkap ulang
+fixture dulu sebelum mengubah parser.
+
+| UiAgentEvent | `claude` | `codex` | `opencode` | `antigravity` |
+| :--- | :--- | :--- | :--- | :--- |
+| `session` | `{type:"system",subtype:"init",session_id}` | `{type:"thread.started",thread_id}` | `sessionID` (event pertama) | `{event:"init",conversation_id}` |
+| `text` | `assistant.message.content[].type="text"` | `item.completed` + `item.type="agent_message"` (`item.text`) | `{type:"text",part.text}` | `step_update.step_type="agent_response"` + `text_delta` (fallback `result.response`) |
+| `thinking` | content `type="thinking"` | `item.type="reasoning"` | `{type:"reasoning"}` | `step_update.thinking_delta` |
+| `tool` | content `tool_use` (running) + `user` `tool_result` (done/error, `is_error`) | `item.type="command_execution"` (`item.started` → `item.completed`, `exit_code`) / `mcp_tool_call` | `{type:"tool_use",part.tool,part.state.status}` | `step_update.step_type="tool"`, `tool_name`, `state` ACTIVE/DONE |
+| `file_change` | `tool_use` `Write`/`Edit`/`MultiEdit`/`NotebookEdit` → `input.file_path` | `item.type="file_change"` → `changes[].path` | tool `write`/`edit`/`patch` selesai → `state.input.filePath` | tool `write_to_file`/`replace_file_content`/… → `parameters.TargetFile` |
+| `usage` | `result.usage`, `result.total_cost_usd` | `turn.completed.usage` | `step_finish.part.tokens`, `part.cost` | `result.usage` |
+| `notice` | — | `{type:"error"}` | `{type:"error"}` | `result.denied_actions[]` |
+| `done` | `{type:"result",is_error}` | `turn.completed` / `turn.failed` | (exit proses) | `result.status="SUCCESS"` |
+
+### Diff untuk `DiffReviewPanel`
+CLI tidak selalu mengirim isi diff. Untuk setiap `file_change`, UI menjalankan `git diff --no-color -- <path>` via
+`run_workspace_terminal`. Bila kosong (berkas baru/untracked) atau folder bukan repo git, isi berkas dibaca dengan
+`read_workspace_file` dan seluruhnya ditandai sebagai tambahan (`services/cli/fileChangeDiff.ts`).
+
+---
+
+## 4. Autentikasi, Paket & Kuota
+Sumber kebenaran akun, paket langganan, dan kuota = **berkas milik CLI** (bukan API key, karena API key tidak memuat info paket). Implementasi: `crates/soraja-core/src/cli_accounts/` (diverifikasi terhadap data asli 12 Okt 2026).
+
+| Agen | Login & paket | Kuota |
+| :--- | :--- | :--- |
+| `claude` | `~/.claude.json` → `oauthAccount` (email, nama, `organizationType`); `~/.claude/.credentials.json` → **hanya** `subscriptionType` | `~/.claude.json` → `cachedUsageUtilization` (`five_hour`, `seven_day`: `utilization` %, `resets_at`) |
+| `codex` | `~/.codex/auth.json` → payload JWT `id_token` (`email`, `chatgpt_plan_type`) | Rollout terbaru `~/.codex/sessions/**.jsonl` → `token_count.rate_limits` (`primary`/`secondary`: `used_percent`, `window_minutes`, `resets_at`) |
+| `antigravity` | Keberadaan `~/.gemini/jetski-standalone-oauth-token` (isi tidak dibaca); paket tidak diekspos | Scrape TUI `agy` → `/usage` ("Weekly/Five Hour Limit Remaining … %, Refreshes in …") |
+| `opencode` | Nama provider di `~/.local/share/opencode/auth.json` (kunci tidak dibaca) | `opencode stats` (token, biaya, sesi); tidak ada batas kuota |
+
+Jendela kuota yang `resets_at`-nya sudah lewat dianggap reset (0% terpakai). Status "Terhubung" = `isLoggedIn` dari CLI **atau** API key tersimpan.
+
+1. **Default: login bawaan CLI.** Pengguna login di tab Terminal (`claude` → `/login`, `codex login`, `agy` OAuth, `opencode auth login`). Mode headless otomatis memakai sesi login yang sama sehingga kuota langganan tetap berlaku.
+2. **Opsional: API key via DPAPI** (modal "Hubungkan" → "Gunakan API key"). Kunci diverifikasi ke endpoint daftar model provider (`services/apiKeyVerifier.ts`) lalu disimpan via `save_account_credential`. Injeksi kunci ke proses CLI (`agentCommands.ts`) **belum diaktifkan** agar tidak menimpa login langganan; aktifkan hanya untuk agen tanpa login CLI.
+3. Status "Terhubung" di UI berasal dari `get_user_cli_profile` (login CLI terdeteksi) atau kunci DPAPI.
+
+---
+
+## 5. Aturan Bahasa Jawaban (Bahasa Indonesia)
+Keputusan produk: **jawaban agen wajib berbahasa Indonesia** di kedua mode. Teks aturan tunggal:
+`LANGUAGE_RULE` di `agentCommands.ts` = konstanta `LANGUAGE_RULE` di `crates/soraja-desktop/src/commands/language_rules.rs`.
+
+| Agen | Mekanisme (terverifikasi) | Mode |
+| :--- | :--- | :--- |
+| `claude` | `--append-system-prompt "<aturan>"` | Chat & Terminal |
+| `codex` | `-c developer_instructions="<aturan>"` | Chat & Terminal |
+| `opencode` | env `OPENCODE_CONFIG_CONTENT={"instructions":["<path aturan>"]}`; path dari IPC `prepare_agent_language_rules` (`%APPDATA%\soraja-ai\rules\bahasa-indonesia.md`) | Chat & Terminal |
+| `antigravity` | Tidak ada flag system prompt. IPC `prepare_agent_language_rules` menambahkan **sekali** blok bertanda `<!-- soraja:bahasa-indonesia -->` ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia; mode Chat juga menyisipkan `[Instruksi: …]` di awal prompt | Chat & Terminal |
+
+Selain itu, **teks UI bawaan CLI** di mode Terminal (prompt izin, "Thinking…", "esc to cancel", dll.) diterjemahkan oleh
+`utils/cliTerminalLocalizer.ts` — kecuali OpenCode, karena regex pada stream TUI-nya merusak posisi kursor.
+
+---
+
+## 6. Agent Lifecycle State Machine (per sesi chat)
+* `Idle` → `Thinking` (proses spawn, menunggu event pertama)
+* `Thinking` ↔ `ExecutingTool` (event `tool` running/done)
+* `AwaitingApproval` — CLI meminta izin (lihat §7)
+* `Paused` — `pause_agent_session` dipanggil
+* `Done` — event `done` / `agent:session_end` dengan `exitCode = 0`
+* `Interrupted` — `stop_agent_session` atau `exitCode ≠ 0`
+
+Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-schema.sql)).
+
+---
+
+## 7. HITL (Human-in-the-Loop) pada CLI Native
+* **Mode Terminal:** HITL ditangani 100% oleh prompt izin bawaan CLI (pengguna menjawab langsung di xterm; teks prompt dilokalisasi).
+* **Mode Chat GUI:**
+  1. *Saat ini:* mode aman (§2) membuat CLI menolak aksi berisiko; penolakan tampil sebagai notice dan pengguna bisa melanjutkan lewat **"Buka di Terminal"**.
+  2. *Target:* `claude --permission-prompt-tool <mcp_tool>` → MCP server lokal Soraja memunculkan **Modal HITL 5-Opsi** dan menjawab via `approve_human_in_the_loop`.
+* Regex destruktif `TerminalExecutor::is_destructive_command` tetap berlaku untuk `run_workspace_terminal` milik Soraja.
+
+---
+
+## 8. Mesin Fallback / Mode Demo (`agentEngine.ts`)
+`generateIntelligentAgentResponse` **bukan** agen sungguhan dan **hanya** dipakai bila:
+* CLI agen terpilih `is_installed = false`, atau
+* aplikasi berjalan di browser dev server (tanpa Tauri).
+
+Jawaban demo selalu diawali banner *"Mode demo — CLI <agen> belum terpasang …"*. Fallback tidak pernah dijalankan
+bersamaan dengan `spawn_headless_agent` untuk prompt yang sama (cabang if/else di `useWorkspaceState.handleSendMessage`).

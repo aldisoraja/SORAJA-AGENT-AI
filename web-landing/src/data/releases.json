@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "releasedAt": "2026-10-13",
+  "files": [
+    {
+      "id": "linux-appimage-x64",
+      "os": "linux",
+      "arch": "x64",
+      "label": "AppImage",
+      "file": "soraja-engine_1.0.0_x64.AppImage",
+      "url": "/downloads/1.0.0/soraja-engine_1.0.0_x64.AppImage",
+      "sizeBytes": 82094584,
+      "sha256": "d7cd7bf96e015bea742e14d0466f3ee115ea12a52594360218fcdaf5c008edc1"
+    },
+    {
+      "id": "linux-deb-x64",
+      "os": "linux",
+      "arch": "x64",
+      "label": "Paket .deb",
+      "file": "soraja-engine_1.0.0_x64.deb",
+      "url": "/downloads/1.0.0/soraja-engine_1.0.0_x64.deb",
+      "sizeBytes": 3681704,
+      "sha256": "7afaf6bdca30bbc49b7d9d4de38715abc4f010c00a3daaf7bba9fe2f1dfc87ee"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{"type": "thread.started", "thread_id": "01a12e03-7273-75e3-baa4-c7c09033e065"}
+{"type": "turn.started"}
+{"type": "item.completed", "item": {"id": "item_0", "type": "agent_message", "text": "Saya akan mencoba membuat `hello.txt`, lalu menjalankan `echo selesai`."}}
+{"type": "item.completed", "item": {"id": "item_1", "type": "agent_message", "text": "Perintah ditolak kebijakan lingkungan, jadi `hello.txt` belum dibuat dan `echo selesai` belum dijalankan."}}
+{"type": "turn.completed", "usage": {"input_tokens": 28180, "cached_input_tokens": 19968, "cache_write_input_tokens": 0, "output_tokens": 100, "reasoning_output_tokens": 0}}

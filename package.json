@@ -1,0 +1,17 @@
+{
+  "name": "soraja-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SORAJA ENGINE — Autonomous Agentic Command Center",
+  "scripts": {
+    "dev:desktop": "pnpm --filter desktop-ui dev",
+    "build:desktop": "pnpm --filter desktop-ui build",
+    "dev:web": "pnpm --filter web-landing dev",
+    "build:web": "pnpm --filter web-landing build",
+    "publish:release": "node scripts/publish-release.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

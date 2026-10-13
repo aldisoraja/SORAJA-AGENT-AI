@@ -1,0 +1,44 @@
+# Node & Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Cargo
+target/
+Cargo.lock
+
+# Tauri build artifacts
+src-tauri/target/
+
+# Logs & Environment
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.env
+.env.*
+!.env.example
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Database WAL local
+*.db-wal
+*.db-shm
+
+# Binary downloads & release installers
+web-landing/public/downloads/
+*.AppImage
+*.deb

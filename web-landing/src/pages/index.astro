@@ -1,0 +1,136 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ChatMock from '../components/ChatMock.astro';
+import DownloadSection from '../components/DownloadSection.astro';
+import ProductSections from '../components/ProductSections.astro';
+import releases from '../data/releases.json';
+import '../styles/sections.css';
+
+const APP_VERSION = releases.version;
+---
+
+<Layout>
+  <div class="page-wrapper">
+    <!-- Ambient Background Glows -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <!-- Navigation Bar -->
+    <header class="navbar">
+      <div class="nav-container">
+        <a href="#" class="nav-brand">
+          <img src="/logo.png" alt="SORAJA ENGINE Logo" class="brand-logo-img" />
+          <div class="brand-title-group">
+            <span class="brand-name">SORAJA ENGINE</span>
+            <span id="runtime-badge" class="brand-pill mode-local" title="Status Engine: Klik untuk beralih mode LOCAL/SERVER">
+              <span class="pill-dot"></span>
+              <span id="version-text">v{APP_VERSION}</span>
+              <span id="env-mode-text">LOCAL</span>
+            </span>
+          </div>
+        </a>
+
+        <nav class="nav-menu">
+          <a href="#fitur" class="nav-link">Fitur</a>
+          <a href="#model-ai" class="nav-link">Agen & Model</a>
+          <a href="#downloads" class="nav-link">Unduh</a>
+        </nav>
+
+        <div class="nav-actions">
+          <button id="theme-toggle" class="theme-toggle-btn" aria-label="Ganti Tema Dark/Light" title="Ganti Tema">
+            <span class="theme-icon sun-icon">☀️</span>
+            <span class="theme-icon moon-icon">🌙</span>
+          </button>
+          <a href="#downloads" class="btn-primary-nav">
+            <span>Unduh Aplikasi</span>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-logo-banner">
+        <img src="/logo.png" alt="SORAJA ENGINE" class="hero-main-logo" />
+      </div>
+
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        <span class="badge-text">Claude Code • Codex • Antigravity • OpenCode — dalam satu aplikasi desktop</span>
+      </div>
+
+      <h1 class="hero-heading">
+        Agen AI Coding yang Bernalar Dalam<br />
+        <span class="gradient-text">Akurat, Transparan & Mudah Dipahami</span>
+      </h1>
+
+      <p class="hero-subtext">
+        <strong>SORAJA ENGINE</strong> menjalankan <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Antigravity</strong>,
+        dan <strong>OpenCode</strong> dengan akun Anda sendiri. Kirim hingga <strong>10 gambar</strong> per pesan,
+        lihat setiap langkah kerja agen secara langsung, tinjau perubahan kode, lalu salin jawabannya dengan satu klik.
+      </p>
+
+      <div class="hero-cta">
+        <a href="#downloads" class="btn-primary-nav hero-cta-main">Unduh v{APP_VERSION}</a>
+        <a href="#fitur" class="hero-cta-ghost">Lihat fitur →</a>
+      </div>
+
+      <ChatMock />
+
+      <DownloadSection />
+    </section>
+
+    <ProductSections />
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span class="footer-logo">⚡ SORAJA ENGINE</span>
+          <p class="footer-sub">Pusat komando agen AI coding untuk desktop.</p>
+        </div>
+        <div class="footer-right">
+          <p>© 2026 Aldi Soraja. Seluruh Hak Cipta Dilindungi.</p>
+          <p class="footer-tech">Dibangun dengan Rust, Tauri v2, React 19, dan Astro.</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Tema & badge runtime -->
+  <script is:inline>
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('soraja_theme', theme);
+    }
+    applyTheme(localStorage.getItem('soraja_theme') || 'dark');
+    themeToggleBtn?.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    const envModeText = document.getElementById('env-mode-text');
+    const runtimeBadge = document.getElementById('runtime-badge');
+    const host = window.location.hostname;
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+    let currentMode = localStorage.getItem('soraja_runtime_mode') || (isLocalHost ? 'LOCAL' : 'SERVER');
+    function updateRuntimeBadge(mode) {
+      if (envModeText) envModeText.innerText = mode;
+      if (!runtimeBadge) return;
+      runtimeBadge.classList.toggle('mode-local', mode === 'LOCAL');
+      runtimeBadge.classList.toggle('mode-server', mode !== 'LOCAL');
+      runtimeBadge.setAttribute(
+        'title',
+        mode === 'LOCAL' ? 'Status: Local Engine Active (Klik untuk toggle SERVER)' : 'Status: Remote Server Cloud Active (Klik untuk toggle LOCAL)'
+      );
+    }
+    updateRuntimeBadge(currentMode);
+    runtimeBadge?.addEventListener('click', (e) => {
+      e.preventDefault();
+      currentMode = currentMode === 'LOCAL' ? 'SERVER' : 'LOCAL';
+      localStorage.setItem('soraja_runtime_mode', currentMode);
+      updateRuntimeBadge(currentMode);
+    });
+  </script>
+</Layout>
