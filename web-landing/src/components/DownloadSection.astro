@@ -10,6 +10,9 @@ type ReleaseFile = {
   id: string; os: string; arch: string; label: string; file: string; url: string; sizeBytes: number; sha256: string;
 };
 const files = releases.files as ReleaseFile[];
+/** macOS punya dua build terpisah: tampilkan arsitekturnya agar pengguna memilih yang tepat. */
+const labelOf = (f: ReleaseFile) =>
+  f.os === 'macos' ? `${f.arch === 'arm64' ? 'Apple Silicon' : 'Intel'} (.dmg)` : f.label;
 const mb = (b: number) => `${(b / 1024 / 1024).toLocaleString('id-ID', { maximumFractionDigits: 1 })} MB`;
 const releasedAt = releases.releasedAt
   ? new Date(releases.releasedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -27,9 +30,9 @@ const platforms = [
     missing: 'Paket Linux untuk versi ini belum diterbitkan.',
   },
   {
-    os: 'macos', icon: '🍎', title: 'macOS', compat: 'Apple Silicon & Intel', chip: 'Segera',
-    notes: ['Build macOS memerlukan perangkat Mac', 'Pantau halaman ini untuk rilisnya'],
-    missing: 'Belum tersedia untuk macOS.',
+    os: 'macos', icon: '🍎', title: 'macOS', compat: 'macOS 10.15+ · Apple Silicon & Intel', chip: 'Beta',
+    notes: ['Disk image .dmg untuk M1/M2/M3/M4 & Intel', 'Seret ke folder Applications untuk memasang'],
+    missing: 'Installer macOS untuk versi ini belum diterbitkan.',
   },
 ].map((p) => ({ ...p, files: files.filter((f) => f.os === p.os) }));
 ---
@@ -62,7 +65,7 @@ const platforms = [
               <div class="dl-item">
                 <a class="btn-card-download dl-link" href={f.url} download={f.file}>
                   <span class="dl-icon" aria-hidden="true">⬇</span>
-                  <span class="dl-label">{f.label}</span>
+                  <span class="dl-label">{labelOf(f)}</span>
                   <span class="dl-size">{mb(f.sizeBytes)}</span>
                 </a>
                 <button type="button" class="dl-hash" data-copy={f.sha256} title="Salin SHA-256 untuk verifikasi berkas">
@@ -98,12 +101,15 @@ const platforms = [
     <div class="req-col">
       <h3>Verifikasi & keamanan</h3>
       <p>
-        Bandingkan SHA-256 berkas yang Anda unduh dengan nilai di atas. Di Windows:
+        Bandingkan SHA-256 berkas yang Anda unduh dengan nilai di atas:
       </p>
       <code class="req-code">Get-FileHash .\soraja-engine_{releases.version}_x64.msi</code>
+      <code class="req-code">shasum -a 256 soraja-engine_{releases.version}_arm64.dmg</code>
+      <code class="req-code">sha256sum soraja-engine_{releases.version}_x64.AppImage</code>
       <p class="req-note">
-        Installer belum ditandatangani sertifikat kode, jadi Windows SmartScreen dapat menampilkan peringatan.
-        Pilih <strong>More info → Run anyway</strong> bila hash cocok.
+        Installer belum ditandatangani sertifikat kode. Di Windows, SmartScreen dapat menampilkan peringatan:
+        pilih <strong>More info → Run anyway</strong> bila hash cocok. Di macOS, klik kanan aplikasi →
+        <strong>Open</strong>, atau jalankan <code>xattr -cr "/Applications/Soraja Engine.app"</code>.
       </p>
     </div>
   </div>

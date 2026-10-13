@@ -2,6 +2,7 @@
 /**
  * publish-release.mjs — menerbitkan installer hasil `tauri build` ke web Soraja Engine.
  *
+ * (Berkas disalin ke folder lokal yang di-gitignore; unggah manual ke GitHub Releases.)
  * Menyalin berkas bundle (.msi, -setup.exe, .deb, .AppImage, .rpm, .dmg) dari satu atau beberapa folder
  * `target/release/bundle` ke `web-landing/public/downloads/<versi>/` dengan nama tanpa spasi, lalu
  * menulis manifest `web-landing/src/data/releases.json` (ukuran + SHA-256) yang dibaca halaman Unduh.
@@ -14,6 +15,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +23,15 @@ const tauriConf = JSON.parse(fs.readFileSync(path.join(root, 'crates/soraja-desk
 const version = tauriConf.version;
 const webDir = path.join(root, 'web-landing');
 const outDir = path.join(webDir, 'public', 'downloads', version);
+/** Installer besar tidak masuk git: tautan unduh menunjuk ke GitHub Releases (tag v<versi>) repo `origin`. */
+function releaseBase() {
+  if (process.env.SORAJA_RELEASE_BASE) return process.env.SORAJA_RELEASE_BASE.replace(/\/$/, '');
+  const remote = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: root, encoding: 'utf8' }).trim();
+  const m = /github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/.exec(remote);
+  if (!m) throw new Error(`Remote origin bukan GitHub: ${remote}. Set SORAJA_RELEASE_BASE.`);
+  return `https://github.com/${m[1]}/releases/download/v${version}`;
+}
+const base = releaseBase();
 const manifestPath = path.join(webDir, 'src', 'data', 'releases.json');
 
 /** Jenis bundle Tauri → metadata tampilan di web. */
@@ -79,7 +90,7 @@ for (const { file, kind } of found) {
     arch,
     label: kind.label,
     file: target,
-    url: `/downloads/${version}/${encodeURIComponent(target)}`,
+    url: `${base}/${encodeURIComponent(target)}`,
     sizeBytes: data.length,
     sha256: createHash('sha256').update(data).digest('hex'),
   });
@@ -93,4 +104,7 @@ const manifest = {
 };
 fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+console.log(`
+Unggah berkas di public/downloads/${version}/ ke GitHub Release tag v${version}:
+  ${base.replace('/download/', '/tag/')}`);
 console.log(`Manifest ditulis: web-landing/src/data/releases.json (${manifest.files.length} berkas, v${version})`);

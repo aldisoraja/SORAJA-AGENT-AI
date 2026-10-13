@@ -1,0 +1,93 @@
+# Membangun installer SORAJA ENGINE (Windows, macOS, Linux) dan menerbitkannya ke GitHub Release v<versi>.
+# Dipicu oleh push tag `v*` (mis. `git tag v1.0.0 && git push origin v1.0.0`) atau manual via "Run workflow".
+# Job `manifest` lalu menyalin installer dengan nama `soraja-engine_<versi>_<arch>.<ext>` ke Release dan
+# memperbarui `web-landing/src/data/releases.json` agar tombol Unduh di web langsung mengunduh berkasnya.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependensi sistem (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: crates/soraja-desktop
+          tagName: v__VERSION__
+          releaseName: SORAJA ENGINE v__VERSION__
+          releaseBody: Unduh installer dari halaman web Soraja Engine atau dari daftar aset di bawah.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Unduh aset Release & tulis manifest web
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./crates/soraja-desktop/tauri.conf.json').version")
+          mkdir -p "$RUNNER_TEMP/bundle"
+          gh release download "v$VERSION" --dir "$RUNNER_TEMP/bundle" --clobber
+          node scripts/publish-release.mjs --from "$RUNNER_TEMP/bundle"
+          gh release upload "v$VERSION" web-landing/public/downloads/"$VERSION"/* --clobber
+
+      - name: Commit releases.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web-landing/src/data/releases.json
+          git diff --cached --quiet || git commit -m "chore(web): perbarui manifest unduhan installer"
+          git push origin HEAD:main

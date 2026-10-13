@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "SORAJA ENGINE",
+  "productName": "Soraja Engine",
   "version": "1.0.0",
   "identifier": "com.soraja.engine",
   "build": {
