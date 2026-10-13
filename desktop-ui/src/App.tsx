@@ -12,11 +12,13 @@ import { AppModals } from './components/AppModals';
 import { EmbeddedCliTerminal } from './components/terminal/EmbeddedCliTerminal';
 import { useTerminalManager } from './hooks/useTerminalManager';
 import { useTerminalRouting } from './hooks/useTerminalRouting';
+import { useAutoApplyToast } from './hooks/useAutoApplyToast';
 import type { ProjectRecord } from './types/database';
 import type { AgentProvider } from './types/agent';
 
 export default function App() {
   const ws = useWorkspaceState();
+  useAutoApplyToast(ws.messages, ws.showDbToast);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeViewMode, setActiveViewMode] = useState<'chat' | 'terminal'>('chat');
   const [hasOpenedTerminal, setHasOpenedTerminal] = useState(activeViewMode === 'terminal');
@@ -206,13 +208,6 @@ export default function App() {
             terminalManager.openResumeTab(agent, ws.activeProject.path, conv.cliSessionId, conv.id);
             setActiveViewMode('terminal');
           }}
-          onOpenHitlModal={() =>
-            ws.setHitlModal({
-              open: true,
-              command: 'cargo check -p soraja-core',
-              selectedOption: 1,
-            })
-          }
         />
 
         <div className="flex-1 flex min-w-0 overflow-hidden relative">
@@ -282,10 +277,6 @@ export default function App() {
                     turnPrompt: lastUserMsg?.content || 'Perubahan kode otonom',
                   });
                 }}
-                onAcceptAllEdits={() =>
-                  ws.showDbToast('Semua perubahan kode berhasil diterima dan diterapkan ke proyek.')
-                }
-                onDismissEdits={() => ws.showDbToast('Perubahan kode diabaikan.')}
               />
 
               <ChatInputBar
@@ -335,14 +326,6 @@ export default function App() {
               onSelectFile={(idx) =>
                 ws.setActiveDiffReview((prev) => (prev ? { ...prev, activeFileIndex: idx } : null))
               }
-              onAccept={(file) => {
-                ws.showDbToast(`Perubahan pada ${file.file} berhasil diterima.`);
-                ws.setActiveDiffReview(null);
-              }}
-              onDiscard={(file) => {
-                ws.showDbToast(`Perubahan pada ${file.file} dibatalkan.`);
-                ws.setActiveDiffReview(null);
-              }}
             />
           )}
         </div>

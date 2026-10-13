@@ -106,9 +106,13 @@ pub async fn spawn_headless_agent(
 #[tauri::command]
 pub fn stop_agent_session(pid: u32) -> Result<(), String> {
     #[cfg(windows)]
-    let status = std::process::Command::new("taskkill")
-        .args(["/F", "/T", "/PID", &pid.to_string()])
-        .status();
+    let status = {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+            .status()
+    };
     #[cfg(not(windows))]
     let status = std::process::Command::new("kill")
         .args(["-9", &pid.to_string()])
@@ -122,8 +126,10 @@ fn nt_process_call(pid: u32, func: &str) -> Result<(), String> {
     let script = format!(
         "$src = @\"\nusing System;\nusing System.Runtime.InteropServices;\npublic class W32 {{ [DllImport(\\\"kernel32.dll\\\")] public static extern IntPtr OpenProcess(uint a, bool b, uint c); [DllImport(\\\"ntdll.dll\\\")] public static extern int {func}(IntPtr h); [DllImport(\\\"kernel32.dll\\\")] public static extern bool CloseHandle(IntPtr h); }}\n\"@; Add-Type -TypeDefinition $src; $h = [W32]::OpenProcess(0x0800, $false, {pid}); if ($h -ne [IntPtr]::Zero) {{ [W32]::{func}($h); [W32]::CloseHandle($h); }}",
     );
+    use std::os::windows::process::CommandExt;
     std::process::Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .status()
         .map(|_| ())
         .map_err(|e| e.to_string())

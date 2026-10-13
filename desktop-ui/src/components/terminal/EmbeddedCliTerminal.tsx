@@ -9,12 +9,7 @@ import type { AgentProvider } from '../../types/agent';
 import type { CredentialRecord, ProjectRecord } from '../../types/database';
 import { FALLBACK_AGENT_PROVIDERS } from '../../constants/agentProviders';
 import { findTabByPath, type TerminalTab } from '../../hooks/useTerminalManager';
-import {
-  blobToBase64,
-  readImageFromClipboard,
-  readTextFromClipboard,
-  saveBase64ImageToServer,
-} from '../../utils/imagePasteHelper';
+import { readTextFromClipboard } from '../../utils/imagePasteHelper';
 import { SingleTerminalView } from './SingleTerminalView';
 import { QuickActionsMenu } from './QuickActionsMenu';
 import { TerminalToolsMenu } from './TerminalToolsMenu';
@@ -24,6 +19,7 @@ import { AgentLauncherDropdown } from './AgentLauncherDropdown';
 import { AgentSwitcher } from './AgentSwitcher';
 import { getSlashConfig } from './slashConfig';
 import { useTerminalZoom } from './useTerminalZoom';
+import { useTerminalImageInsert } from './useTerminalImageInsert';
 
 interface EmbeddedCliTerminalProps {
   isLight: boolean;
@@ -111,7 +107,6 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
   const [pasteToast, setPasteToast] = useState<string | null>(null);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const quickActionsRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -166,19 +161,12 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
   const activeTargetDir =
     tabs.find((t) => t.id === activeTabId)?.projectPath || selectedDirectory || currentProjectPath;
 
-  const insertImage = useCallback(
-    async (blob: Blob, filename: string) => {
-      const base64 = await blobToBase64(blob);
-      const res = await saveBase64ImageToServer(activeTargetDir, base64, filename);
-      if (res.success && res.filePath) {
-        sendInputToActive(`"${res.filePath}" `);
-        showToast(`🖼️ Gambar (${res.filename}) disisipkan ke prompt!`);
-        return true;
-      }
-      return false;
-    },
-    [activeTargetDir, sendInputToActive, showToast]
-  );
+  const imageInsert = useTerminalImageInsert({
+    targetDir: activeTargetDir,
+    sendInput: sendInputToActive,
+    focusTerminal: focusActiveTerminal,
+    showToast,
+  });
 
   const handlePasteText = useCallback(async () => {
     const text = await readTextFromClipboard();
@@ -189,33 +177,6 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
       showToast('⚠️ Clipboard teks kosong');
     }
   }, [sendInputToActive, showToast]);
-
-  const handlePasteImageOrPick = useCallback(async () => {
-    const clipboardImage = await readImageFromClipboard();
-    if (clipboardImage) {
-      try {
-        if (await insertImage(clipboardImage.blob, clipboardImage.filename)) return;
-      } catch (err) {
-        console.error('Gagal memproses gambar clipboard:', err);
-      }
-    }
-    fileInputRef.current?.click(); // tidak ada gambar di clipboard → pilih berkas
-  }, [insertImage]);
-
-  const handleFilePicked = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        await insertImage(file, file.name);
-      } catch (err) {
-        console.error('Gagal mengunggah gambar:', err);
-      } finally {
-        e.target.value = '';
-      }
-    },
-    [insertImage]
-  );
 
   const handleSelectTab = (tabId: string) => {
     if (externalSelectTab) externalSelectTab(tabId);
@@ -358,12 +319,19 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
             onSend={sendInputToActive}
             onClearScreen={clearActiveTerminal}
             onPasteText={handlePasteText}
-            onPasteImage={handlePasteImageOrPick}
+            onPasteImage={imageInsert.pasteImageFromClipboard}
+            onPickImageFile={imageInsert.pickImageFile}
             onZoomIn={zoom.handleZoomIn}
             onZoomOut={zoom.handleZoomOut}
             onResetZoom={zoom.handleResetZoom}
           />
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFilePicked} className="hidden" />
+          <input
+            ref={imageInsert.fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={imageInsert.handleFilePicked}
+            className="hidden"
+          />
           {onSwitchAgent && currentActiveTab && (
             <AgentSwitcher
               isLight={isLight}

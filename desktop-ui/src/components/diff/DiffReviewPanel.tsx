@@ -3,7 +3,6 @@ import {
   Check,
   X,
   ChevronDown,
-  RotateCcw,
   Sparkles,
   Layers,
 } from 'lucide-react';
@@ -19,8 +18,6 @@ interface DiffReviewPanelProps {
   isLight?: boolean;
   onClose: () => void;
   onSelectFile: (index: number) => void;
-  onAccept: (file: CodeEditChunk) => void;
-  onDiscard?: (file: CodeEditChunk) => void;
 }
 
 export function DiffReviewPanel({
@@ -28,8 +25,6 @@ export function DiffReviewPanel({
   isLight = false,
   onClose,
   onSelectFile,
-  onAccept,
-  onDiscard,
 }: DiffReviewPanelProps) {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [dismissTurnPrompt, setDismissTurnPrompt] = useState(false);
@@ -194,34 +189,16 @@ export function DiffReviewPanel({
           )}
         </div>
 
-        {/* Action Buttons: Discard & Accept */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => onDiscard?.(currentEdit)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl transition cursor-pointer border ${
-              isLight
-                ? 'bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-300 hover:border-rose-300'
-                : 'bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border-slate-800 hover:border-rose-800/60'
-            }`}
-            title="Abaikan dan kembalikan berkas ke versi awal"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Abaikan</span>
-          </button>
-
-          <button
-            onClick={() => onAccept(currentEdit)}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer border shadow-sm ${
-              isLight
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-emerald-600/20'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-emerald-900/40'
-            }`}
-            title="Terapkan perubahan kode ke workspace lokal"
-          >
-            <Check className="w-3.5 h-3.5" />
-            <span>Terima Perubahan</span>
-          </button>
-        </div>
+        {/* Status: perubahan sudah diterapkan otomatis ke berkas kerja */}
+        <span
+          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border shrink-0 ${
+            isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+          }`}
+          title="Perubahan ini sudah ditulis langsung ke berkas proyek"
+        >
+          <Check className="w-3.5 h-3.5" />
+          <span>Sudah diterapkan</span>
+        </span>
       </div>
 
       {/* 3. Code Diff Lines Area (Ref: media_1791276997336.png with Line numbers & Gutter badges) */}
@@ -340,7 +317,7 @@ export function DiffReviewPanel({
           <span>•</span>
           <span className="text-rose-500 font-bold">-{currentEdit.deletions} dihapus</span>
         </div>
-        <span className="text-slate-500 hidden sm:inline">Diff Review Siap</span>
+        <span className="text-slate-500 hidden sm:inline">Diterapkan otomatis</span>
       </div>
     </div>
   );

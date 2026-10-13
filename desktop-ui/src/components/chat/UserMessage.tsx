@@ -25,7 +25,9 @@ export function UserMessage({ msg, isLight, onPreviewImage }: UserMessageProps) 
                 key={att.id}
                 onClick={() => onPreviewImage(att.previewUrl || '', `#${idx + 1} · ${att.name}`)}
                 className="group/img relative rounded-lg overflow-hidden border border-white/20 aspect-square bg-black/20 cursor-zoom-in"
-                title={att.savedPath ? `${att.name} — diteruskan ke agen` : att.name}
+                title={`${att.name}${att.savedPath ? ' — diteruskan ke agen' : ''}
+Klik untuk memperbesar & menyalin gambar`}
+                aria-label={`Perbesar gambar #${idx + 1}: ${att.name}`}
               >
                 <img src={att.previewUrl} alt={att.name} className="w-full h-full object-cover" />
                 <span className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity grid place-items-center">

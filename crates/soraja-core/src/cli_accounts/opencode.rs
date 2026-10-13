@@ -71,12 +71,21 @@ pub fn usage() -> Option<CliUsage> {
     }
     let bin = bin.unwrap_or_else(|| "opencode".into());
     let lower = bin.to_lowercase();
-    let output = if cfg!(windows) && (lower.ends_with(".cmd") || lower.ends_with(".bat")) {
-        std::process::Command::new("cmd").args(["/c", &bin, "stats"]).output()
+    let mut cmd = if cfg!(windows) && (lower.ends_with(".cmd") || lower.ends_with(".bat")) {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/c", &bin, "stats"]);
+        c
     } else {
-        std::process::Command::new(&bin).arg("stats").output()
+        let mut c = std::process::Command::new(&bin);
+        c.arg("stats");
+        c
+    };
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    .ok()?;
+    let output = cmd.output().ok()?;
     if !output.status.success() {
         return None;
     }

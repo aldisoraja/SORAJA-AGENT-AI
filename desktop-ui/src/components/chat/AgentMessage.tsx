@@ -16,8 +16,6 @@ interface AgentMessageProps {
   /** Dipakai untuk pesan lama yang belum menyimpan identitas agen. */
   fallbackAgent: AgentProvider;
   onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number) => void;
-  onAcceptAllEdits: () => void;
-  onDismissEdits: () => void;
 }
 
 const WIDTH = { narrow: 'max-w-2xl', default: 'max-w-4xl', wide: 'max-w-5xl' } as const;
@@ -40,8 +38,6 @@ export function AgentMessage({
   settings,
   fallbackAgent,
   onOpenDiffReview,
-  onAcceptAllEdits,
-  onDismissEdits,
 }: AgentMessageProps) {
   const running = msg.status === 'running';
   const now = useTicker(running);
@@ -84,13 +80,7 @@ export function AgentMessage({
       )}
 
       {msg.codeEdits && msg.codeEdits.length > 0 && !running && (
-        <CodeEditsCard
-          edits={msg.codeEdits}
-          isLight={isLight}
-          onOpenDiffReview={onOpenDiffReview}
-          onAcceptAllEdits={onAcceptAllEdits}
-          onDismissEdits={onDismissEdits}
-        />
+        <CodeEditsCard edits={msg.codeEdits} isLight={isLight} onOpenDiffReview={onOpenDiffReview} />
       )}
 
       {!running && msg.content.trim() && (

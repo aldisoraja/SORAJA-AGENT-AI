@@ -326,7 +326,7 @@ export async function synthesizeTargetFileVibeResponse(
   const reasoning = `${personaHeader}1. Target File Terdeteksi: Berkas ${targetFile} (${shortName}).
 2. Analisis Perubahan: Berhasil mengekstrak instruksi dan ${actionSummary} ${shortName}.
 3. Eksekusi Nyata: Memperbarui isi berkas (+${codeEditItem.additions} baris, -${codeEditItem.deletions} baris).
-4. Hasil: Perubahan kode riil siap ditinjau di panel Diff Review.`;
+4. Hasil: Perubahan kode riil sudah diterapkan langsung ke berkas kerja.`;
 
   const content = `### ✨ Berkas \`${shortName}\` Berhasil Diperbarui!
 
@@ -337,7 +337,7 @@ Target berkas: **\`${targetFile}\`**
 
 Saya telah membaca berkas **\`${shortName}\`** dan ${actionSummary} sesuai perintah Anda secara nyata.
 
-Perubahan kode telah dirancang secara presisi. Silakan tinjau perbedaan kode (*diff*) pada panel di bawah ini, lalu klik tombol **Terima Perubahan** untuk mengonfirmasi!
+Perubahan kode sudah diterapkan langsung ke berkas kerja. Klik nama berkas di bawah bila ingin melihat perbedaan kodenya (*diff*).
 
 ${
   !apiKey

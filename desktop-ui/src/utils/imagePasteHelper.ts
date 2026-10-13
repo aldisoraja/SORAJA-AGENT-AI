@@ -4,6 +4,8 @@
  * Mendukung ekstraksi gambar clipboard, penyimpanan ke folder proyek lokal (.soraja/images/),
  * serta pembacaan/penulisan teks multibaris (kata, kalimat, paragraf).
  */
+import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from '../services/headlessTransport';
 
 export interface SavedImageResult {
   success: boolean;
@@ -30,42 +32,41 @@ export function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/** Id "pesan" tetap untuk lampiran terminal: berkas masuk ke `<proyek>/.soraja/attachments/terminal-cli/`. */
+const TERMINAL_ATTACHMENT_ID = 'terminal-cli';
+
 /**
- * Menyimpan data gambar Base64 ke server backend lokal
+ * Menyimpan gambar (data URL/Base64) ke folder proyek agar CLI agen bisa membacanya.
+ * Desktop: IPC Tauri `save_chat_attachment` (specs/ipc-contracts.md §4). Browser dev: jembatan Vite
+ * `/api/save-chat-attachment`.
  */
 export async function saveBase64ImageToServer(
   projectPath: string,
   imageBase64: string,
   filename?: string
 ): Promise<SavedImageResult> {
+  if (!projectPath) return { success: false, error: 'Folder proyek belum dipilih.' };
+  const fileName = filename || `lampiran_${Date.now()}.png`;
   try {
-    const response = await fetch('/api/save-clipboard-image', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    if (isTauriRuntime) {
+      const filePath = await invoke<string>('save_chat_attachment', {
         projectPath,
-        imageBase64,
-        filename,
-      }),
-    });
-
-    if (!response.ok) {
-      const errJson = await response.json().catch(() => ({}));
-      return {
-        success: false,
-        error: errJson.error || `HTTP error ${response.status}`,
-      };
+        messageId: TERMINAL_ATTACHMENT_ID,
+        fileName,
+        dataBase64: imageBase64,
+      });
+      return { success: true, filePath, filename: fileName };
     }
-
-    const data: SavedImageResult = await response.json();
-    return data;
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.message || 'Gagal terhubung ke endpoint penyimpan gambar',
-    };
+    const response = await fetch('/api/save-chat-attachment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectPath, messageId: TERMINAL_ATTACHMENT_ID, fileName, dataBase64: imageBase64 }),
+    });
+    const body = (await response.json().catch(() => ({}))) as { filePath?: string; error?: string };
+    if (!response.ok || !body.filePath) return { success: false, error: body.error || `HTTP ${response.status}` };
+    return { success: true, filePath: body.filePath, filename: fileName };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -78,6 +79,8 @@ export async function readImageFromClipboard(): Promise<{ blob: Blob; filename: 
   }
 
   try {
+    // WebView2 menolak clipboard.read() bila dokumen tidak sedang fokus (mis. setelah klik menu).
+    window.focus();
     const items = await navigator.clipboard.read();
     for (const item of items) {
       const imageType = item.types.find((t) => t.startsWith('image/'));

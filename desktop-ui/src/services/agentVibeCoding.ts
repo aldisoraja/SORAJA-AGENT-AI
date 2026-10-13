@@ -304,7 +304,7 @@ Always explain your reasoning and modifications in clear Indonesian.`;
       trajectory.push({ type: 'running', label: 'Verifikasi linter & integritas kode' });
 
       if (!finalContent) {
-        finalContent = `### ✨ Perubahan Kode Selesai Diterapkan!\n\nSaya telah menganalisis instruksi Anda dan memodifikasi **${editedFiles.length} berkas** secara otomatis di workspace **${projectPath}**.\n\nSilakan tinjau perbedaan kode di bawah melalui panel **Diff Review** dan klik **Approve Diff** untuk mengonfirmasi.`;
+        finalContent = `### ✨ Perubahan Kode Selesai Diterapkan!\n\nSaya telah menganalisis instruksi Anda dan memodifikasi **${editedFiles.length} berkas** secara otomatis di workspace **${projectPath}**.\n\nPerubahan sudah diterapkan langsung ke berkas kerja. Klik nama berkas di bawah bila ingin melihat perbedaan kodenya.`;
       }
 
       return {

@@ -40,14 +40,17 @@ impl TerminalExecutor {
     /// Mengeksekusi command secara asynchronous di dalam isolasi direktori agen
     pub async fn run_command(&self, cmd: &str) -> Result<String> {
         // Pada Windows, kita secara spesifik mengeksekusi via PowerShell agar kompatibilitas terjamin
-        let output = Command::new("powershell")
-            .arg("-Command")
+        let mut command = Command::new("powershell");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command"])
             .arg(cmd)
             .current_dir(&self.worktree_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .await?;
+            .stderr(Stdio::piped());
+        // Aplikasi GUI tanpa konsol: tanpa flag ini setiap perintah memunculkan jendela terminal sekilas.
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        let output = command.output().await?;
             
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);

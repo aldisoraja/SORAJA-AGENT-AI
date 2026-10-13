@@ -254,6 +254,7 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
           file.name || `lampiran_${Date.now()}.png`
         );
         if (res.success && res.filePath) sendInput(`"${res.filePath}" `);
+        else console.error('Gagal menyimpan gambar paste:', res.error);
       } catch (err) {
         console.error('Gagal memproses gambar paste:', err);
       }
@@ -269,7 +270,7 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
       }
     };
 
-    containerEl.addEventListener('paste', onDomPaste);
+    containerEl.addEventListener('paste', onDomPaste, true); // capture: lebih dulu dari handler paste bawaan xterm
     containerEl.addEventListener('contextmenu', onContextMenu);
     resizeObserver.observe(containerEl);
 
@@ -277,7 +278,7 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
       clearTimeout(initTimer);
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
-      containerEl.removeEventListener('paste', onDomPaste);
+      containerEl.removeEventListener('paste', onDomPaste, true);
       containerEl.removeEventListener('contextmenu', onContextMenu);
       unsubscribe();
       ptyRelease(targetSessionId);

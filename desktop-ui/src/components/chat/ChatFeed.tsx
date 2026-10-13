@@ -17,8 +17,6 @@ interface ChatFeedProps {
   onToggleReasoning?: (msgId: string) => void;
   onOpenNewProjectWizard: () => void;
   onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number) => void;
-  onAcceptAllEdits: () => void;
-  onDismissEdits: () => void;
 }
 
 /** Jarak (px) dari dasar yang masih dianggap "mengikuti" percakapan untuk auto-scroll. */
@@ -33,8 +31,6 @@ export function ChatFeed({
   isGenerating = false,
   onOpenNewProjectWizard,
   onOpenDiffReview,
-  onAcceptAllEdits,
-  onDismissEdits,
 }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -118,8 +114,6 @@ export function ChatFeed({
                     settings={settings}
                     fallbackAgent={selectedAgent}
                     onOpenDiffReview={onOpenDiffReview}
-                    onAcceptAllEdits={onAcceptAllEdits}
-                    onDismissEdits={onDismissEdits}
                   />
                 )}
               </div>

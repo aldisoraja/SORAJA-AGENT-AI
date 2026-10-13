@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Clipboard, Image as ImageIcon, Layers, MoreVertical, Sparkles, ZoomIn, ZoomOut } from 'lucide-react';
+import { Activity, Clipboard, FolderOpen, Image as ImageIcon, Layers, MoreVertical, Sparkles, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SlashConfig } from './slashConfig';
 import { MenuDivider, MenuSectionTitle, TerminalMenuItem, menuPanelClass, menuTriggerClass } from './TerminalMenuItem';
 
@@ -18,6 +18,7 @@ interface TerminalToolsMenuProps {
   onClearScreen: () => void;
   onPasteText: () => void;
   onPasteImage: () => void;
+  onPickImageFile: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -38,6 +39,7 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
   onClearScreen,
   onPasteText,
   onPasteImage,
+  onPickImageFile,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -94,9 +96,15 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
           />
           <TerminalMenuItem
             icon={<ImageIcon className="w-4 h-4 text-pink-400 shrink-0" />}
-            title="Sisipkan Gambar"
-            subtitle="Kirim gambar dari clipboard / file"
+            title="Tempel Gambar dari Clipboard"
+            subtitle="Sisipkan screenshot / gambar yang baru disalin"
             onClick={run(onPasteImage)}
+          />
+          <TerminalMenuItem
+            icon={<FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />}
+            title="Pilih Berkas Gambar dari Komputer"
+            subtitle="Buka dialog untuk memilih berkas gambar"
+            onClick={run(onPickImageFile)}
           />
 
           <MenuDivider isLight={isLight} />
