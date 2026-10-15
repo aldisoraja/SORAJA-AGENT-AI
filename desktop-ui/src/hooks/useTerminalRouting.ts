@@ -3,10 +3,10 @@
  * Sinkronisasi dua arah antara tab Terminal CLI dan state workspace (agen, proyek, percakapan),
  * serta routing pemilihan percakapan ke Chat GUI atau Terminal.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { sorajaDb, type ConversationRecord, type ProjectRecord } from '../services/db';
 import type { AgentProvider } from '../types/agent';
-import { isCliConversation } from '../utils/conversationTitle';
+import { cliTitleFromInput, isCliConversation, isCliPlaceholderTitle, isPlaceholderTitle, uniqueConversationTitle } from '../utils/conversationTitle';
 import { findTabByPath, type TerminalTab, type useTerminalManager } from './useTerminalManager';
 import type { WorkspaceState } from './useWorkspaceState';
 
@@ -18,93 +18,105 @@ export function useTerminalRouting(
   setActiveViewMode: (mode: 'chat' | 'terminal') => void,
   activeViewMode: 'chat' | 'terminal'
 ) {
+  // Tab yang label sesi CLI-nya sudah diurus (pelabelan placeholder bawaan cukup sekali per tab).
+  const labeledTabs = useRef(new Set<string>());
+
   // Sinkronisasi dua arah agen ↔ tab terminal HANYA saat mode Terminal aktif, agar pilihan agen
   // di Chat GUI tidak tertimpa tab terminal (dan tidak memicu spawn CLI di latar belakang).
-  // 1. Tab Mesin CLI aktif → agen terpilih
+  // 1. Tab Mesin CLI aktif → agen terpilih & proyek aktif. Proyek ikut disinkronkan agar efek (2)
+  //    tidak menarik fokus kembali ke tab proyek lama (bug: ganti agen di tab 1 → loncat ke tab 2).
   useEffect(() => {
     if (activeViewMode !== 'terminal') return;
     const activeTab = terminalManager.tabs.find((t) => t.id === terminalManager.activeTabId);
-    if (activeTab && activeTab.agent.id !== ws.selectedAgent.id) {
+    if (!activeTab) return;
+    if (activeTab.agent.id !== ws.selectedAgent.id) {
       ws.selectAgentById(activeTab.agent.id);
+    }
+    const norm = (p?: string) => (p || '').toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
+    if (norm(ws.activeProject?.path) !== norm(activeTab.projectPath)) {
+      const proj = ws.projects.find((p) => norm(p.path) === norm(activeTab.projectPath));
+      if (proj) ws.setActiveProject(proj);
     }
   }, [terminalManager.activeTabId, terminalManager.tabs, activeViewMode]);
 
-  // 2. Agen terpilih & proyek aktif → tab Mesin CLI
+  // 2. Proyek aktif → tab Mesin CLI. Sengaja TIDAK bergantung pada agen terpilih: pergantian agen
+  //    (dari tab aktif) tidak boleh memindahkan fokus tab.
   useEffect(() => {
     if (activeViewMode === 'terminal' && ws.activeProject) {
       terminalManager.syncActiveProject(ws.selectedAgent, ws.activeProject.path);
     }
-  }, [ws.selectedAgent.id, ws.activeProject?.id, activeViewMode]);
+  }, [ws.activeProject?.id, activeViewMode]);
 
   // Catatan: tab terminal TIDAK otomatis dicatat sebagai percakapan di sidebar Chat GUI.
 
-  // Handler pembaruan judul percakapan dari inputan pertama pengguna di terminal CLI
-  const handleUpdateTabTitle = async (tab: TerminalTab, title: string) => {
-    const cleanTitle = title.trim();
-    if (!cleanTitle) return;
-
-    // Normalisasi fungsi pembantu path direktori
+  // Input pertama pengguna di terminal CLI: beri label sesi CLI proyek+agen itu ("CLI · <input>").
+  // Hanya menyentuh sesi `conv-cli-*`; placeholder "Percakapan baru" milik Chat GUI tidak diubah.
+  const handleCliFirstInput = async (tab: TerminalTab, line: string) => {
     const norm = (p?: string) => (p || '').toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
+    const proj = ws.projects.find((p) => norm(p.path) === norm(tab.projectPath));
+    if (!proj) return;
 
-    // 1. Tarik daftar percakapan terbaru langsung dari database SQLite / localStorage
-    const allConvs = await sorajaDb.getConversations();
+    // Draf "Percakapan baru (N)" kosong yang sedang aktif lalu dipakai mengetik di terminal:
+    // draf itu menjadi sesi CLI berlabel input pertama (draf kosong dihapus agar tidak tersisa label salah).
+    const draft = ws.activeConversation;
+    if (draft && draft.projectId === proj.id && !isCliConversation(draft) && isPlaceholderTitle(draft.title)) {
+      const draftMsgs = await sorajaDb.getMessages(draft.id);
+      if (draftMsgs.length === 0) {
+        const titles = (await sorajaDb.getConversations())
+          .filter((c) => c.projectId === proj.id && c.id !== draft.id)
+          .map((c) => c.title);
+        const now = new Date().toISOString();
+        const newConv: ConversationRecord = {
+          id: `conv-cli-${tab.agent.id}-${Date.now()}`,
+          projectId: proj.id,
+          title: uniqueConversationTitle(cliTitleFromInput(line), titles),
+          agentId: tab.agent.id,
+          modelId: tab.agent.models[0]?.id || 'default',
+          status: 'active',
+          timeAgo: 'Baru saja',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await sorajaDb.deleteConversation(draft.id);
+        ws.setConversations(await sorajaDb.createConversation(newConv));
+        ws.setActiveConversation(newConv);
+        ws.touchProjectActivity(proj.id);
+        return;
+      }
+    }
 
-    const isDefaultTitle = (t?: string) => {
-      if (!t) return true;
-      const lower = t.trim().toLowerCase();
-      return (
-        t.startsWith('Percakapan Baru') ||
-        lower.startsWith('percakapan baru') ||
-        lower.startsWith('sesi ') ||
-        lower.startsWith('percakapan ') ||
-        lower.includes('cli')
+    if (labeledTabs.current.has(tab.id)) return;
+    labeledTabs.current.add(tab.id);
+
+    const all = await sorajaDb.getConversations();
+    const cliConv =
+      all.find((c) => c.id === tab.conversationId && isCliConversation(c)) ??
+      all.find((c) => c.projectId === proj.id && c.agentId === tab.agent.id && isCliConversation(c));
+    if (cliConv && !isCliPlaceholderTitle(cliConv.title)) return; // sesi sudah berlabel; dipakai ulang
+
+    const otherTitles = all.filter((c) => c.projectId === proj.id && c.id !== cliConv?.id).map((c) => c.title);
+    const title = uniqueConversationTitle(cliTitleFromInput(line), otherTitles);
+
+    if (cliConv) {
+      ws.setConversations(await sorajaDb.updateConversationTitle(cliConv.id, title));
+    } else {
+      const now = new Date().toISOString();
+      const id = tab.conversationId && tab.conversationId.startsWith('conv-cli-') ? tab.conversationId : `conv-cli-${tab.agent.id}-${Date.now()}`;
+      ws.setConversations(
+        await sorajaDb.createConversation({
+          id,
+          projectId: proj.id,
+          title,
+          agentId: tab.agent.id,
+          modelId: tab.agent.models[0]?.id || 'default',
+          status: 'active',
+          timeAgo: 'Baru saja',
+          createdAt: now,
+          updatedAt: now,
+        })
       );
-    };
-
-    let targetConv: ConversationRecord | undefined = undefined;
-
-    // Prioritas 1: Jika percakapan aktif pengguna (activeConversation) saat ini judulnya MASIH DEFAULT
-    if (ws.activeConversation && isDefaultTitle(ws.activeConversation.title)) {
-      targetConv = allConvs.find((c) => c.id === ws.activeConversation?.id);
     }
-
-    // Prioritas 2: Cari berdasarkan tab.conversationId jika ada dan judulnya masih default
-    if (!targetConv && tab.conversationId) {
-      const matchByTabConv = allConvs.find((c) => c.id === tab.conversationId);
-      if (matchByTabConv && isDefaultTitle(matchByTabConv.title)) {
-        targetConv = matchByTabConv;
-      }
-    }
-
-    // Prioritas 3: Cari proyek terkait (utamakan ws.activeProject atau cocokkan tab.projectPath)
-    let targetProj = ws.activeProject;
-    if (!targetProj || (tab.projectPath && norm(targetProj.path) !== norm(tab.projectPath))) {
-      const matchedProj = ws.projects.find((p) => norm(p.path) === norm(tab.projectPath));
-      if (matchedProj) {
-        targetProj = matchedProj;
-      }
-    }
-
-    // Jika targetConv belum ditemukan, cari percakapan ber-judul default di proyek tersebut
-    if (!targetConv && targetProj) {
-      const projConvs = allConvs.filter((c) => c.projectId === targetProj.id);
-      targetConv = projConvs.find((c) => isDefaultTitle(c.title));
-    }
-
-    // Jika targetConv ditemukan (dan judulnya masih default):
-    if (targetConv) {
-      const updatedConvs = await sorajaDb.updateConversationTitle(targetConv.id, cleanTitle);
-      ws.setConversations(updatedConvs);
-      ws.setActiveConversation({ ...targetConv, title: cleanTitle });
-      if (targetProj) {
-        ws.touchProjectActivity(targetProj.id);
-      }
-      ws.showDbToast(`Judul percakapan diperbarui: "${cleanTitle}"`);
-      return;
-    }
-
-    // Tidak ada percakapan yang cocok: JANGAN membuat entri baru di sidebar Chat GUI.
-    // Ketikan di terminal CLI hanya boleh memengaruhi judul tab terminal lokal.
+    ws.touchProjectActivity(proj.id);
   };
 
   // Handler membuka tab terminal sekaligus mencatat percakapan di database proyek
@@ -150,13 +162,14 @@ export function useTerminalRouting(
     await ws.handleSelectConversation(proj, conv);
     ws.touchProjectActivity(proj.id);
     if (isCliConversation(conv)) {
-      // 1 tab = 1 direktori: cukup fokus ke tab direktori ini (agennya tidak diganti diam-diam)
+      // 1 tab = 1 direktori. Sesi CLI milik agen tertentu, jadi tab direktori ini harus memakai agen
+      // percakapan yang diklik; bila berbeda, agen tab diganti agar terminal cocok dengan percakapan & sidebar.
+      const agent = ws.agentProviders.find((a) => a.id === conv.agentId) || ws.selectedAgent;
       const matchingTab = findTabByPath(terminalManager.tabs, proj.path);
-      if (matchingTab) {
+      if (matchingTab && matchingTab.agent.id === agent.id) {
         terminalManager.setActiveTabId(matchingTab.id);
       } else {
-        const agent = ws.agentProviders.find((a) => a.id === conv.agentId) || ws.selectedAgent;
-        terminalManager.openTab(agent, proj.path, undefined, false);
+        terminalManager.openTab(agent, proj.path, conv.id, true);
       }
       setActiveViewMode('terminal');
     } else {
@@ -164,5 +177,5 @@ export function useTerminalRouting(
     }
   };
 
-  return { handleUpdateTabTitle, handleOpenTerminalTab, handleSelectConversationWithRouting };
+  return { handleCliFirstInput, handleOpenTerminalTab, handleSelectConversationWithRouting };
 }

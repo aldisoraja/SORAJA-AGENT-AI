@@ -19,6 +19,16 @@ export function isPlaceholderTitle(title: string): boolean {
   return /^Percakapan baru( \(\d+\))?$/i.test(title.trim());
 }
 
+/** Judul bawaan sesi CLI ("Sesi Claude CLI"); diganti "CLI · <input pertama>" saat pengguna mengetik di terminal. */
+export function isCliPlaceholderTitle(title: string): boolean {
+  return /^Sesi .+ CLI$/i.test(title.trim());
+}
+
+/** Label sesi CLI dari input pertama di terminal. */
+export function cliTitleFromInput(line: string): string {
+  return `CLI · ${titleFromPrompt(line, 'sesi')}`;
+}
+
 /** Judul dari input pertama: baris pertama berisi, spasi dirapikan, maks. 60 karakter. */
 export function titleFromPrompt(prompt: string, fallback = NEW_CHAT_TITLE): string {
   const firstLine =

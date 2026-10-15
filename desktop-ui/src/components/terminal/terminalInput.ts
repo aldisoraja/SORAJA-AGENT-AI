@@ -19,9 +19,15 @@ interface KeyHandlerDeps {
   sendInput: (data: string) => void;
 }
 
+/** Ctrl+N = shortcut global "Percakapan Baru" (ditangani App), bukan input untuk CLI. */
+export function isNewConversationShortcut(e: KeyboardEvent): boolean {
+  return (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n';
+}
+
 /** Shortcut: Ctrl +/-/0 (zoom), Ctrl+L (redraw), Ctrl+C (salin bila ada seleksi). */
 export function createKeyHandler(term: XTerm, deps: KeyHandlerDeps) {
   return (e: KeyboardEvent): boolean => {
+    if (isNewConversationShortcut(e)) return false; // jangan kirim \x0e ke CLI
     if (e.type !== 'keydown' || !(e.ctrlKey || e.metaKey)) return true;
     if (e.key === '=' || e.key === '+' || e.code === 'NumpadAdd') {
       deps.onZoomIn?.();

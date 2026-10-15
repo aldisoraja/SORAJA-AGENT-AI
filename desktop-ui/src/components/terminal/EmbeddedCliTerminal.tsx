@@ -46,6 +46,8 @@ interface EmbeddedCliTerminalProps {
   isVisible?: boolean;
   /** Melaporkan status proses CLI per sesi agar indikator tab ikut ter-render ulang. */
   onTabStatusChange?: (sessionId: string, isRunning: boolean, exitCode: number | null) => void;
+  /** Input pertama pengguna di sebuah tab CLI (untuk melabeli sesi CLI di sidebar). */
+  onTabFirstInput?: (tab: TerminalTab, line: string) => void;
 }
 
 const windowButtonClass = (isLight: boolean, danger = false) =>
@@ -87,6 +89,7 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
   onProjectActivity,
   isVisible = true,
   onTabStatusChange,
+  onTabFirstInput,
 }) => {
   const currentProjectPath = activeProject?.path || '';
   const [selectedDirectory, setSelectedDirectory] = useState<string>(currentProjectPath);
@@ -276,7 +279,7 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <div
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border shadow-2xs ${
-              isLight ? 'bg-blue-50/80 text-blue-800 border-blue-200' : 'bg-slate-800/80 text-cyan-400 border-cyan-500/30'
+              isLight ? 'soraja-grad-soft text-blue-800 border-blue-200' : 'bg-slate-800/80 text-cyan-400 border-cyan-500/30'
             }`}
           >
             <TerminalIcon className="w-3.5 h-3.5" />
@@ -406,6 +409,7 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
             registerSendInput={registerSendInput}
             registerFocus={registerFocus}
             registerClear={registerClear}
+            onFirstInput={(line) => onTabFirstInput?.(tab, line)}
             onStatusChange={(isRunning, exitCode) => {
               if (onTabStatusChange) {
                 onTabStatusChange(tab.sessionId, isRunning, exitCode);
