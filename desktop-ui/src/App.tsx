@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Database } from 'lucide-react';
 
 import { useWorkspaceState } from './hooks/useWorkspaceState';
@@ -12,6 +12,7 @@ import { AppModals } from './components/AppModals';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useBlockBrowserShortcuts } from './hooks/useBlockBrowserShortcuts';
 import { EmbeddedCliTerminal } from './components/terminal/EmbeddedCliTerminal';
+import { isNewConversationShortcut } from './components/terminal/terminalInput';
 import { useTerminalManager } from './hooks/useTerminalManager';
 import { useTerminalRouting } from './hooks/useTerminalRouting';
 import { useAutoApplyToast } from './hooks/useAutoApplyToast';
@@ -38,7 +39,18 @@ export default function App() {
     ws.activeProject?.path || ''
   );
 
-  // Global Ctrl+B shortcut for Toggle Sidebar (Antigravity style)
+  /** "+ Percakapan Baru" (header, rail & Ctrl+N): buka wizard pilih folder → percakapan di direktori baru. */
+  const openNewFolderConversation = () => {
+    ws.refreshInstalledCliAgents();
+    ws.setWizardStep(1);
+    ws.setPickedFolderName('');
+    ws.setPickedFolderPath('');
+    ws.setIsNewProjectModalOpen(true);
+  };
+  const openNewFolderConversationRef = useRef(openNewFolderConversation);
+  openNewFolderConversationRef.current = openNewFolderConversation;
+
+  // Global shortcut: Ctrl+B toggle sidebar (Antigravity style), Ctrl+N percakapan baru di folder baru
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
@@ -46,8 +58,20 @@ export default function App() {
         setIsSidebarCollapsed((prev) => !prev);
       }
     };
+    // Ctrl+N di fase capture: xterm menghentikan propagasi tombol yang ia proses, sehingga
+    // listener bubble tidak pernah terpicu saat fokus berada di terminal.
+    const handleNewConversation = (e: KeyboardEvent) => {
+      if (isNewConversationShortcut(e)) {
+        e.preventDefault();
+        if (!e.repeat) openNewFolderConversationRef.current();
+      }
+    };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleNewConversation, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleNewConversation, true);
+    };
   }, []);
 
   // Auto-collapse sidebar pada layar sempit (< 768px atau laptop kompak) agar UI responsif
@@ -62,7 +86,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const { handleOpenTerminalTab, handleSelectConversationWithRouting } = useTerminalRouting(
+  const { handleOpenTerminalTab, handleSelectConversationWithRouting, handleCliFirstInput } = useTerminalRouting(
     ws,
     terminalManager,
     setActiveViewMode,
@@ -112,7 +136,6 @@ export default function App() {
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         dbHealth={ws.dbHealth}
         conversations={ws.conversations}
-        scheduledTasks={ws.scheduledTasks}
         projects={ws.projects}
         activeProject={ws.activeProject}
         activeConversation={ws.activeConversation}
@@ -126,15 +149,9 @@ export default function App() {
         installedCliAgents={ws.installedCliAgents}
         onOpenSettings={() => ws.setIsSettingsOpen(true)}
         onOpenHistory={() => ws.setIsHistoryModalOpen(true)}
-        onOpenTasks={() => ws.setIsTasksModalOpen(true)}
-        onCreateNewConversation={ws.handleCreateNewConversation}
-        onOpenNewProjectWizard={() => {
-          ws.refreshInstalledCliAgents();
-          ws.setWizardStep(1);
-          ws.setPickedFolderName('');
-          ws.setPickedFolderPath('');
-          ws.setIsNewProjectModalOpen(true);
-        }}
+        onOpenFavorites={() => ws.setIsFavoritesModalOpen(true)}
+        onCreateNewConversation={openNewFolderConversation}
+        onOpenNewProjectWizard={openNewFolderConversation}
         onSetProjectFilterQuery={ws.setProjectFilterQuery}
         onSetFilterTab={ws.setFilterTab}
         onSelectProject={(proj) => {
@@ -144,6 +161,7 @@ export default function App() {
         onSelectConversation={handleSelectConversationWithRouting}
         onToggleProjectCollapsed={ws.toggleProjectCollapsed}
         onTogglePinProject={ws.handleTogglePinProject}
+        onToggleFavoriteConversation={ws.handleToggleFavoriteConversation}
         onDeleteProject={ws.handleDeleteProject}
         onCreateConversationForProject={(proj, e) => {
           ws.handleCreateConversationForProject(proj, e);
@@ -185,8 +203,8 @@ export default function App() {
           ws.isLight
             ? {
                 backgroundImage: `
-                  radial-gradient(ellipse 90% 60% at 50% -10%, rgba(219, 234, 254, 0.6) 0%, transparent 60%),
-                  radial-gradient(ellipse 70% 50% at 100% 50%, rgba(238, 242, 255, 0.7) 0%, transparent 50%),
+                  radial-gradient(ellipse 90% 60% at 50% -10%, rgba(219, 228, 255, 0.55) 0%, transparent 60%),
+                  radial-gradient(ellipse 70% 50% at 100% 50%, rgba(232, 234, 255, 0.65) 0%, transparent 50%),
                   linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)
                 `,
               }
@@ -231,6 +249,7 @@ export default function App() {
               <EmbeddedCliTerminal
                 isVisible={activeViewMode === 'terminal'}
                 onTabStatusChange={terminalManager.setTabStatus}
+                onTabFirstInput={handleCliFirstInput}
                 isLight={ws.isLight}
                 activeProject={ws.activeProject}
                 selectedAgent={ws.selectedAgent}

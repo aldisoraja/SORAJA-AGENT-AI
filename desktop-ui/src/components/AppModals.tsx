@@ -3,13 +3,13 @@ import { NewProjectModal } from './modals/NewProjectModal';
 import { ConnectCredentialModal } from './modals/ConnectCredentialModal';
 import { TerminalPermissionModal } from './modals/TerminalPermissionModal';
 import { HistoryModal } from './modals/HistoryModal';
-import { TasksModal } from './modals/TasksModal';
+import { FavoritesModal } from './modals/FavoritesModal';
 import { ConfirmDialogModal } from './modals/ConfirmDialogModal';
 import { sorajaDb } from '../services/db';
 import type { WorkspaceState } from '../hooks/useWorkspaceState';
 import type { AgentProvider } from '../types/agent';
 
-/** Semua modal tingkat aplikasi (Pengaturan, Wizard, Kredensial, HITL, Riwayat, Tugas, Konfirmasi). */
+/** Semua modal tingkat aplikasi (Pengaturan, Wizard, Kredensial, HITL, Riwayat, Favorit, Konfirmasi). */
 export function AppModals({
   ws,
   onOpenAgentTerminal,
@@ -18,6 +18,10 @@ export function AppModals({
   /** Buka tab Terminal CLI untuk agen (dipakai modal Hubungkan Agen untuk login). */
   onOpenAgentTerminal: (agent: AgentProvider) => void;
 }) {
+  const toggleFavorite = async (convId: string) => {
+    ws.setConversations(await sorajaDb.toggleFavoriteConversation(convId));
+  };
+
   return (
     <>
       {/* 3. Settings Modal */}
@@ -111,18 +115,18 @@ export function AppModals({
         projects={ws.projects}
         onClose={() => ws.setIsHistoryModalOpen(false)}
         onSelectConversation={ws.handleSelectConversation}
+        onToggleFavorite={toggleFavorite}
       />
 
-      {/* 8. Scheduled Tasks Modal */}
-      <TasksModal
+      {/* 8. Favorites Modal */}
+      <FavoritesModal
         isLight={ws.isLight}
-        isOpen={ws.isTasksModalOpen}
-        scheduledTasks={ws.scheduledTasks}
-        onClose={() => ws.setIsTasksModalOpen(false)}
-        onToggleTask={async (taskId) => {
-          const updated = await sorajaDb.toggleScheduledTask(taskId);
-          ws.setScheduledTasks(updated);
-        }}
+        isOpen={ws.isFavoritesModalOpen}
+        conversations={ws.conversations}
+        projects={ws.projects}
+        onClose={() => ws.setIsFavoritesModalOpen(false)}
+        onSelectConversation={ws.handleSelectConversation}
+        onToggleFavorite={toggleFavorite}
       />
 
       {/* 10. Confirmation Dialog Modal */}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { FolderPlus, Search, X, Settings, RefreshCw } from 'lucide-react';
-import type { ProjectRecord, ConversationRecord, ScheduledTaskRecord, CredentialRecord } from '../../types/database';
+import type { ProjectRecord, ConversationRecord, CredentialRecord } from '../../types/database';
 import type { AgentProvider, ModelItem } from '../../types/agent';
 import type { CliAgentStatus } from '../../services/cliAdapters';
 import type { TerminalTab } from '../../hooks/useTerminalManager';
@@ -19,7 +19,6 @@ export interface SidebarProps {
   isCollapsed?: boolean;
   dbHealth: { mode: string; sizeKb: string } | null;
   conversations: ConversationRecord[];
-  scheduledTasks: ScheduledTaskRecord[];
   projects: ProjectRecord[];
   activeProject: ProjectRecord | null;
   activeConversation: ConversationRecord | null;
@@ -34,7 +33,7 @@ export interface SidebarProps {
   onToggleCollapse?: () => void;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
-  onOpenTasks: () => void;
+  onOpenFavorites: () => void;
   onCreateNewConversation: () => void;
   onOpenNewProjectWizard: () => void;
   onSetProjectFilterQuery: (query: string) => void;
@@ -44,6 +43,7 @@ export interface SidebarProps {
   onToggleProjectCollapsed: (projectId: string) => void;
   onTogglePinProject: (projectId: string, e: MouseEvent) => void;
   onDeleteProject: (projectId: string, e: MouseEvent) => void;
+  onToggleFavoriteConversation: (convId: string, e?: MouseEvent) => void;
   onCreateConversationForProject: (proj: ProjectRecord, e: MouseEvent) => void;
   onOpenConnectModal: (agent: AgentProvider) => void;
   onOpenChangeAgentWizard: () => void;
@@ -61,7 +61,6 @@ export function Sidebar({
   isCollapsed = false,
   dbHealth,
   conversations,
-  scheduledTasks,
   projects,
   activeProject,
   activeConversation,
@@ -76,7 +75,7 @@ export function Sidebar({
   onToggleCollapse,
   onOpenSettings,
   onOpenHistory,
-  onOpenTasks,
+  onOpenFavorites,
   onCreateNewConversation,
   onOpenNewProjectWizard,
   onSetProjectFilterQuery,
@@ -86,6 +85,7 @@ export function Sidebar({
   onToggleProjectCollapsed,
   onTogglePinProject,
   onDeleteProject,
+  onToggleFavoriteConversation,
   onCreateConversationForProject,
   onOpenConnectModal,
   onOpenChangeAgentWizard,
@@ -197,7 +197,7 @@ export function Sidebar({
         onToggleSidebar={onToggleCollapse || (() => {})}
         onCreateNewConversation={onCreateNewConversation}
         onOpenHistory={onOpenHistory}
-        onOpenTasks={onOpenTasks}
+        onOpenFavorites={onOpenFavorites}
         onOpenSettings={onOpenSettings}
       />
     );
@@ -209,7 +209,7 @@ export function Sidebar({
         isResizing ? '' : 'transition-[width] duration-150'
       } ${
         isLight
-          ? `bg-gradient-to-b from-white via-slate-50/80 to-slate-100/70 ${
+          ? `bg-gradient-to-b from-white via-slate-50/90 to-indigo-50/40 ${
               isHighContrast ? 'border-r-2 border-slate-300' : 'border-slate-200'
             } text-slate-800`
           : `${isHighContrast ? 'border-r-2 border-slate-600' : 'border-slate-800/60'} text-slate-100`
@@ -225,11 +225,11 @@ export function Sidebar({
           isLight={isLight}
           dbHealth={dbHealth}
           conversationsCount={conversations.length}
-          scheduledTasksCount={scheduledTasks.length}
+          favoritesCount={conversations.filter((c) => c.isFavorite).length}
           onToggleSidebar={onToggleCollapse || (() => {})}
           onOpenSettings={onOpenSettings}
           onOpenHistory={onOpenHistory}
-          onOpenTasks={onOpenTasks}
+          onOpenFavorites={onOpenFavorites}
           onCreateNewConversation={onCreateNewConversation}
         />
 
@@ -238,11 +238,11 @@ export function Sidebar({
           <div className="flex items-center justify-between text-xs px-1">
             <div className="flex items-center gap-1.5">
               <span className={`text-sm font-bold tracking-tight ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                Project
+                Proyek
               </span>
               <button
                 onClick={onOpenNewProjectWizard}
-                title="Buka Folder Proyek Baru"
+                title="Tambah proyek (pilih folder kode di komputer Anda)"
                 className={`p-1 rounded-md transition cursor-pointer ${
                   isLight ? 'text-slate-400 hover:text-blue-600 hover:bg-slate-100' : 'text-slate-500 hover:text-cyan-300 hover:bg-slate-800'
                 }`}
@@ -251,7 +251,7 @@ export function Sidebar({
               </button>
               <button
                 onClick={() => setShowSearch((prev) => !prev)}
-                title="Cari Proyek"
+                title="Cari proyek atau percakapan"
                 className={`p-1 rounded-md transition cursor-pointer ${
                   showSearch || projectFilterQuery
                     ? 'text-cyan-400'
@@ -270,6 +270,7 @@ export function Sidebar({
             }`}>
               <button
                 onClick={() => onSetFilterTab('active')}
+                title="Hanya proyek yang sedang dibuka"
                 className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-md transition cursor-pointer ${
                   filterTab === 'active'
                     ? isLight
@@ -280,10 +281,11 @@ export function Sidebar({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Aktif
+                Dibuka
               </button>
               <button
                 onClick={() => onSetFilterTab('all')}
+                title="Tampilkan semua proyek"
                 className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-md transition cursor-pointer ${
                   filterTab === 'all'
                     ? isLight
@@ -294,7 +296,7 @@ export function Sidebar({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Semua space
+                Semua
               </button>
             </div>
           </div>
@@ -307,7 +309,7 @@ export function Sidebar({
                 type="text"
                 value={projectFilterQuery}
                 onChange={(e) => onSetProjectFilterQuery(e.target.value)}
-                placeholder="Filter proyek..."
+                placeholder="Cari proyek atau percakapan..."
                 className={`w-full rounded-lg pl-7 pr-6 py-1 text-xs border focus:outline-none ${
                   isLight
                     ? 'bg-white border-slate-200 text-slate-800'
@@ -333,7 +335,7 @@ export function Sidebar({
           {isLoadingDb ? (
             <div className="p-4 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
-              <span>Memuat proyek dari database SQLite...</span>
+              <span>Memuat proyek...</span>
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className={`p-4 rounded-xl text-center text-xs border border-dashed m-1 ${
@@ -344,7 +346,7 @@ export function Sidebar({
                 onClick={onOpenNewProjectWizard}
                 className="mt-2 text-blue-600 dark:text-cyan-400 font-semibold hover:underline cursor-pointer block mx-auto text-[11px]"
               >
-                + Buka Folder Proyek Baru
+                + Tambah Proyek
               </button>
             </div>
           ) : (
@@ -365,6 +367,7 @@ export function Sidebar({
                   activeConversation={activeConversation}
                   onCreateConversationForProject={onCreateConversationForProject}
                   onDeleteProject={onDeleteProject}
+                  onToggleFavoriteConversation={onToggleFavoriteConversation}
                   onSelectConversation={onSelectConversation}
                   onSelectProject={onSelectProject}
                   onTogglePinProject={onTogglePinProject}

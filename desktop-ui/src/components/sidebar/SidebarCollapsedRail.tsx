@@ -2,7 +2,7 @@ import {
   PanelLeft,
   Plus,
   History,
-  Clock,
+  Star,
   Layers,
   Settings,
 } from 'lucide-react';
@@ -18,7 +18,7 @@ interface SidebarCollapsedRailProps {
   onToggleSidebar: () => void;
   onCreateNewConversation: () => void;
   onOpenHistory: () => void;
-  onOpenTasks: () => void;
+  onOpenFavorites: () => void;
   onOpenSettings: () => void;
 }
 
@@ -31,7 +31,7 @@ export function SidebarCollapsedRail({
   onToggleSidebar,
   onCreateNewConversation,
   onOpenHistory,
-  onOpenTasks,
+  onOpenFavorites,
   onOpenSettings,
 }: SidebarCollapsedRailProps) {
   return (
@@ -66,10 +66,10 @@ export function SidebarCollapsedRail({
         {/* New Chat Button */}
         <button
           onClick={onCreateNewConversation}
-          title="Percakapan Baru (Ctrl+N)"
+          title="Percakapan baru di folder baru (Ctrl+N)"
           className={`p-2 rounded-xl transition cursor-pointer border shadow-sm ${
             isLight
-              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-blue-500/20'
+              ? 'soraja-grad-primary text-white border-transparent'
               : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-400/30'
           }`}
         >
@@ -79,7 +79,7 @@ export function SidebarCollapsedRail({
         {/* History Button */}
         <button
           onClick={onOpenHistory}
-          title="Riwayat Percakapan"
+          title="Riwayat: lihat dan cari semua percakapan"
           className={`p-2 rounded-xl transition cursor-pointer ${
             isLight
               ? 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
@@ -89,24 +89,24 @@ export function SidebarCollapsedRail({
           <History className="w-4 h-4" />
         </button>
 
-        {/* Tasks Button */}
+        {/* Favorites Button */}
         <button
-          onClick={onOpenTasks}
-          title="Mesin Tugas Terjadwal"
+          onClick={onOpenFavorites}
+          title="Favorit: percakapan yang Anda beri bintang"
           className={`p-2 rounded-xl transition cursor-pointer ${
             isLight
               ? 'text-slate-500 hover:text-amber-600 hover:bg-slate-100'
               : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/80'
           }`}
         >
-          <Clock className="w-4 h-4" />
+          <Star className="w-4 h-4" />
         </button>
 
         {/* Active Project Indicator */}
         {activeProject && (
           <button
             onClick={onToggleSidebar}
-            title={`Proyek Aktif: ${activeProject.name}`}
+            title={`Proyek yang dipilih: ${activeProject.name} (klik untuk membuka sidebar)`}
             className={`p-2 rounded-xl transition cursor-pointer ${
               isLight
                 ? 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
@@ -122,7 +122,7 @@ export function SidebarCollapsedRail({
       <div className="flex flex-col items-center gap-2 w-full">
         {/* Agent Avatar */}
         <div
-          title={`Agen Aktif: ${selectedAgent.name}`}
+          title={`Agen AI yang dipakai: ${selectedAgent.name}`}
           className="w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs shadow-inner cursor-pointer"
           style={{ backgroundColor: `${selectedAgent.accent}25`, color: selectedAgent.accent }}
         >

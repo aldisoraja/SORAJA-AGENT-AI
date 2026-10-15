@@ -10,7 +10,6 @@ import type {
   MessageRecord,
   AppSettings,
   CredentialRecord,
-  ScheduledTaskRecord,
 } from '../types/database';
 import { formatRemainingTime } from '../types/database';
 import {
@@ -19,7 +18,6 @@ import {
   INITIAL_GENUINE_MESSAGES,
   DEFAULT_SETTINGS,
   DEFAULT_CREDENTIALS,
-  DEFAULT_SCHEDULED_TASKS,
 } from './dbDefaults';
 
 export type {
@@ -31,10 +29,9 @@ export type {
   MessageRecord,
   AppSettings,
   CredentialRecord,
-  ScheduledTaskRecord,
 } from '../types/database';
 export { formatRemainingTime } from '../types/database';
-export { DEFAULT_SETTINGS, DEFAULT_CREDENTIALS, DEFAULT_SCHEDULED_TASKS } from './dbDefaults';
+export { DEFAULT_SETTINGS, DEFAULT_CREDENTIALS } from './dbDefaults';
 
 // Persistent Local Database Class with Versioned Storage Key
 class SorajaDatabase {
@@ -72,7 +69,6 @@ class SorajaDatabase {
       this.setStorageItem('messages', INITIAL_GENUINE_MESSAGES);
       this.setStorageItem('settings', DEFAULT_SETTINGS);
       this.setStorageItem('credentials', DEFAULT_CREDENTIALS);
-      this.setStorageItem('scheduled_tasks', DEFAULT_SCHEDULED_TASKS);
       return { ok: true, countProjects: INITIAL_GENUINE_PROJECTS.length };
     }
 
@@ -246,6 +242,13 @@ class SorajaDatabase {
     const updated = list.map((c) =>
       c.id === id ? { ...c, title: newTitle, updatedAt: new Date().toISOString() } : c
     );
+    this.setStorageItem('conversations', updated);
+    return updated;
+  }
+
+  public async toggleFavoriteConversation(id: string): Promise<ConversationRecord[]> {
+    const list = await this.getConversations();
+    const updated = list.map((c) => (c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
     this.setStorageItem('conversations', updated);
     return updated;
   }
@@ -446,20 +449,6 @@ class SorajaDatabase {
       this.setStorageItem('credentials', creds);
     }
     return creds;
-  }
-
-  // --- SCHEDULED TASKS API ---
-  public async getScheduledTasks(): Promise<ScheduledTaskRecord[]> {
-    return this.getStorageItem<ScheduledTaskRecord[]>('scheduled_tasks', DEFAULT_SCHEDULED_TASKS);
-  }
-
-  public async toggleScheduledTask(id: string): Promise<ScheduledTaskRecord[]> {
-    const tasks = await this.getScheduledTasks();
-    const updated = tasks.map((t) =>
-      t.id === id ? { ...t, status: (t.status === 'Active' ? 'Paused' : 'Active') as any } : t
-    );
-    this.setStorageItem('scheduled_tasks', updated);
-    return updated;
   }
 
   // --- DB STATS & HEALTH ---

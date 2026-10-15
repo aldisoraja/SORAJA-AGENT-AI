@@ -1,7 +1,7 @@
 import {
   PanelLeft,
   History,
-  Clock,
+  Star,
   Plus,
 } from 'lucide-react';
 
@@ -9,11 +9,11 @@ interface SidebarHeaderProps {
   isLight: boolean;
   dbHealth?: { mode: string; sizeKb: string } | null;
   conversationsCount: number;
-  scheduledTasksCount: number;
+  favoritesCount: number;
   onToggleSidebar: () => void;
   onOpenSettings?: () => void;
   onOpenHistory: () => void;
-  onOpenTasks: () => void;
+  onOpenFavorites: () => void;
   onCreateNewConversation: () => void;
 }
 
@@ -21,18 +21,18 @@ export function SidebarHeader({
   isLight,
   dbHealth: _dbHealth,
   conversationsCount,
-  scheduledTasksCount,
+  favoritesCount,
   onToggleSidebar,
   onOpenSettings: _onOpenSettings,
   onOpenHistory,
-  onOpenTasks,
+  onOpenFavorites,
   onCreateNewConversation,
 }: SidebarHeaderProps) {
   return (
     <div
       className={`border-b ${
         isLight
-          ? 'border-slate-200/90 bg-gradient-to-b from-blue-50/50 via-slate-50 to-transparent'
+          ? 'border-slate-200/90 bg-gradient-to-b from-indigo-50/60 via-slate-50/70 to-transparent'
           : 'border-slate-800/80 bg-gradient-to-b from-[#0e1322] to-transparent'
       }`}
     >
@@ -47,7 +47,11 @@ export function SidebarHeader({
             className="w-8 h-8 rounded-lg object-contain shadow-[0_4px_12px_rgba(34,211,238,0.25)]"
             draggable={false}
           />
-          <span className="text-[13px] font-extrabold tracking-tight mr-1 bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+          <span
+            className={`text-[13px] font-extrabold tracking-tight mr-1 ${
+              isLight ? 'soraja-grad-text' : 'bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent'
+            }`}
+          >
             SORAJA ENGINE
           </span>
 
@@ -66,11 +70,12 @@ export function SidebarHeader({
         </div>
       </div>
 
-      {/* 3. Quick Actions (Riwayat & Tugas) */}
+      {/* 3. Quick Actions (Riwayat & Favorit) */}
       <div className="px-3 pb-2 pt-1">
         <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold">
           <button
             onClick={onOpenHistory}
+            title="Lihat dan cari semua percakapan Anda"
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
               isLight
                 ? 'bg-white/90 hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs'
@@ -81,15 +86,16 @@ export function SidebarHeader({
             <span>Riwayat ({conversationsCount})</span>
           </button>
           <button
-            onClick={onOpenTasks}
+            onClick={onOpenFavorites}
+            title="Percakapan yang Anda beri bintang (klik ikon bintang di baris percakapan untuk menambah)"
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
               isLight
                 ? 'bg-white/90 hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs'
                 : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800 text-slate-300'
             }`}
           >
-            <Clock className={`w-3.5 h-3.5 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
-            <span>Tugas ({scheduledTasksCount})</span>
+            <Star className={`w-3.5 h-3.5 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
+            <span>Favorit ({favoritesCount})</span>
           </button>
         </div>
       </div>
@@ -98,22 +104,17 @@ export function SidebarHeader({
       <div className="px-3 pb-2.5">
         <button
           onClick={onCreateNewConversation}
-          className={`w-full relative group overflow-hidden rounded-xl p-[1px] cursor-pointer transition shadow-md ${
-            isLight ? 'shadow-blue-500/10 hover:shadow-blue-500/25' : 'shadow-cyan-500/5 hover:shadow-cyan-500/15'
+          title="Mulai percakapan baru di folder/direktori baru — pilih folder lebih dulu (Ctrl+N)"
+          className={`w-full relative group overflow-hidden rounded-xl cursor-pointer transition ${
+            isLight ? 'soraja-grad-primary' : 'p-[1px] shadow-md shadow-cyan-500/5 hover:shadow-cyan-500/15'
           }`}
         >
-          <div
-            className={`absolute inset-0 rounded-xl transition group-hover:opacity-100 ${
-              isLight
-                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 opacity-95'
-                : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 opacity-80'
-            }`}
-          />
+          {!isLight && (
+            <div className="absolute inset-0 rounded-xl transition group-hover:opacity-100 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 opacity-80" />
+          )}
           <div
             className={`relative rounded-[11px] px-3.5 py-2 flex items-center justify-between transition ${
-              isLight
-                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 group-hover:from-blue-700 text-white'
-                : 'bg-[#0d121f] group-hover:bg-[#0f1626] text-slate-100'
+              isLight ? 'text-white' : 'bg-[#0d121f] group-hover:bg-[#0f1626] text-slate-100'
             }`}
           >
             <div className="flex items-center gap-2 text-xs font-bold text-white">

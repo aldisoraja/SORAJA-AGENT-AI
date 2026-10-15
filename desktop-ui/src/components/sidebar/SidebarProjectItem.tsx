@@ -1,14 +1,16 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { ChevronDown, ChevronRight, Folder, MessageSquare, MessageSquarePlus, Pin, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, MessageSquare, MessageSquarePlus, Pin, Star, Terminal, Trash2 } from 'lucide-react';
 import type { ConversationRecord, ProjectRecord } from '../../types/database';
 import type { SidebarProps } from './Sidebar';
 import { groupConversationsByDate } from './conversationGrouping';
+import { isCliConversation } from '../../utils/conversationTitle';
 
 type ItemCallbacks = Pick<
   SidebarProps,
   | 'activeConversation'
   | 'onCreateConversationForProject'
   | 'onDeleteProject'
+  | 'onToggleFavoriteConversation'
   | 'onSelectConversation'
   | 'onSelectProject'
   | 'onTogglePinProject'
@@ -37,6 +39,7 @@ export function SidebarProjectItem({
   activeConversation,
   onCreateConversationForProject,
   onDeleteProject,
+  onToggleFavoriteConversation,
   onSelectConversation,
   onSelectProject,
   onTogglePinProject,
@@ -47,7 +50,7 @@ export function SidebarProjectItem({
       className={`rounded-xl transition-all duration-150 ${
         isSelectedProject
           ? isLight
-            ? 'bg-blue-50/40 ring-1 ring-blue-200/60'
+            ? 'soraja-grad-soft ring-1 ring-blue-200/60'
             : 'bg-slate-900/40 ring-1 ring-slate-800/80'
           : ''
       }`}
@@ -58,7 +61,7 @@ export function SidebarProjectItem({
         className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer group select-none transition ${
           isSelectedProject
             ? isLight
-              ? 'bg-blue-50/60 text-blue-900 font-medium'
+              ? 'soraja-grad-soft text-blue-900 font-medium'
               : 'bg-slate-800/80 text-cyan-300'
             : isLight
             ? 'hover:bg-slate-100/70 text-slate-700'
@@ -88,7 +91,7 @@ export function SidebarProjectItem({
               }`}
               title="Proyek disematkan di posisi teratas"
             >
-              Pinned
+              Disematkan
             </span>
           )}
         </div>
@@ -117,8 +120,8 @@ export function SidebarProjectItem({
                 ? 'bg-white hover:bg-blue-50 text-blue-700 border-slate-300 hover:border-blue-400 shadow-2xs'
                 : 'bg-slate-800/90 hover:bg-cyan-950/80 text-cyan-300 border-slate-700 hover:border-cyan-500/50 shadow-2xs'
             }`}
-            title={`Mulai sesi chat baru di ${proj.name}`}
-            aria-label={`Mulai sesi chat baru di ${proj.name}`}
+            title={`Percakapan baru di proyek ${proj.name}`}
+            aria-label={`Percakapan baru di proyek ${proj.name}`}
           >
             <MessageSquarePlus className="w-3.5 h-3.5 text-cyan-400" />
           </button>
@@ -126,7 +129,7 @@ export function SidebarProjectItem({
           {/* Tombol Sematkan / Pin Proyek (Selalu tampak bila sedang di-pin) */}
           <button
             onClick={(e) => onTogglePinProject(proj.id, e)}
-            title={proj.isPinned ? 'Lepas Sematan (Pinned)' : 'Sematkan Proyek ke Atas'}
+            title={proj.isPinned ? 'Lepas sematan proyek' : 'Sematkan proyek di posisi teratas'}
             className={`p-1 rounded transition cursor-pointer shrink-0 ${
               proj.isPinned
                 ? 'text-amber-500 hover:text-amber-400 bg-amber-500/15 dark:bg-amber-400/20 opacity-100 ring-1 ring-amber-500/30'
@@ -140,7 +143,7 @@ export function SidebarProjectItem({
           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={(e) => onDeleteProject(proj.id, e)}
-              title="Hapus Proyek dari DB"
+              title="Hapus proyek dari daftar (riwayat percakapannya ikut terhapus; folder asli aman)"
               className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-500 transition cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
@@ -165,23 +168,20 @@ export function SidebarProjectItem({
                 }}
                 className="text-[10px] font-semibold text-blue-600 dark:text-cyan-400 hover:underline cursor-pointer"
               >
-                + Mulai Chat
+                + Mulai percakapan
               </button>
             </div>
           ) : (
             (() => {
               const isRepoExpanded = expandedRepoChats[proj.id] ?? false;
-              // Urutkan percakapan dari yang paling baru ke paling lama dan buang percakapan kembar/duplikat
-              const seenTitles = new Set<string>();
+              // Urutkan dari yang terbaru. Hanya ID kembar yang dibuang; judul sama tetap ditampilkan
+              // agar angka di sidebar sama dengan jumlah baris yang terlihat.
               const seenIds = new Set<string>();
               const uniqueConvs: ConversationRecord[] = [];
 
               for (const c of projConvs) {
                 if (!c || !c.id || seenIds.has(c.id)) continue;
-                const normTitle = (c.title || '').trim().toLowerCase();
-                if (seenTitles.has(normTitle)) continue;
                 seenIds.add(c.id);
-                seenTitles.add(normTitle);
                 uniqueConvs.push(c);
               }
 
@@ -207,7 +207,7 @@ export function SidebarProjectItem({
                           }`}
                           aria-hidden="true"
                         >
-                          <span className="text-[7px] font-bold tracking-[0.12em] py-[2.5px] bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                          <span className={`text-[7px] font-bold tracking-[0.12em] py-[2.5px] text-white ${isLight ? 'soraja-grad-fill' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}>
                             {group.badge.top}
                           </span>
                           <span
@@ -231,6 +231,7 @@ export function SidebarProjectItem({
                           )}
                         </div>
                         <span
+                          title={`${group.items.length} percakapan pada tanggal ini`}
                           className={`text-[10px] min-w-[20px] text-center px-1.5 py-0.5 rounded-full font-mono font-semibold ${
                             isLight ? 'bg-slate-200/80 text-slate-600' : 'bg-slate-800/80 text-slate-400'
                           }`}
@@ -250,7 +251,7 @@ export function SidebarProjectItem({
                               className={`relative flex items-center justify-between gap-2 pl-3 pr-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all duration-150 select-none group ${
                                 isSelectedConv
                                   ? isLight
-                                    ? 'bg-blue-50 text-blue-900 font-semibold'
+                                    ? 'soraja-grad-soft text-blue-900 font-semibold'
                                     : 'bg-gradient-to-r from-cyan-500/15 to-transparent text-cyan-100 font-semibold'
                                   : isLight
                                   ? 'hover:bg-slate-100 text-slate-700'
@@ -265,9 +266,28 @@ export function SidebarProjectItem({
                                     : 'h-0 group-hover:h-2.5 bg-slate-500/60'
                                 }`}
                               />
+                              {isCliConversation(conv) ? (
+                                <Terminal className="w-3 h-3 shrink-0 text-emerald-400" aria-label="Sesi Terminal" />
+                              ) : (
+                                <MessageSquare className="w-3 h-3 shrink-0 text-cyan-400/80" aria-label="Sesi Chat" />
+                              )}
                               <span className="truncate text-[11.5px] flex-1 min-w-0">{conv.title}</span>
+                              <button
+                                onClick={(e) => onToggleFavoriteConversation(conv.id, e)}
+                                title={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
+                                aria-label={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
+                                className={`p-0.5 rounded shrink-0 cursor-pointer transition ${
+                                  conv.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                              >
+                                <Star
+                                  className={`w-3 h-3 ${
+                                    conv.isFavorite ? 'text-amber-400 fill-amber-400' : 'text-slate-400 hover:text-amber-400'
+                                  }`}
+                                />
+                              </button>
                               <span
-                                className={`text-[9.5px] shrink-0 tabular-nums ${
+                                className={`text-[9.5px] shrink-0 tabular-nums group-hover:hidden ${
                                   isSelectedConv ? 'text-cyan-300/80' : 'text-slate-500'
                                 }`}
                               >
@@ -301,8 +321,8 @@ export function SidebarProjectItem({
                         <MessageSquare className="w-3 h-3 text-cyan-400 shrink-0" />
                         <span className="truncate">
                           {isRepoExpanded
-                            ? 'Tampilkan 3 Teratas'
-                            : `Lihat Semua Riwayat (${projConvs.length})`}
+                            ? 'Tampilkan lebih sedikit'
+                            : `Tampilkan semua percakapan (${projConvs.length})`}
                         </span>
                       </span>
                       <ChevronDown

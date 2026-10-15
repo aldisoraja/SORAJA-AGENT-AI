@@ -113,7 +113,7 @@ Saya telah mengimplementasikan komponen **Toggle Sidebar** dengan presisi tinggi
    - Terletak di sebelah logo di header sidebar dan juga di top header.
    - Dilengkapi tooltip interaktif: **Toggle Sidebar (\`Ctrl+B\`)**.
 3. **Pintasan Keyboard Global (\`Ctrl+B\`):** Menutup dan membuka sidebar langsung dari keyboard kapan saja.
-4. **Mode Rail Ramping (Collapsed 58px):** Saat ditutup, sidebar beralih menjadi icon rail ramping berisi pintasan New Chat (\`Ctrl+N\`), History, Tasks, dan Pengaturan.
+4. **Mode Rail Ramping (Collapsed 58px):** Saat ditutup, sidebar beralih menjadi icon rail ramping berisi pintasan New Chat (\`Ctrl+N\`), History, Favorit, dan Pengaturan.
 5. **Navigasi Riwayat (\`←\` & \`→\`):** Tombol Back dan Forward untuk riwayat navigasi percakapan.
 
 Silakan tinjau modifikasi kode pada panel **Diff Review** di bawah ini!`;
