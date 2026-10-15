@@ -63,8 +63,9 @@ const LOCALIZATION_RULES: ReplacementRule[] = [
   { pattern: /\bNo, cancel\b/g, replacement: 'Tidak, batalkan' },
 
   // Deduplikasi baris opsi batalkan jika buffer ConPTY me-redraw baris terbawah ganda
+  // (escape sequence di antaranya sudah dimasking menjadi karakter placeholder, lihat maskEscapes)
   {
-    pattern: /(4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel))(?:\r?\n|\s|\x1b\[[0-9;]*[a-zA-Z])*(?:\r?\n\s*)4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel)/g,
+    pattern: /(4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel))(?:\r?\n|\s|[-])*(?:\r?\n\s*)4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel)/g,
     replacement: '$1',
   },
 
@@ -104,10 +105,11 @@ const BEAUTIFY_RULES: ReplacementRule[] = [
     replacement: '$1\x1b[1;38;2;167;139;250m▸ $2\x1b[0m',
   },
 
-  // 2. Nomor Urut List (1., 2., 3., dst.) - Diberi warna Kuning Emas / Amber Bold
+  // 2. Nomor Urut List (1., 2., 3., dst.) - Diberi warna Kuning Emas / Amber Bold.
+  // Spasi asli dipertahankan apa adanya: mengubah lebar baris membuat TUI (Claude/Codex) meninggalkan sisa karakter saat redraw.
   {
-    pattern: /(^|\r?\n)(\s*)(\d+)\.\s+/g,
-    replacement: '$1$2\x1b[1;38;2;251;191;36m$3.\x1b[0m ',
+    pattern: /(^|\r?\n)([ \t]*)(\d+)\.([ \t]+)/g,
+    replacement: '$1$2\x1b[1;38;2;251;191;36m$3.\x1b[0m$4',
   },
 
   // 3. Label Bagian Kunci (Teknologi:, Cara kerja:, Catatan:, Tips:, dsb.)
@@ -172,22 +174,103 @@ const BEAUTIFY_RULES: ReplacementRule[] = [
 ];
 
 /**
+ * Escape sequence ANSI utuh: CSI (`ESC [ … final`), OSC (`ESC ] … BEL|ST`), DCS/SOS/PM/APC (`ESC P|X|^|_ … ST`),
+ * pemilih charset (`ESC ( B`), dan escape 2-karakter lainnya.
+ */
+const ANSI_SEQUENCE = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[PX^_][^\x1b]*\x1b\\|[()*+][ -~]|(?![[\]PX^_])[ -~])/g;
+/** Ekor chunk yang berupa escape sequence belum lengkap (terpotong di batas buffer PTY). */
+const INCOMPLETE_TAIL = /^\x1b(?:\[[0-?]*[ -/]*|\][^\x07\x1b]*\x1b?|[PX^_][^\x1b]*\x1b?|[()*+])?$/;
+/** Placeholder escape sequence: karakter Private Use Area (non-word, non-spasi) berindeks. */
+const PUA_START = 0xe000;
+const PUA_SIZE = 0xf8ff - PUA_START + 1;
+const PUA_CHAR = /[-]/g;
+/** Batas penahanan ekor tak lengkap; OSC rusak yang sangat panjang diteruskan apa adanya. */
+const MAX_CARRY = 4096;
+
+/**
+ * Mengganti setiap escape sequence dengan placeholder PUA agar aturan regex tidak pernah
+ * mencocokkan/menyisipkan teks DI DALAM sequence (mis. `ESC[1C` + nama berkas → "1C" bocor ke layar).
+ * Mengembalikan null bila chunk tidak aman dimasking (sudah memuat karakter PUA, mis. ikon Nerd Font).
+ */
+function maskEscapes(chunk: string): { masked: string; sequences: string[] } | null {
+  PUA_CHAR.lastIndex = 0;
+  if (PUA_CHAR.test(chunk)) return null;
+  const sequences: string[] = [];
+  const masked = chunk.replace(ANSI_SEQUENCE, (seq) => {
+    sequences.push(seq);
+    return String.fromCharCode(PUA_START + ((sequences.length - 1) % PUA_SIZE));
+  });
+  return sequences.length > PUA_SIZE ? null : { masked, sequences };
+}
+
+function unmaskEscapes(text: string, sequences: string[]): string {
+  return text.replace(PUA_CHAR, (ch) => sequences[ch.charCodeAt(0) - PUA_START] ?? '');
+}
+
+/** Teks yang benar-benar tampil di sel terminal (tanpa SGR sisipan & placeholder escape). */
+function visibleText(s: string): string {
+  return s.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(PUA_CHAR, '');
+}
+
+/**
+ * Menerapkan satu aturan TANPA mengubah lebar tampilan. CLI agen (Claude, Codex, Antigravity) adalah TUI
+ * yang menggambar ulang layar dengan posisi kursor relatif; teks yang memanjang/memendek menggeser kolom
+ * sehingga sisa karakter lama tertinggal (mis. "vi1.", "ng3." di kolom awal).
+ * Hasil lebih pendek diberi padding spasi; hasil lebih panjang atau yang mengubah baris dibatalkan.
+ */
+function applyWidthSafe(text: string, rule: ReplacementRule): string {
+  const single = new RegExp(rule.pattern.source, rule.pattern.flags.replace('g', ''));
+  return text.replace(rule.pattern, (match: string) => {
+    const out = match.replace(single, rule.replacement);
+    const before = visibleText(match);
+    const after = visibleText(out);
+    if (after === before) return out; // hanya pewarnaan
+    const lines = (s: string) => s.split('\n').length;
+    if (lines(after) !== lines(before) || /[\r\n]/.test(before)) return match;
+    const diff = [...before].length - [...after].length;
+    return diff >= 0 ? out + ' '.repeat(diff) : match;
+  });
+}
+
+function applyRules(text: string): string {
+  let translated = text;
+  // 1. Terjemahkan loading, ringkasan, dan izin prompt
+  for (const rule of LOCALIZATION_RULES) {
+    translated = applyWidthSafe(translated, rule);
+  }
+  // 2. Percantik tampilan teks markdown, heading, pohon berkas & sintaks
+  for (const rule of BEAUTIFY_RULES) {
+    translated = applyWidthSafe(translated, rule);
+  }
+  return translated;
+}
+
+/**
  * Menerjemahkan potongan teks atau buffer ANSI stream dari PTY sekaligus
  * mempercantik formatting Markdown, heading, penomoran, dan kode.
+ * Escape sequence di dalam chunk dijamin tidak diubah.
  */
 export function localizeTerminalOutput(chunk: string): string {
   if (!chunk) return chunk;
-  let translated = chunk;
+  const m = maskEscapes(chunk);
+  if (!m) return chunk;
+  return unmaskEscapes(applyRules(m.masked), m.sequences);
+}
 
-  // 1. Terjemahkan loading, ringkasan, dan izin prompt
-  for (const rule of LOCALIZATION_RULES) {
-    translated = translated.replace(rule.pattern, rule.replacement);
-  }
-
-  // 2. Percantik tampilan teks markdown, heading, pohon berkas & sintaks
-  for (const rule of BEAUTIFY_RULES) {
-    translated = translated.replace(rule.pattern, rule.replacement);
-  }
-
-  return translated;
+/**
+ * Localizer ber-state untuk satu stream PTY: escape sequence yang terpotong di akhir chunk
+ * ditahan dan disambung ke chunk berikutnya, sehingga tidak pernah diproses sebagai teks biasa.
+ */
+export function createTerminalLocalizer(): (chunk: string) => string {
+  let carry = '';
+  return (chunk: string) => {
+    let data = carry + chunk;
+    carry = '';
+    const esc = data.lastIndexOf('\x1b');
+    if (esc !== -1 && data.length - esc <= MAX_CARRY && INCOMPLETE_TAIL.test(data.slice(esc))) {
+      carry = data.slice(esc);
+      data = data.slice(0, esc);
+    }
+    return localizeTerminalOutput(data);
+  };
 }

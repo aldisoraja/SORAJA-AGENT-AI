@@ -23,6 +23,7 @@ import {
   displaySteps,
   formatClock,
   formatDuration,
+  formatCredits,
   formatTokens,
   summaryParts,
 } from './workSummary';
@@ -183,11 +184,22 @@ export function AgentWorkTimeline({ msg, isLight, now, verbose, onOpenDiff }: Ag
               {msg.usage && (
                 <Chip
                   isLight={isLight}
-                  title={`${msg.usage.inputTokens.toLocaleString('id-ID')} token masuk · ${msg.usage.outputTokens.toLocaleString('id-ID')} token keluar`}
+                  title={
+                    msg.usage.credits
+                      ? `Kredit terpakai pada giliran ini (dilaporkan CLI): ${msg.usage.credits}. Ini pemakaian, bukan sisa kuota.`
+                      : `${msg.usage.inputTokens.toLocaleString('id-ID')} token masuk · ${msg.usage.outputTokens.toLocaleString('id-ID')} token keluar`
+                  }
                   icon={<Coins className="w-3 h-3" />}
                 >
-                  {formatTokens(msg.usage.inputTokens)} masuk · {formatTokens(msg.usage.outputTokens)} keluar
-                  {msg.usage.costUsd ? ` · $${msg.usage.costUsd.toFixed(4)}` : ''}
+                  {[
+                    msg.usage.inputTokens + msg.usage.outputTokens > 0
+                      ? `${formatTokens(msg.usage.inputTokens)} masuk · ${formatTokens(msg.usage.outputTokens)} keluar`
+                      : '',
+                    msg.usage.credits ? formatCredits(msg.usage.credits) : '',
+                    msg.usage.costUsd ? `$${msg.usage.costUsd.toFixed(4)}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </Chip>
               )}
               {logs.length > 0 && (

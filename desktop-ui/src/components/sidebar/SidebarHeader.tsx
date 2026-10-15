@@ -40,10 +40,16 @@ export function SidebarHeader({
       {/* 2. Top Navigation & Toggle Sidebar Row (Ref: media_1791278606980.png) */}
       <div className="px-3 pt-2 pb-1.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          {/* Logo / Brand Mark */}
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-black text-xs shadow-sm">
-            S
-          </div>
+          {/* Logo / Brand Mark (sama dengan aplikasi web) */}
+          <img
+            src="/logo-mark.png"
+            alt="Soraja Engine"
+            className="w-8 h-8 rounded-lg object-contain shadow-[0_4px_12px_rgba(34,211,238,0.25)]"
+            draggable={false}
+          />
+          <span className="text-[13px] font-extrabold tracking-tight mr-1 bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            SORAJA ENGINE
+          </span>
 
           {/* Toggle Sidebar Icon Button [|] */}
           <button

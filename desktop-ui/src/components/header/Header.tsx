@@ -1,4 +1,4 @@
-import { FolderGit2, Folder, ShieldAlert, PanelLeft, MessageSquare, Terminal, ChevronRight } from 'lucide-react';
+import { FolderGit2, Folder, PanelLeft, MessageSquare, Terminal, ChevronRight } from 'lucide-react';
 import type { ProjectRecord, ConversationRecord } from '../../types/database';
 import type { AgentProvider } from '../../types/agent';
 import type { TerminalTab } from '../../hooks/useTerminalManager';
@@ -14,7 +14,6 @@ interface HeaderProps {
   activeTab?: TerminalTab | null;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
-  onOpenHitlModal: () => void;
   /** Lanjutkan sesi CLI percakapan aktif di tab Terminal (dipakai tombol terminal bila `cliSessionId` tersedia). */
   onOpenInTerminal?: () => void;
   activeViewMode?: 'chat' | 'terminal';
@@ -31,7 +30,6 @@ export function Header({
   activeTab,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  onOpenHitlModal,
   onOpenInTerminal,
   activeViewMode = 'chat',
   onChangeViewMode,
@@ -187,20 +185,6 @@ export function Header({
             </button>
           </div>
         )}
-
-        <button
-          onClick={onOpenHitlModal}
-          title="Simulasi keamanan: Konfirmasi izin eksekusi perintah sebelum dijalankan di komputer (Human-In-The-Loop)"
-          className={`px-2.5 py-1 text-xs rounded-xl border transition flex items-center gap-1.5 cursor-pointer font-medium shadow-2xs shrink-0 ${
-            isLight
-              ? 'bg-gradient-to-r from-blue-50 via-indigo-50/50 to-blue-50 text-blue-700 border-blue-200 hover:from-blue-100 hover:to-indigo-100'
-              : 'bg-blue-950/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/30'
-          }`}
-        >
-          <ShieldAlert className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-blue-600' : 'text-cyan-400'}`} />
-          <span className="hidden md:inline">Izin Keamanan (HITL)</span>
-          <span className="hidden xs:inline md:hidden">HITL</span>
-        </button>
       </div>
     </header>
   );

@@ -259,10 +259,12 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
 
   return (
     <div
-      className={`flex flex-col border transition-all duration-200 overflow-hidden ${
-        isExpanded ? 'fixed inset-4 z-50 rounded-2xl shadow-2xl backdrop-blur-xl' : 'h-full w-full rounded-none border-t'
+      // Tampilan kartu IDENTIK di mode kecil & perbesar (sudut, bingkai, bayangan, jarak tepi 1rem);
+      // hanya posisi/ukuran yang berbeda: kecil mengisi area utama, perbesar menutupi seluruh jendela.
+      className={`flex flex-col border rounded-2xl shadow-2xl overflow-hidden ${
+        isExpanded ? 'fixed inset-4 z-50' : 'h-full w-full'
       } ${
-        isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#090d16] border-slate-800/90 text-slate-200 shadow-2xl'
+        isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#090d16] border-slate-800/90 text-slate-200'
       }`}
     >
       {/* 1. Baris utama: identitas, menu aksi, dan kontrol jendela */}

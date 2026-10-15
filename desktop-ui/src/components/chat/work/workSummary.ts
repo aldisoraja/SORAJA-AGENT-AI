@@ -55,6 +55,12 @@ export function formatClock(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
+/** Kredit (mis. Kiro): 2 desimal, atau 3 desimal bila sangat kecil agar tidak tampil "0". */
+export function formatCredits(n: number): string {
+  const digits = n < 0.1 ? 3 : 2;
+  return `${n.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits })} kredit`;
+}
+
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`;
   if (n >= 1000) return `${(n / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 })} rb`;

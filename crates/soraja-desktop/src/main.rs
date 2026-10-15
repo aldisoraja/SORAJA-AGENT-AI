@@ -16,6 +16,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // Mode Terminal (PTY interaktif)
             pty::start_interactive_pty,
+            pty::attach_interactive_pty,
             pty::write_interactive_pty,
             pty::resize_interactive_pty,
             pty::close_interactive_pty,

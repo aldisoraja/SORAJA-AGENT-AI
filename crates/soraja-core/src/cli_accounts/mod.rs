@@ -8,10 +8,12 @@
 //! | codex       | `~/.codex/auth.json` → klaim JWT id_token           | `~/.codex/sessions/**.jsonl` → rate_limits |
 //! | antigravity | — (tidak diekspos CLI)                              | `agy` → `/usage` (scrape TUI)            |
 //! | opencode    | `~/.local/share/opencode/auth.json` (provider)      | `opencode stats` (token & biaya)          |
+//! | kiro        | env `KIRO_API_KEY` (headless), `kiro-cli login`     | — (tidak diekspos CLI)                   |
 
 pub mod antigravity;
 pub mod claude;
 pub mod codex;
+pub mod kiro;
 pub mod opencode;
 
 use serde::{Deserialize, Serialize};
@@ -174,6 +176,7 @@ pub fn get_user_cli_profile(agent_id: &str) -> UserCliProfile {
         "codex" => codex::profile(&home),
         "opencode" => opencode::profile(&home),
         "antigravity" | "agy" => antigravity::profile(&home),
+        "kiro" | "kiro-cli" => kiro::profile(&home),
         _ => not_logged_in(agent_id, "-", "Agen tidak dikenal"),
     };
     profile.detected_at = now_secs().to_string();

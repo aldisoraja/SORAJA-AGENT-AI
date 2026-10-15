@@ -10,6 +10,7 @@ const AGENT_BADGE: Record<string, string> = {
   claude: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   opencode: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
   codex: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+  kiro: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
 };
 
 interface AgentLauncherDropdownProps {

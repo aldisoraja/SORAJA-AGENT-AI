@@ -33,6 +33,7 @@ const CLI_EXECUTABLES: Record<string, { name: string; executable: string }> = {
   claude: { name: 'Claude Code', executable: 'claude' },
   codex: { name: 'OpenAI Codex', executable: 'codex' },
   opencode: { name: 'OpenCode', executable: 'opencode' },
+  kiro: { name: 'Kiro', executable: 'kiro-cli' },
   antigravity: { name: 'Antigravity', executable: 'agy' },
   agy: { name: 'Antigravity', executable: 'agy' },
 }
@@ -94,7 +95,7 @@ export function registerHeadlessBridge(server: ViteDevServer, deps: BridgeDeps):
   // Status instalasi CLI untuk browser (setara IPC `get_available_cli_agents`).
   server.middlewares.use((req, res, next) => {
     if (!req.url?.startsWith('/api/cli-installed')) return next()
-    const list = ['antigravity', 'claude', 'codex', 'opencode'].map((id) => {
+    const list = ['antigravity', 'claude', 'codex', 'opencode', 'kiro'].map((id) => {
       const meta = CLI_EXECUTABLES[id]
       const target = deps.resolveLaunch(meta.executable)
       return { id, name: meta.name, executable: meta.executable, is_installed: !!target, path: target?.binary ?? null }

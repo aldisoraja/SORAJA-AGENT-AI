@@ -124,10 +124,13 @@ export function appendLog(logs: string[] = [], line: string): string[] {
 /** OpenCode melaporkan token per langkah: dijumlahkan; CLI lain sekali di akhir. */
 export function addUsage(prev: AgentUsage | undefined, ev: Extract<UiAgentEvent, { kind: 'usage' }>): AgentUsage {
   const cost = (prev?.costUsd ?? 0) + (ev.costUsd ?? 0);
+  const credits = (prev?.credits ?? 0) + (ev.credits ?? 0);
   return {
     inputTokens: (prev?.inputTokens ?? 0) + ev.inputTokens,
     outputTokens: (prev?.outputTokens ?? 0) + ev.outputTokens,
     costUsd: cost > 0 ? cost : undefined,
+    // Kunci hanya ada bila CLI melaporkan kredit, agar bentuk usage agen lain tidak berubah
+    ...(credits > 0 ? { credits } : {}),
   };
 }
 

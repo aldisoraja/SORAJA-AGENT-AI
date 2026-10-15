@@ -11,7 +11,7 @@
 
 **Agent Soraja AI** adalah platform *Agentic Command Center* dan lingkungan *Vibe Coding* otonom lokal berkecepatan tinggi yang dirancang untuk menandingi Google Antigravity Desktop 2.0, Claude Code, dan Cursor. 
 
-Sistem ini menyatukan **4 agen coding CLI resmi** — Antigravity (`agy`), Claude Code (`claude`), Codex (`codex`), dan OpenCode (`opencode`) — dalam dua mode: **Chat GUI** ala Antigravity Desktop (CLI headless + stream JSON) dan **Terminal CLI** yang identik dengan CLI aslinya (ConPTY + xterm.js). Soraja tidak mengimplementasikan agen sendiri; arsitektur acuan ada di §11 dan [`agent-protocols.md`](./agent-protocols.md).
+Sistem ini menyatukan **5 agen coding CLI resmi** — Antigravity (`agy`), Claude Code (`claude`), Codex (`codex`), OpenCode (`opencode`), Kiro dan Kiro (`kiro-cli`) — dalam dua mode: **Chat GUI** ala Antigravity Desktop (CLI headless + stream JSON) dan **Terminal CLI** yang identik dengan CLI aslinya (ConPTY + xterm.js). Soraja tidak mengimplementasikan agen sendiri; arsitektur acuan ada di §11 dan [`agent-protocols.md`](./agent-protocols.md).
 
 ### Mengapa SDD / SpecKit Ini Mutlak Diperlukan?
 1. **Single Source of Truth untuk AI Coding Assistants:**  
@@ -278,7 +278,7 @@ Daftar resmi dan payload lengkap ada di [`ipc-contracts.md`](./ipc-contracts.md)
 
 | Nama Event | Payload JSON | Dampak Visual di UI |
 | :--- | :--- | :--- |
-| `pty:output` | `{ "sessionId": string, "data": string }` | Menulis stream ANSI langsung ke terminal xterm.js. |
+| `pty:output` | `{ "sessionId": string, "data": string, "seq": number }` | Menulis stream ANSI langsung ke terminal xterm.js. |
 | `pty:exit` | `{ "sessionId": string, "exitCode": number }` | Memperbarui status tab terminal menjadi selesai. |
 | `agent:session_start` | `{ "sessionId": string, "agent": string, "executable": string, "pid": number }` | Indikator aktif + simpan PID untuk Stop/Jeda. |
 | `agent:token_stream` | `{ "sessionId": string, "chunk": string }` | Satu baris NDJSON CLI → parser per agen. |

@@ -13,19 +13,29 @@ pub struct CliAgentStatus {
     pub description: String,
 }
 
-#[tauri::command]
-pub fn get_agent_providers() -> Result<Vec<CliAgentProvider>, String> {
-    Ok(agent_catalog::get_authoritative_agent_providers())
+/// Menjalankan kerja yang memblokir (menjalankan CLI, membaca berkas) di blocking pool Tokio.
+/// Command Tauri sinkron berjalan di main thread dan akan membekukan UI selama CLI berjalan.
+async fn run_blocking<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    tokio::task::spawn_blocking(job)
+        .await
+        .map_err(|e| format!("Tugas latar belakang gagal: {e}"))
 }
 
 #[tauri::command]
-pub fn get_agent_models(agent_id: String) -> Result<Vec<CliModelItem>, String> {
-    Ok(agent_catalog::get_agent_models(&agent_id))
+pub async fn get_agent_providers() -> Result<Vec<CliAgentProvider>, String> {
+    run_blocking(agent_catalog::get_authoritative_agent_providers).await
 }
 
 #[tauri::command]
-pub fn get_available_cli_agents() -> Result<Vec<CliAgentStatus>, String> {
-    Ok(agent_catalog::get_authoritative_agent_providers()
+pub async fn get_agent_models(agent_id: String) -> Result<Vec<CliModelItem>, String> {
+    run_blocking(move || agent_catalog::get_agent_models(&agent_id)).await
+}
+
+#[tauri::command]
+pub async fn get_available_cli_agents() -> Result<Vec<CliAgentStatus>, String> {
+    // Hanya deteksi biner (tanpa menjalankan CLI): dipanggil saat membuka wizard & saat startup.
+    let providers = run_blocking(agent_catalog::get_agent_install_status).await?;
+    Ok(providers
         .into_iter()
         .map(|p| CliAgentStatus {
             id: p.id,
@@ -40,18 +50,22 @@ pub fn get_available_cli_agents() -> Result<Vec<CliAgentStatus>, String> {
 }
 
 #[tauri::command]
-pub fn get_agent_token_stats(agent_id: String) -> Result<soraja_core::token_tracker::AgentTokenStats, String> {
-    Ok(soraja_core::token_tracker::get_live_agent_token_stats(&agent_id))
+pub async fn get_agent_token_stats(agent_id: String) -> Result<soraja_core::token_tracker::AgentTokenStats, String> {
+    run_blocking(move || soraja_core::token_tracker::get_live_agent_token_stats(&agent_id)).await
 }
 
 #[tauri::command]
-pub fn get_user_cli_profile(agent_id: String) -> Result<UserCliProfile, String> {
-    Ok(agent_catalog::get_user_cli_profile(&agent_id))
+pub async fn get_user_cli_profile(agent_id: String) -> Result<UserCliProfile, String> {
+    run_blocking(move || agent_catalog::get_user_cli_profile(&agent_id)).await
 }
 
 /// Mendaftarkan folder ke `trustedWorkspaces` Antigravity CLI agar `agy` tidak memblokir saat start.
 #[tauri::command]
-pub fn trust_and_prepare_workspace_for_cli(workspace_path: String, agent_id: String) -> Result<String, String> {
+pub async fn trust_and_prepare_workspace_for_cli(workspace_path: String, agent_id: String) -> Result<String, String> {
+    run_blocking(move || trust_workspace_blocking(workspace_path, agent_id)).await?
+}
+
+fn trust_workspace_blocking(workspace_path: String, agent_id: String) -> Result<String, String> {
     if agent_id == "antigravity" || agent_id == "agy" {
         if let Some(settings_path) = crate::commands::language_rules::user_home()
             .map(|h| h.join(".gemini").join("antigravity-cli").join("settings.json"))

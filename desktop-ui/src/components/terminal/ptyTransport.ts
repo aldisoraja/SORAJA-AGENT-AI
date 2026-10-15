@@ -125,9 +125,30 @@ export function subscribePty(
 
   if (isTauri) {
     (async () => {
-      const unOut = await listen<{ sessionId: string; data: string }>('pty:output', (e) => {
-        if (!disposed && e.payload.sessionId === sessionId) onOutput(e.payload.data);
+      // Output live ditahan sampai riwayat sesi (attach) dimuat; `seq <= endSeq` sudah ada di riwayat.
+      let endSeq = 0;
+      let replayDone = false;
+      const queued: Array<{ data: string; seq?: number }> = [];
+      const deliver = (p: { data: string; seq?: number }) => {
+        if (p.seq !== undefined && p.seq <= endSeq) return;
+        onOutput(p.data);
+      };
+      const unOut = await listen<{ sessionId: string; data: string; seq?: number }>('pty:output', (e) => {
+        if (disposed || e.payload.sessionId !== sessionId) return;
+        if (replayDone) deliver(e.payload);
+        else queued.push(e.payload);
       });
+      invoke<{ alive: boolean; data: string; endSeq: number }>('attach_interactive_pty', { sessionId })
+        .then((r) => {
+          if (disposed) return;
+          endSeq = r.endSeq;
+          if (r.data) onOutput(r.data);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          replayDone = true;
+          if (!disposed) queued.splice(0).forEach(deliver);
+        });
       const unExit = await listen<{ sessionId: string; exitCode: number }>('pty:exit', (e) => {
         if (!disposed && e.payload.sessionId === sessionId) onExit(e.payload.exitCode);
       });

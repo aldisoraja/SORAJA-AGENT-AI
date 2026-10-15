@@ -102,6 +102,8 @@ export interface AgentUsage {
   inputTokens: number;
   outputTokens: number;
   costUsd?: number;
+  /** Kredit yang dipakai (Kiro melaporkan kredit, bukan token/USD). */
+  credits?: number;
 }
 
 export interface MessageRecord {

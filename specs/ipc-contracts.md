@@ -19,7 +19,7 @@
 ## 1. Mode Terminal — PTY Interaktif (CLI native persis seperti aslinya)
 
 Aturan konkurensi (mencegah terminal beku / input hilang — bug Okt 2026):
-* Keempat command PTY bersifat `async` (tidak berjalan di thread utama UI).
+* Kelima command PTY bersifat `async` (tidak berjalan di thread utama UI).
 * `start_interactive_pty` **idempoten** per `session_id`: spawn kedua untuk sesi yang masih hidup diabaikan (React StrictMode memanggil effect dua kali di mode dev).
 * Thread `wait()` memiliki `Child` sendiri; kill memakai `ChildKiller` terpisah → tidak ada mutex yang tertahan selama proses hidup.
 * `pty:exit` hanya dikirim oleh proses yang **masih memiliki** sesi (dicek dengan nomor generasi), lalu entri sesi dihapus.
@@ -31,6 +31,11 @@ Menjalankan biner CLI agen (`agy`, `claude`, `codex`, `opencode`) di dalam pseud
 * **Input:** `session_id: String, agent_executable: String, agent_args: Vec<String>, cwd: String, cols: u16, rows: u16, envs: Option<HashMap<String, String>>` (`0` → default 100×24)
 * **Output:** `Result<(), String>`
 * **Event dipicu:** `pty:output`, `pty:exit`
+
+### `attach_interactive_pty`
+Menyambungkan UI yang baru dimuat (mis. setelah reload webview) ke sesi yang masih hidup. Mengembalikan riwayat output sesi (maks. 512 KB, dipangkas di batas baris) dan `endSeq`. Event `pty:output` dengan `seq <= endSeq` sudah termasuk di snapshot dan wajib dibuang UI. Sesi tidak ada → `alive: false`, `data: ""`. Dipanggil otomatis oleh `subscribePty` (`terminal/ptyTransport.ts`), yang menahan output live sampai snapshot dimuat.
+* **Input:** `session_id: String`
+* **Output:** `Result<{ alive: boolean, data: string, endSeq: number }, String>`
 
 ### `write_interactive_pty`
 Meneruskan input keyboard xterm.js (termasuk escape sequence) ke stdin PTY. Error bila sesi tidak aktif.
@@ -75,6 +80,8 @@ Keputusan pengguna atas modal HITL. *Status: stub (hanya log), lihat [`agent-pro
 
 ## 3. Katalog, Deteksi Agen CLI & Aturan Bahasa
 
+> **Catatan eksekusi:** `get_available_cli_agents`, `get_agent_providers`, `get_agent_models`, `get_agent_token_stats`, `get_user_cli_profile`, dan `trust_and_prepare_workspace_for_cli` adalah command **`async`** yang menjalankan kerjanya di `tokio::task::spawn_blocking`. Command sinkron berjalan di main thread Tauri dan membekukan UI selama CLI berjalan, jadi command yang menjalankan proses CLI **wajib** `async`. Nama, input, dan output tidak berubah. Di sisi core: perintah CLI dibatasi timeout 10 detik (`run_cli`), katalog model di-cache 30 menit per agen (proses probe berprioritas BELOW_NORMAL di Windows), dan keempat provider dibangun paralel. `get_available_cli_agents` HANYA mendeteksi biner (`get_agent_install_status`, tanpa menjalankan CLI, `models` tidak dipakai) sehingga aman dipanggil saat startup dan saat wizard "ganti agen" dibuka; katalog model lengkap hanya dari `get_agent_providers`.
+
 ### `get_available_cli_agents`
 * **Input:** `()`
 * **Output:** `Result<Vec<CliAgentStatus>, String>`
@@ -83,7 +90,7 @@ interface CliAgentStatus { id: string; name: string; executable: string; is_inst
 ```
 
 ### `get_agent_providers`
-Katalog otoritatif 4 agen (`antigravity`, `claude`, `codex`, `opencode`) beserta status instalasi dan model.
+Katalog otoritatif 5 agen (`antigravity`, `claude`, `codex`, `opencode`, `kiro`) beserta status instalasi dan model.
 * **Input:** `()`
 * **Output:** `Result<Vec<CliAgentProvider>, String>`
 ```ts
@@ -196,7 +203,7 @@ Menyimpan API key opsional ke Windows Credential Manager (DPAPI) via `keyring`. 
 
 | Event | Payload | Sumber | Konsumen UI |
 | :--- | :--- | :--- | :--- |
-| `pty:output` | `{ sessionId: string, data: string }` | `start_interactive_pty` (chunk 4 KB, UTF-8 lossy) | `terminal/ptyTransport.ts` → `xterm.write()` (dilokalisasi kecuali OpenCode) |
+| `pty:output` | `{ sessionId: string, data: string, seq: number }` | `start_interactive_pty` (chunk 4 KB, UTF-8 lossy) | `terminal/ptyTransport.ts` → `xterm.write()` (dilokalisasi kecuali OpenCode) |
 | `pty:exit` | `{ sessionId: string, exitCode: number }` | `start_interactive_pty` | Status tab terminal |
 | `agent:session_start` | `{ sessionId: string, agent: string, executable: string, pid: number }` | `spawn_headless_agent` | Simpan `pid` untuk Stop/Jeda |
 | `agent:token_stream` | `{ sessionId: string, chunk: string }` | `spawn_headless_agent` (1 baris stdout/stderr + `\n`) | `agentStreamParser.ts` → `cli/streamParsers.ts` (NDJSON → `UiAgentEvent`) |

@@ -53,8 +53,8 @@ export function NewProjectModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
-      <div className={`rounded-3xl max-w-lg w-full p-6 relative overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150 space-y-4 border ${
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
+      <div className={`rounded-3xl max-w-lg w-full p-6 relative overflow-hidden animate-in zoom-in-95 duration-150 space-y-4 border ${
         isLight
           ? 'bg-white/95 text-slate-800 border-slate-200 shadow-2xl'
           : 'bg-[#0c101a] text-slate-100 border-cyan-500/30 shadow-[0_0_60px_-10px_rgba(6,182,212,0.25)]'

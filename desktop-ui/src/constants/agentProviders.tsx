@@ -1,5 +1,5 @@
 import type { AgentProvider } from '../types/agent';
-import { ClaudeIcon, CodexIcon, OpenCodeIcon, AntigravityIcon } from '../components/AgentIcons';
+import { ClaudeIcon, CodexIcon, OpenCodeIcon, AntigravityIcon, KiroIcon } from '../components/AgentIcons';
 
 export const FALLBACK_AGENT_PROVIDERS: AgentProvider[] = [
   {
@@ -128,6 +128,23 @@ export const FALLBACK_AGENT_PROVIDERS: AgentProvider[] = [
         speed: 'Ultra',
         desc: 'Model lokal serbaguna OpenCode Community',
       },
+    ],
+  },
+  {
+    id: 'kiro',
+    name: 'Kiro',
+    vendor: 'Amazon Web Services',
+    executable: 'kiro-cli',
+    binaryPath: null, // dideteksi backend (detect_cli)
+    isInstalled: true,
+    iconName: 'kiro',
+    icon: <KiroIcon className="w-5 h-5" />,
+    accent: 'from-violet-500 to-purple-700',
+    badgeColor: 'border-violet-500/30 text-violet-300 bg-violet-950/40',
+    description: 'Kiro CLI (AWS): agen spec-driven dengan mode headless',
+    defaultModelId: 'cli-default',
+    models: [
+      { id: 'cli-default', name: 'Default (Kiro)', badge: 'DEFAULT', speed: 'Native', desc: 'Model bawaan/konfigurasi Kiro CLI' },
     ],
   },
 ];

@@ -6,6 +6,7 @@
   "scripts": {
     "dev:desktop": "pnpm --filter desktop-ui dev",
     "build:desktop": "pnpm --filter desktop-ui build",
+    "build:app": "pnpm build:desktop && cargo build --release -p soraja-desktop --features custom-protocol",
     "dev:web": "pnpm --filter web-landing dev",
     "build:web": "pnpm --filter web-landing build",
     "publish:release": "node scripts/publish-release.mjs"

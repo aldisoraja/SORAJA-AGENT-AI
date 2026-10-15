@@ -81,8 +81,8 @@ export function useAgentStreamBridge(deps: BridgeDeps) {
           update(sessionId, (m) => ({ ...m, content: m.content + ev.delta }));
           break;
         case 'thinking': {
-          // Antigravity mengirim penalaran per potongan token; CLI lain per blok utuh.
-          const streaming = (gen?.agentId ?? '') === 'antigravity';
+          // Antigravity & Kiro mengirim penalaran per potongan token; CLI lain per blok utuh.
+          const streaming = ['antigravity', 'kiro'].includes(gen?.agentId ?? '');
           update(sessionId, (m) => ({
             ...m,
             reasoning: `${m.reasoning || ''}${streaming || !m.reasoning ? '' : '\n\n'}${ev.delta}`,

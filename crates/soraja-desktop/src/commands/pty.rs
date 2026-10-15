@@ -8,6 +8,12 @@
 //! - `start_interactive_pty` idempoten per `session_id`, dan `pty:exit` hanya dikirim
 //!   untuk proses yang masih menjadi pemilik sesi (generasi sama).
 //! - Command `async` agar tidak berjalan di thread utama UI.
+//!
+//! Ketahanan terhadap reload webview:
+//! - Setiap sesi menyimpan riwayat output (`Scrollback`, maks. `SCROLLBACK_MAX_BYTES`) dan setiap
+//!   event `pty:output` membawa `seq` (total byte sejak awal). `attach_interactive_pty` mengembalikan
+//!   snapshot + `endSeq` sehingga UI yang baru dimuat bisa menyambung ke CLI yang masih hidup tanpa
+//!   kehilangan atau menggandakan output.
 
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
@@ -18,11 +24,53 @@ use tauri::{AppHandle, Emitter, State};
 
 static GENERATION: AtomicU64 = AtomicU64::new(1);
 
+/// Batas riwayat output per sesi (cukup untuk beberapa layar TUI penuh + riwayat terbaru).
+const SCROLLBACK_MAX_BYTES: usize = 512 * 1024;
+
+/// Riwayat output sesi. `total` = jumlah byte kumulatif yang pernah dihasilkan (tidak berkurang saat dipangkas).
+#[derive(Default)]
+pub struct Scrollback {
+    data: String,
+    total: u64,
+}
+
+impl Scrollback {
+    /// Menambah output baru; mengembalikan `total` setelah penambahan.
+    pub fn push(&mut self, chunk: &str) -> u64 {
+        self.data.push_str(chunk);
+        self.total += chunk.len() as u64;
+        if self.data.len() > SCROLLBACK_MAX_BYTES {
+            let mut cut = self.data.len() - SCROLLBACK_MAX_BYTES;
+            while !self.data.is_char_boundary(cut) {
+                cut += 1;
+            }
+            // Mulai dari baris utuh berikutnya agar escape sequence di awal tidak terpotong.
+            if let Some(nl) = self.data[cut..].find('\n').filter(|i| *i < 4096) {
+                cut += nl + 1;
+            }
+            self.data.drain(..cut);
+        }
+        self.total
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PtyAttach {
+    /// Apakah sesi masih terdaftar (proses hidup).
+    pub alive: bool,
+    /// Riwayat output saat ini (kosong bila sesi tidak ada).
+    pub data: String,
+    /// `seq` terakhir yang tercakup di `data`; event `pty:output` dengan `seq <= endSeq` sudah termasuk.
+    pub end_seq: u64,
+}
+
 pub struct PtySession {
     generation: u64,
     master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
+    scrollback: Arc<Mutex<Scrollback>>,
 }
 
 type SessionMap = Arc<Mutex<HashMap<String, PtySession>>>;
@@ -137,6 +185,7 @@ pub async fn start_interactive_pty(
         .map_err(|e| format!("Gagal ambil PTY writer: {}", e))?;
 
     let generation = GENERATION.fetch_add(1, Ordering::Relaxed);
+    let scrollback = Arc::new(Mutex::new(Scrollback::default()));
     {
         let mut map = state.sessions.lock().map_err(|e| e.to_string())?;
         if map.contains_key(&session_id) {
@@ -152,6 +201,7 @@ pub async fn start_interactive_pty(
                 master: Arc::new(Mutex::new(pair.master)),
                 writer: Arc::new(Mutex::new(writer)),
                 killer,
+                scrollback: Arc::clone(&scrollback),
             },
         );
     }
@@ -168,7 +218,14 @@ pub async fn start_interactive_pty(
             pending.extend_from_slice(&buf[..n]);
             let data = drain_utf8(&mut pending);
             if !data.is_empty() {
-                let _ = app_out.emit("pty:output", serde_json::json!({ "sessionId": sid_out, "data": data }));
+                // Emit di dalam kunci: urutan event identik dengan urutan di riwayat (untuk dedupe via `seq`).
+                if let Ok(mut sb) = scrollback.lock() {
+                    let seq = sb.push(&data);
+                    let _ = app_out.emit(
+                        "pty:output",
+                        serde_json::json!({ "sessionId": sid_out, "data": data, "seq": seq }),
+                    );
+                }
             }
         }
     });
@@ -193,6 +250,20 @@ pub async fn start_interactive_pty(
     });
 
     Ok(())
+}
+
+/// Menyambungkan UI (mis. setelah reload webview) ke sesi yang masih hidup: mengembalikan riwayat output.
+#[tauri::command]
+pub async fn attach_interactive_pty(state: State<'_, PtyState>, session_id: String) -> Result<PtyAttach, String> {
+    let scrollback = {
+        let map = state.sessions.lock().map_err(|e| e.to_string())?;
+        map.get(&session_id).map(|s| Arc::clone(&s.scrollback))
+    };
+    let Some(scrollback) = scrollback else {
+        return Ok(PtyAttach { alive: false, data: String::new(), end_seq: 0 });
+    };
+    let sb = scrollback.lock().map_err(|e| e.to_string())?;
+    Ok(PtyAttach { alive: true, data: sb.data.clone(), end_seq: sb.total })
 }
 
 #[tauri::command]
@@ -243,7 +314,20 @@ pub async fn close_interactive_pty(state: State<'_, PtyState>, session_id: Strin
 
 #[cfg(test)]
 mod tests {
-    use super::drain_utf8;
+    use super::{drain_utf8, Scrollback, SCROLLBACK_MAX_BYTES};
+
+    #[test]
+    fn scrollback_dipangkas_tapi_total_tetap_naik() {
+        let mut sb = Scrollback::default();
+        let line = "─ baris output\n".repeat(1000);
+        let mut last = 0;
+        for _ in 0..100 {
+            last = sb.push(&line);
+        }
+        assert!(sb.data.len() <= SCROLLBACK_MAX_BYTES);
+        assert_eq!(last, (line.len() * 100) as u64);
+        assert!(sb.data.starts_with('─')); // dipangkas di batas karakter & baris
+    }
 
     #[test]
     fn utf8_terpotong_di_batas_buffer_tidak_rusak() {

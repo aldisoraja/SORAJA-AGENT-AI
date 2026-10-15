@@ -59,9 +59,7 @@ export function SidebarCollapsedRail({
         </button>
 
         {/* Brand Dot */}
-        <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-black text-xs shadow-md">
-          S
-        </div>
+        <img src="/logo-mark.png" alt="Soraja Engine" className="w-8 h-8 rounded-lg object-contain shadow-[0_4px_12px_rgba(34,211,238,0.25)]" draggable={false} />
 
         <div className="w-6 h-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
 

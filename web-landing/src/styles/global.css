@@ -123,7 +123,7 @@ a {
 
 .brand-logo-img {
   height: 38px;
-  width: auto;
+  width: 38px;
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--accent-cyan-glow);
@@ -622,6 +622,7 @@ a {
 .claude-tag { background: rgba(217, 119, 6, 0.12); color: #d97706; }
 .open-tag { background: rgba(16, 185, 129, 0.12); color: #10b981; }
 .openai-tag { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; }
+.kiro-tag { background: rgba(192, 38, 211, 0.12); color: #c026d3; }
 
 .matrix-card h4 {
   font-size: 1rem;

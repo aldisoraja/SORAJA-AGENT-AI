@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AgentProvider } from '../types/agent';
-import { ptyClose } from '../components/terminal/ptyTransport';
+import { AGENT_PROVIDERS } from '../constants/agentProviders';
+import { loadSessionState, saveSessionState } from '../utils/sessionState';
+import { hasSpawned, ptyClose } from '../components/terminal/ptyTransport';
 
 export interface TerminalTab {
   id: string;
@@ -22,7 +24,8 @@ export function normalizePath(p?: string | null): string {
 
 /** Tab inisial bawaan hook: id persis `tab-<agentId>` (tab buatan pengguna selalu memakai akhiran timestamp). */
 function isInitialTab(tab: TerminalTab): boolean {
-  return tab.id === `tab-${tab.agent.id}`;
+  // Hanya tab awal yang BELUM pernah menjalankan CLI yang boleh digantikan; sesi berjalan tidak dimatikan diam-diam.
+  return tab.id === `tab-${tab.agent.id}` && !hasSpawned(tab.sessionId);
 }
 
 /**
@@ -63,8 +66,25 @@ function withAgent(tab: TerminalTab, agent: AgentProvider, convId?: string, cliS
   };
 }
 
+type SavedTab = Omit<TerminalTab, 'agent'> & { agentId: string };
+
+/** Memulihkan tab dari sessionStorage (agen dirakit ulang dari katalog karena ikon React tidak serializable). */
+function restoreTabs(): { tabs: TerminalTab[]; activeId: string } | null {
+  const saved = loadSessionState<{ tabs: SavedTab[]; activeId: string } | null>('terminalTabs', null);
+  if (!saved || !Array.isArray(saved.tabs) || saved.tabs.length === 0) return null;
+  const tabs: TerminalTab[] = [];
+  for (const { agentId, ...rest } of saved.tabs) {
+    const agent = AGENT_PROVIDERS.find((p) => p.id === agentId);
+    if (agent) tabs.push({ ...rest, agent });
+  }
+  if (tabs.length === 0) return null;
+  const activeId = tabs.some((t) => t.id === saved.activeId) ? saved.activeId : tabs[0].id;
+  return { tabs, activeId };
+}
+
 export function useTerminalManager(defaultAgent: AgentProvider, defaultProjectPath: string) {
-  const [tabs, setTabs] = useState<TerminalTab[]>(() => [
+  const [restored] = useState(restoreTabs);
+  const [tabs, setTabs] = useState<TerminalTab[]>(() => restored?.tabs ?? [
     {
       id: `tab-${defaultAgent.id}`,
       sessionId: `pty-${defaultAgent.id}-${Date.now()}`,
@@ -77,7 +97,12 @@ export function useTerminalManager(defaultAgent: AgentProvider, defaultProjectPa
     },
   ]);
 
-  const [activeTabId, setActiveTabId] = useState<string>(() => `tab-${defaultAgent.id}`);
+  const [activeTabId, setActiveTabId] = useState<string>(() => restored?.activeId ?? `tab-${defaultAgent.id}`);
+
+  useEffect(() => {
+    const serial: SavedTab[] = tabs.map(({ agent, ...rest }) => ({ ...rest, agentId: agent.id }));
+    saveSessionState('terminalTabs', { tabs: serial, activeId: activeTabId });
+  }, [tabs, activeTabId]);
 
   // Ref tracking open tabs (untuk efek samping di luar updater & pengecekan duplikasi oleh UI)
   const tabsRef = useRef<TerminalTab[]>(tabs);

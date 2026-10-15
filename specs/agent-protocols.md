@@ -1,4 +1,4 @@
-# Agent Protocols — 4 CLI Native ↔ Soraja UI
+# Agent Protocols — 5 CLI Native ↔ Soraja UI
 
 > Prinsip dasar: **Soraja tidak mengimplementasikan agen sendiri.** Keempat agen adalah biner CLI resmi yang
 > sudah terpasang di mesin pengguna. Soraja hanya (1) menjalankan, (2) mengalirkan output, dan (3) menerjemahkan
@@ -32,6 +32,9 @@ Semua flag diverifikasi dari `--help` dan uji nyata CLI terpasang (12 Okt 2026: 
 | `claude` | `claude` | `claude -p "<prompt>" --output-format stream-json --verbose` | `claude` | `--resume <session_id>` | `--model <id>` |
 | `codex` | `codex` | `codex exec --json --skip-git-repo-check -C <cwd> "<prompt>"` | `codex` | headless: `codex exec resume … <id> "<prompt>"` · terminal: `codex resume <id>` | `-m <id>` |
 | `opencode` | `opencode` | `opencode run --format json --dir <cwd> "<prompt>"` | `opencode` | `-s <session_id>` | `-m <provider/model>` |
+| `kiro` | `kiro-cli` | `kiro-cli chat --no-interactive --output-format stream-json --agent-engine v3 "<prompt>"` (cwd = proses) | `kiro-cli chat` | `--resume-id <id>` | `--model <id>` |
+
+Baris `kiro` diverifikasi dengan kiro-cli 2.31 terpasang (stream-json v3, `--resume-id sess_…`, `--list-models --format json`; fixture `tests/fixtures/kiro.ndjson`). Dokumentasi kiro-cli 2.x (kiro.dev/docs/cli/headless, kiro.dev/docs/reference/cli-commands), 14 Okt 2026 — dari dokumentasi resmi, BELUM diuji dengan CLI terpasang. Flag Kiro hanya valid di subcommand `chat`. Kiro tidak punya flag system prompt/effort yang dipakai Soraja → aturan bahasa & Chat GUI disisipkan sebagai prefiks prompt headless (seperti Antigravity). Daftar model: `kiro-cli chat --list-models --format json`.
 
 * `--model` tidak dikirim bila model = `cli-default` (CLI memakai konfigurasi pengguna).
 * **Effort/penalaran** (keputusan 13 Okt 2026): mode **Chat GUI** sengaja bernalar lebih dalam dari Terminal. Nilai dari
@@ -72,6 +75,7 @@ Diatur oleh **Pengaturan → Preset Keamanan** (`AppSettings.securityPreset`): `
 | `claude` | `--permission-mode acceptEdits` | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna ditolak oleh CLI. |
 | `codex` | `--approve-for-me` | `--dangerously-bypass-approvals-and-sandbox` | Permintaan izin ditinjau otomatis oleh Codex. *Catatan: `--sandbox workspace-write` di Windows memblokir bahkan `Set-Content` sehingga tidak dipakai.* |
 | `opencode` | tanpa `--auto` | `--auto` | Mengikuti aturan `permission` di config OpenCode pengguna. |
+| `kiro` | tanpa flag trust | `--trust-all-tools` | Tanpa trust, Kiro menolak tool yang butuh persetujuan di mode non-interaktif (belum diverifikasi lokal). |
 
 ---
 
@@ -96,6 +100,18 @@ type UiAgentEvent =
 Field di bawah **sudah diverifikasi** dari output nyata; fixture tes: `desktop-ui/tests/fixtures/*.ndjson`
 (diuji oleh `desktop-ui/tests/cliStreamParsers.test.mjs`). Jika versi CLI baru mengubah format, tangkap ulang
 fixture dulu sebelum mengubah parser.
+
+Kiro (amplop `{type, data}`, isi ACP), dari dokumentasi resmi — belum ada fixture lokal:
+
+| UiAgentEvent | `kiro` |
+| :--- | :--- |
+| `session` | `data.sessionId` (event pertama yang memuatnya, mis. `runStarted`/`metadata`) |
+| `text` | `sessionUpdate` + `data.update.sessionUpdate="agent_message_chunk"` → `content.text` (fallback `runFinished.data.finalText`) |
+| `thinking` | `agent_thought_chunk` → `content.text` (streaming) |
+| `tool` | `tool_call` / `tool_call_update` (`toolCallId`, `title`, `kind`, `status` pending/in_progress/completed/failed, `rawInput`, `content[]`/`rawOutput`) |
+| `file_change` | `kind="edit"` selesai → `locations[0].path` / `rawInput.path` |
+| `usage` | `session_info_update._meta.kiro.promptTurnSummaries[{unit:"credit",usage}]` (sekali per giliran, `kind:"turn_completion"`) → `credits`, token 0; UI menampilkan "N kredit" = pemakaian, BUKAN sisa kuota |
+| `done` | `runFinished.data.status="success"` / `runError.data.message` / rekaman interupsi V3 |
 
 | UiAgentEvent | `claude` | `codex` | `opencode` | `antigravity` |
 | :--- | :--- | :--- | :--- | :--- |
@@ -124,6 +140,7 @@ Sumber kebenaran akun, paket langganan, dan kuota = **berkas milik CLI** (bukan 
 | `codex` | `~/.codex/auth.json` → payload JWT `id_token` (`email`, `chatgpt_plan_type`) | Rollout terbaru `~/.codex/sessions/**.jsonl` → `token_count.rate_limits` (`primary`/`secondary`: `used_percent`, `window_minutes`, `resets_at`) |
 | `antigravity` | Keberadaan `~/.gemini/jetski-standalone-oauth-token` (isi tidak dibaca); paket tidak diekspos | Scrape TUI `agy` → `/usage` ("Weekly/Five Hour Limit Remaining … %, Refreshes in …") |
 | `opencode` | Nama provider di `~/.local/share/opencode/auth.json` (kunci tidak dibaca) | `opencode stats` (token, biaya, sesi); tidak ada batas kuota |
+| `kiro` | `kiro-cli whoami --format json` → `{accountType, provider, email}` (terverifikasi kiro-cli 2.31; biner di `%LOCALAPPDATA%\Kiro-Cli\kiro-cli.exe`). `KIRO_API_KEY` opsional (hanya mengubah `authMethod` menjadi `api_key`) | Tidak diekspos: kredit hanya di TUI `/usage`, `kiro-cli profile` khusus Pro. Kredit per giliran dipetakan ke `AgentUsage.credits` (pemakaian, bukan sisa) |
 
 Jendela kuota yang `resets_at`-nya sudah lewat dianggap reset (0% terpakai). Status "Terhubung" = `isLoggedIn` dari CLI **atau** API key tersimpan.
 
@@ -142,6 +159,7 @@ Keputusan produk: **jawaban agen wajib berbahasa Indonesia** di kedua mode. Teks
 | `claude` | `--append-system-prompt "<aturan>"` | Chat & Terminal |
 | `codex` | `-c developer_instructions="<aturan>"` | Chat & Terminal |
 | `opencode` | env `OPENCODE_CONFIG_CONTENT={"instructions":["<path aturan>"]}`; path dari IPC `prepare_agent_language_rules` (`%APPDATA%\soraja-ai\rules\bahasa-indonesia.md`) | Chat & Terminal |
+| `kiro` | Tidak ada flag system prompt yang dipakai: mode Chat menyisipkan `[Instruksi: …]` di awal prompt. Mode Terminal belum memaksa Bahasa Indonesia. | Chat |
 | `antigravity` | Tidak ada flag system prompt. IPC `prepare_agent_language_rules` menambahkan **sekali** blok bertanda `<!-- soraja:bahasa-indonesia -->` ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia; mode Chat juga menyisipkan `[Instruksi: …]` di awal prompt | Chat & Terminal |
 
 Selain itu, **teks UI bawaan CLI** di mode Terminal (prompt izin, "Thinking…", "esc to cancel", dll.) diterjemahkan oleh

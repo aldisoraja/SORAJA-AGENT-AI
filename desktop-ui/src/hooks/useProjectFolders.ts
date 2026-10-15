@@ -58,11 +58,6 @@ function newProject(name: string, path: string): ProjectRecord {
   return { id: `proj-${Date.now()}`, name, path, branch: 'main', color: '#06b6d4', isPinned: false, createdAt: now, updatedAt: now };
 }
 
-function newConversation(projectId: string, title: string, agentId: string, modelId: string): ConversationRecord {
-  const now = new Date().toISOString();
-  return { id: `conv-${Date.now()}`, projectId, title, agentId, modelId, status: 'active', timeAgo: 'Baru saja', createdAt: now, updatedAt: now };
-}
-
 /** Dialog folder native (tauri-plugin-dialog) di desktop; File System Access API di browser dev. */
 async function pickDirectory(): Promise<PickedFolder | null> {
   if (isTauri) {
@@ -103,13 +98,7 @@ export function useProjectFolders(d: ProjectFoldersDeps) {
     d.setActiveProject(proj);
   };
 
-  const startConversation = async (conv: ConversationRecord) => {
-    d.setConversations(await sorajaDb.createConversation(conv));
-    d.setActiveConversation(conv);
-    d.setMessages([]);
-  };
-
-  const refreshHealth = async () => d.setDbHealth(await sorajaDb.getDatabaseHealth());
+    const refreshHealth = async () => d.setDbHealth(await sorajaDb.getDatabaseHealth());
 
   const handleFinishProjectCreation = async (agentToUse: AgentProvider, mode?: WorkspaceMode) => {
     if (mode) pendingModeRef.current = mode;
@@ -142,7 +131,9 @@ export function useProjectFolders(d: ProjectFoldersDeps) {
     const proj = newProject(folderName, folderPath);
     await saveAndActivateProject(proj);
     await d.refreshFiles(folderPath, pickedDirHandleRef.current);
-    await startConversation(newConversation(proj.id, 'Sesi Vibe Coding - ' + folderName, agentToUse.id, model.id));
+    // Mode chat: draf kosong (sesi dibuat saat input pertama). Mode terminal: sesi CLI dibuat saat tab dibuka.
+    d.setActiveConversation(null);
+    d.setMessages([]);
 
     d.setSelectedAgent(agentToUse);
     d.setSelectedModel(model);

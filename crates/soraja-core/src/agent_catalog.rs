@@ -170,6 +170,19 @@ pub fn detect_cli(exe: &str) -> (bool, Option<String>) {
                     return (true, Some(p.to_string_lossy().to_string()));
                 }
             }
+        } else if exe == "kiro-cli" {
+            // Installer resmi (terverifikasi di kiro-cli 2.31): %LOCALAPPDATA%\Kiro-Cli\kiro-cli.exe.
+            // PATH hasil instalasi baru tidak terbaca proses yang sudah berjalan, jadi cek lokasi langsung.
+            let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                candidates.push(std::path::Path::new(&local).join("Kiro-Cli").join("kiro-cli.exe"));
+            }
+            if let Ok(home) = std::env::var("USERPROFILE") {
+                candidates.push(std::path::Path::new(&home).join(".kiro").join("bin").join("kiro-cli.exe"));
+            }
+            if let Some(p) = candidates.into_iter().find(|p| p.exists()) {
+                return (true, Some(p.to_string_lossy().to_string()));
+            }
         }
         (false, None)
     }
@@ -195,94 +208,114 @@ pub use crate::cli_accounts::{get_user_cli_profile, UserCliProfile};
 /// Model live dari CLI (lihat `agent_models`).
 pub use crate::agent_models::fetch_live_models_from_cli;
 
+/// Metadata statis satu provider; bagian dinamis (instalasi & model) diisi dari CLI.
+struct ProviderSpec {
+    id: &'static str,
+    name: &'static str,
+    vendor: &'static str,
+    executable: &'static str,
+    accent: &'static str,
+    badge_color: &'static str,
+    description: &'static str,
+}
+
+const PROVIDER_SPECS: [ProviderSpec; 5] = [
+    ProviderSpec {
+        id: "antigravity",
+        name: "Antigravity",
+        vendor: "Google DeepMind (Autonomous Engine)",
+        executable: "agy",
+        accent: "from-sky-400 to-indigo-600",
+        badge_color: "border-sky-500/30 text-sky-400 bg-sky-950/40",
+        description: "Engine Vibe Coding otonom Google Antigravity",
+    },
+    ProviderSpec {
+        id: "claude",
+        name: "Claude",
+        vendor: "Anthropic",
+        executable: "claude",
+        accent: "from-amber-500 to-orange-600",
+        badge_color: "border-amber-500/30 text-amber-400 bg-amber-950/40",
+        description: "Claude Code CLI",
+    },
+    ProviderSpec {
+        id: "codex",
+        name: "Codex",
+        vendor: "OpenAI",
+        executable: "codex",
+        accent: "from-emerald-400 to-teal-600",
+        badge_color: "border-emerald-500/30 text-emerald-400 bg-emerald-950/40",
+        description: "OpenAI Codex CLI",
+    },
+    ProviderSpec {
+        id: "opencode",
+        name: "OpenCode",
+        vendor: "OpenCode Community (Self-Hosted)",
+        executable: "opencode",
+        accent: "from-purple-500 to-pink-600",
+        badge_color: "border-purple-500/30 text-purple-400 bg-purple-950/40",
+        description: "Terminal coding open-source multi-provider dengan puluhan model live",
+    },
+    ProviderSpec {
+        id: "kiro",
+        name: "Kiro",
+        vendor: "Amazon Web Services",
+        executable: "kiro-cli",
+        accent: "from-violet-500 to-purple-700",
+        badge_color: "border-violet-500/30 text-violet-300 bg-violet-950/40",
+        description: "Kiro CLI (AWS): agen spec-driven dengan mode headless",
+    },
+];
+
+fn build_provider(spec: &ProviderSpec) -> CliAgentProvider {
+    let (is_installed, binary_path) = detect_cli(spec.executable);
+    let models = fetch_live_models_from_cli(spec.id, spec.executable, binary_path.as_deref());
+    provider_from(spec, is_installed, binary_path, models)
+}
+
+fn provider_from(
+    spec: &ProviderSpec,
+    is_installed: bool,
+    binary_path: Option<String>,
+    models: Vec<CliModelItem>,
+) -> CliAgentProvider {
+    let default_model_id = models.first().map(|m| m.id.clone()).unwrap_or_default();
+    CliAgentProvider {
+        id: spec.id.into(),
+        name: spec.name.into(),
+        vendor: spec.vendor.into(),
+        executable: spec.executable.into(),
+        icon_name: spec.id.into(),
+        accent: spec.accent.into(),
+        badge_color: spec.badge_color.into(),
+        description: spec.description.into(),
+        is_installed,
+        binary_path,
+        default_model_id,
+        models,
+    }
+}
+
 /// Sumber Kebenaran Tunggal (SSOT) untuk seluruh provider agen.
 /// Daftar model dimuat secara dinamis langsung dari CLI masing-masing agen atau katalog live resmi.
+/// Keempat CLI dijalankan paralel (urutan hasil tetap sesuai `PROVIDER_SPECS`).
 pub fn get_authoritative_agent_providers() -> Vec<CliAgentProvider> {
-    vec![
-        // 1. Google Antigravity
-        {
-            let (is_installed, binary_path) = detect_cli("agy");
-            let models = fetch_live_models_from_cli("antigravity", "agy", binary_path.as_deref());
-            let default_model_id = models.first().map(|m| m.id.clone()).unwrap_or_default();
-            CliAgentProvider {
-                id: "antigravity".into(),
-                name: "Antigravity".into(),
-                vendor: "Google DeepMind (Autonomous Engine)".into(),
-                executable: "agy".into(),
-                icon_name: "antigravity".into(),
-                accent: "from-sky-400 to-indigo-600".into(),
-                badge_color: "border-sky-500/30 text-sky-400 bg-sky-950/40".into(),
-                description: "Engine Vibe Coding otonom Google Antigravity".into(),
-                is_installed,
-                binary_path,
-                default_model_id,
-                models,
-            }
-        },
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = PROVIDER_SPECS.iter().map(|spec| scope.spawn(move || build_provider(spec))).collect();
+        handles.into_iter().filter_map(|h| h.join().ok()).collect()
+    })
+}
 
-        // 2. Claude Code CLI
-        {
-            let (is_installed, binary_path) = detect_cli("claude");
-            let models = fetch_live_models_from_cli("claude", "claude", binary_path.as_deref());
-            let default_model_id = models.first().map(|m| m.id.clone()).unwrap_or_default();
-            CliAgentProvider {
-                id: "claude".into(),
-                name: "Claude".into(),
-                vendor: "Anthropic".into(),
-                executable: "claude".into(),
-                icon_name: "claude".into(),
-                accent: "from-amber-500 to-orange-600".into(),
-                badge_color: "border-amber-500/30 text-amber-400 bg-amber-950/40".into(),
-                description: "Claude Code CLI".into(),
-                is_installed,
-                binary_path,
-                default_model_id,
-                models,
-            }
-        },
-
-        // 3. Codex CLI
-        {
-            let (is_installed, binary_path) = detect_cli("codex");
-            let models = fetch_live_models_from_cli("codex", "codex", binary_path.as_deref());
-            let default_model_id = models.first().map(|m| m.id.clone()).unwrap_or_default();
-            CliAgentProvider {
-                id: "codex".into(),
-                name: "Codex".into(),
-                vendor: "OpenAI".into(),
-                executable: "codex".into(),
-                icon_name: "codex".into(),
-                accent: "from-emerald-400 to-teal-600".into(),
-                badge_color: "border-emerald-500/30 text-emerald-400 bg-emerald-950/40".into(),
-                description: "OpenAI Codex CLI".into(),
-                is_installed,
-                binary_path,
-                default_model_id,
-                models,
-            }
-        },
-
-        // 4. OpenCode Interpreter
-        {
-            let (is_installed, binary_path) = detect_cli("opencode");
-            let models = fetch_live_models_from_cli("opencode", "opencode", binary_path.as_deref());
-            let default_model_id = models.first().map(|m| m.id.clone()).unwrap_or_default();
-            CliAgentProvider {
-                id: "opencode".into(),
-                name: "OpenCode".into(),
-                vendor: "OpenCode Community (Self-Hosted)".into(),
-                executable: "opencode".into(),
-                icon_name: "opencode".into(),
-                accent: "from-purple-500 to-pink-600".into(),
-                badge_color: "border-purple-500/30 text-purple-400 bg-purple-950/40".into(),
-                description: "Terminal coding open-source multi-provider dengan puluhan model live".into(),
-                is_installed,
-                binary_path,
-                default_model_id,
-                models,
-            }
-        },
-    ]
+/// Status instalasi keempat agen TANPA menjalankan CLI apa pun (hanya mencari biner di PATH/lokasi bawaan).
+/// Cepat (milidetik); `models` dikosongkan. Untuk katalog lengkap gunakan `get_authoritative_agent_providers`.
+pub fn get_agent_install_status() -> Vec<CliAgentProvider> {
+    PROVIDER_SPECS
+        .iter()
+        .map(|spec| {
+            let (is_installed, binary_path) = detect_cli(spec.executable);
+            provider_from(spec, is_installed, binary_path, Vec::new())
+        })
+        .collect()
 }
 
 /// Mendapatkan model-model live langsung dari CLI agen yang dipilih.
@@ -292,6 +325,7 @@ pub fn get_agent_models(agent_id: &str) -> Vec<CliModelItem> {
         "claude" => ("claude", "claude"),
         "codex" => ("codex", "codex"),
         "opencode" => ("opencode", "opencode"),
+        "kiro" | "kiro-cli" => ("kiro-cli", "kiro-cli"),
         _ => return Vec::new(),
     };
     let (_is_installed, binary_path) = detect_cli(executable);
@@ -368,9 +402,9 @@ mod tests {
     #[test]
     fn test_authoritative_providers_count_and_ids() {
         let providers = get_authoritative_agent_providers();
-        assert_eq!(providers.len(), 4, "Wajib ada 4 agen CLI resmi");
+        assert_eq!(providers.len(), 5, "Wajib ada 5 agen CLI resmi");
         let ids: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, vec!["antigravity", "claude", "codex", "opencode"]);
+        assert_eq!(ids, vec!["antigravity", "claude", "codex", "opencode", "kiro"]);
     }
 
     #[test]

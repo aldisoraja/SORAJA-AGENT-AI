@@ -30,7 +30,7 @@ pub struct Workspace {
 pub struct AgentSession {
     pub id: String,
     pub workspace_id: String,
-    pub provider: String,          // agent_id: "antigravity" | "claude" | "codex" | "opencode"
+    pub provider: String,          // agent_id: "antigravity" | "claude" | "codex" | "opencode" | "kiro"
     pub model_name: String,        // e.g., "gemini-3.1-pro"
     pub status: AgentState,
     pub worktree_path: Option<String>,

@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { Calendar, ChevronDown, ChevronRight, Folder, MessageSquare, MessageSquarePlus, Pin, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, MessageSquare, MessageSquarePlus, Pin, Trash2 } from 'lucide-react';
 import type { ConversationRecord, ProjectRecord } from '../../types/database';
 import type { SidebarProps } from './Sidebar';
 import { groupConversationsByDate } from './conversationGrouping';
@@ -47,8 +47,8 @@ export function SidebarProjectItem({
       className={`rounded-xl transition-all duration-150 ${
         isSelectedProject
           ? isLight
-            ? 'bg-blue-50/20'
-            : 'bg-slate-900/30'
+            ? 'bg-blue-50/40 ring-1 ring-blue-200/60'
+            : 'bg-slate-900/40 ring-1 ring-slate-800/80'
           : ''
       }`}
     >
@@ -110,7 +110,6 @@ export function SidebarProjectItem({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onSelectProject(proj);
               onCreateConversationForProject(proj, e);
             }}
             className={`h-6 w-6 rounded-md border transition cursor-pointer flex items-center justify-center shrink-0 ${
@@ -154,7 +153,7 @@ export function SidebarProjectItem({
       {!isCollapsed && (
         <div className="relative pl-5 pr-1 py-1 space-y-1.5">
           {/* Tree vertical guide line */}
-          <div className="absolute left-3.5 top-1 bottom-2 w-px bg-slate-700/40" />
+          <div className="absolute left-3.5 top-1 bottom-2 w-px bg-gradient-to-b from-cyan-500/40 via-slate-700/40 to-transparent" />
 
           {projConvs.length === 0 ? (
             <div className="pl-2 py-1.5 text-[11px] text-slate-400 italic flex items-center justify-between">
@@ -162,7 +161,6 @@ export function SidebarProjectItem({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSelectProject(proj);
                   onCreateConversationForProject(proj, e);
                 }}
                 className="text-[10px] font-semibold text-blue-600 dark:text-cyan-400 hover:underline cursor-pointer"
@@ -201,15 +199,40 @@ export function SidebarProjectItem({
                 <div className="space-y-1.5">
                   {groupedConvs.map((group) => (
                     <div key={group.label} className="space-y-0.5">
-                      {/* Header Kategori Tanggal, Bulan & Tahun */}
-                      <div className="flex items-center gap-1.5 pl-1.5 py-0.5 select-none">
-                        <Calendar className="w-2.5 h-2.5 text-cyan-400/80 shrink-0" />
-                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
-                          {group.label}
-                        </span>
+                      {/* Header Kategori Tanggal: lencana kalender + judul + hari & tanggal lengkap */}
+                      <div className="flex items-center gap-2.5 pl-1 pr-1 pt-2 pb-1.5 select-none">
+                        <div
+                          className={`w-8 h-8 rounded-lg overflow-hidden shrink-0 flex flex-col items-stretch text-center leading-none border ${
+                            isLight ? 'border-slate-300/80 bg-white shadow-2xs' : 'border-slate-700/70 bg-slate-900/80'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <span className="text-[7px] font-bold tracking-[0.12em] py-[2.5px] bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                            {group.badge.top}
+                          </span>
+                          <span
+                            className={`flex-1 flex items-center justify-center text-[11px] font-extrabold ${
+                              isLight ? 'text-slate-800' : 'text-slate-100'
+                            }`}
+                          >
+                            {group.badge.bottom}
+                          </span>
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1 gap-[3px]">
+                          <span
+                            className={`text-[11px] font-bold tracking-wide truncate ${
+                              isLight ? 'text-slate-800' : 'text-slate-100'
+                            }`}
+                          >
+                            {group.title}
+                          </span>
+                          {group.subtitle && (
+                            <span className="text-[10px] truncate text-slate-500">{group.subtitle}</span>
+                          )}
+                        </div>
                         <span
-                          className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
-                            isLight ? 'bg-slate-200/80 text-slate-600' : 'bg-slate-800 text-slate-400'
+                          className={`text-[10px] min-w-[20px] text-center px-1.5 py-0.5 rounded-full font-mono font-semibold ${
+                            isLight ? 'bg-slate-200/80 text-slate-600' : 'bg-slate-800/80 text-slate-400'
                           }`}
                         >
                           {group.items.length}
@@ -217,35 +240,37 @@ export function SidebarProjectItem({
                       </div>
 
                       {/* Daftar Percakapan dalam Kategori ini */}
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 pl-1">
                         {group.items.map((conv) => {
                           const isSelectedConv = activeConversation?.id === conv.id;
                           return (
                             <div
                               key={conv.id}
                               onClick={() => onSelectConversation(proj, conv)}
-                              className={`flex items-center justify-between px-2.5 py-1 rounded-md text-xs cursor-pointer transition select-none group border ${
+                              className={`relative flex items-center justify-between gap-2 pl-3 pr-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all duration-150 select-none group ${
                                 isSelectedConv
                                   ? isLight
-                                    ? 'bg-blue-100 text-blue-900 font-bold border-blue-300 shadow-2xs'
-                                    : 'bg-cyan-950/70 text-cyan-200 font-bold border-cyan-500/40 shadow-2xs'
+                                    ? 'bg-blue-50 text-blue-900 font-semibold'
+                                    : 'bg-gradient-to-r from-cyan-500/15 to-transparent text-cyan-100 font-semibold'
                                   : isLight
-                                  ? 'hover:bg-slate-100 text-slate-700 border-transparent'
-                                  : 'hover:bg-slate-800/80 text-slate-300 border-transparent'
+                                  ? 'hover:bg-slate-100 text-slate-700'
+                                  : 'hover:bg-slate-800/50 text-slate-300'
                               }`}
                               title={`${conv.title} (${conv.timeAgo})`}
                             >
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
-                                <MessageSquare
-                                  className={`w-3 h-3 shrink-0 ${
-                                    isSelectedConv
-                                      ? isLight ? 'text-blue-600' : 'text-cyan-400'
-                                      : 'text-slate-400 group-hover:text-cyan-400'
-                                  }`}
-                                />
-                                <span className="truncate text-[11px]">{conv.title}</span>
-                              </div>
-                              <span className="text-[9px] font-mono opacity-50 ml-1 shrink-0">
+                              <span
+                                className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-full transition-all duration-150 ${
+                                  isSelectedConv
+                                    ? 'h-4 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]'
+                                    : 'h-0 group-hover:h-2.5 bg-slate-500/60'
+                                }`}
+                              />
+                              <span className="truncate text-[11.5px] flex-1 min-w-0">{conv.title}</span>
+                              <span
+                                className={`text-[9.5px] shrink-0 tabular-nums ${
+                                  isSelectedConv ? 'text-cyan-300/80' : 'text-slate-500'
+                                }`}
+                              >
                                 {conv.timeAgo}
                               </span>
                             </div>

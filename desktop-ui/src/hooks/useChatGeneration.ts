@@ -26,6 +26,13 @@ import { hasHeadlessBridge, isTauriRuntime as isTauri } from '../services/headle
 import { useAgentStreamBridge, type ActiveGeneration } from './useAgentStreamBridge';
 import { persistChatAttachments } from '../services/chatAttachmentStore';
 import { buildChatPrompt } from '../services/cli/chatPrompt';
+import {
+  NEW_CHAT_TITLE,
+  isCliConversation,
+  isPlaceholderTitle,
+  titleFromPrompt,
+  uniqueConversationTitle,
+} from '../utils/conversationTitle';
 
 /** Agen yang menerima gambar langsung lewat flag CLI (selain daftar path di prompt). */
 const NATIVE_IMAGE_AGENTS = ['codex', 'opencode'];
@@ -189,8 +196,47 @@ export function useChatGeneration(d: ChatGenerationDeps) {
 
   const handleSendMessage = async (promptText: string, stagedAttachments: AttachedFile[]) => {
     const prompt = promptText.trim();
-    const { activeConversation, activeProject, selectedAgent, selectedModel } = d;
-    if ((!prompt && stagedAttachments.length === 0) || !activeConversation) return;
+    const { activeProject, selectedAgent, selectedModel } = d;
+    if (!prompt && stagedAttachments.length === 0) return;
+
+    // Draf kosong → sesi baru disimpan sekarang, berjudul dari input pertama
+    let activeConversation = d.activeConversation;
+    if (!activeConversation) {
+      if (!activeProject) return;
+      const existing = await sorajaDb.getConversations(activeProject.id);
+      const fallbackTitle = stagedAttachments[0]?.name || NEW_CHAT_TITLE;
+      const now = new Date().toISOString();
+      activeConversation = {
+        id: `conv-${Date.now()}`,
+        projectId: activeProject.id,
+        title: uniqueConversationTitle(titleFromPrompt(prompt, fallbackTitle), existing.map((c) => c.title)),
+        agentId: selectedAgent.id,
+        modelId: selectedModel.id,
+        status: 'active',
+        timeAgo: 'Baru saja',
+        createdAt: now,
+        updatedAt: now,
+      };
+      d.setConversations(await sorajaDb.createConversation(activeConversation));
+      d.setActiveConversation(activeConversation);
+    } else if (
+      !isCliConversation(activeConversation) &&
+      isPlaceholderTitle(activeConversation.title) &&
+      (await sorajaDb.getMessages(activeConversation.id)).length === 0
+    ) {
+      // Sesi kosong yang sudah tampil di sidebar: judul diambil dari input pertama
+      const existing = await sorajaDb.getConversations(activeConversation.projectId);
+      const fallbackTitle = stagedAttachments[0]?.name || NEW_CHAT_TITLE;
+      const others = existing.filter((c) => c.id !== activeConversation!.id).map((c) => c.title);
+      activeConversation = {
+        ...activeConversation,
+        title: uniqueConversationTitle(titleFromPrompt(prompt, fallbackTitle), others),
+        agentId: selectedAgent.id,
+        modelId: selectedModel.id,
+      };
+      d.setConversations(await sorajaDb.createConversation(activeConversation));
+      d.setActiveConversation(activeConversation);
+    }
 
     // Naikkan proyek ke paling atas saat pengguna mulai berinteraksi (LRU)
     if (activeProject) {

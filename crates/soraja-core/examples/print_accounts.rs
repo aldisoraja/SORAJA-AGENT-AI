@@ -2,7 +2,7 @@
 //! Jalankan: `cargo run -p soraja-core --example print_accounts`
 
 fn main() {
-    for agent in ["claude", "codex", "antigravity", "opencode"] {
+    for agent in ["claude", "codex", "antigravity", "opencode", "kiro"] {
         let profile = soraja_core::cli_accounts::get_user_cli_profile(agent);
         let stats = soraja_core::token_tracker::get_live_agent_token_stats(agent);
         println!("== {agent}");

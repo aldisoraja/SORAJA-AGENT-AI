@@ -315,7 +315,7 @@ class SorajaDatabase {
     const raw = this.getStorageItem<Record<string, CredentialRecord>>('credentials', DEFAULT_CREDENTIALS);
     const sanitized: Record<string, CredentialRecord> = {};
 
-    for (const key of ['antigravity', 'claude', 'codex', 'opencode']) {
+    for (const key of ['antigravity', 'claude', 'codex', 'opencode', 'kiro']) {
       sanitized[key] = {
         ...DEFAULT_CREDENTIALS[key],
         ...(raw[key] || {}),

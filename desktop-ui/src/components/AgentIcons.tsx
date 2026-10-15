@@ -55,6 +55,18 @@ export const OpenCodeIcon: React.FC<{ className?: string }> = ({ className = 'w-
   </svg>
 );
 
+// 6. Kiro (ghost mark ungu) Icon
+export const KiroIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path
+      d="M12 2.5C7.6 2.5 5 5.6 5 9.8V20.2c0 .9 1 1.4 1.7.8l1.6-1.3 1.8 1.5c.5.4 1.2.4 1.7 0L13.6 19.7l1.8 1.5c.5.4 1.2.4 1.7 0l1.2-1V9.8C18.3 5.6 16.4 2.5 12 2.5Z"
+      fill="#8b5cf6"
+    />
+    <circle cx="9.6" cy="10.2" r="1.5" fill="#ffffff" />
+    <circle cx="14.4" cy="10.2" r="1.5" fill="#ffffff" />
+  </svg>
+);
+
 // 5. Google Antigravity (Geometric 'A' Mark) Icon
 export const AntigravityIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -83,6 +95,7 @@ export const AGENT_ICONS = {
   claude: ClaudeIcon,
   codex: CodexIcon,
   opencode: OpenCodeIcon,
+  kiro: KiroIcon,
 };
 
 export function getAgentIcon(iconNameOrId?: string, className = 'w-5 h-5'): React.ReactNode {

@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import { sorajaDb, type ConversationRecord, type ProjectRecord } from '../services/db';
 import type { AgentProvider } from '../types/agent';
+import { isCliConversation } from '../utils/conversationTitle';
 import { findTabByPath, type TerminalTab, type useTerminalManager } from './useTerminalManager';
 import type { WorkspaceState } from './useWorkspaceState';
 
@@ -107,21 +108,21 @@ export function useTerminalRouting(
   };
 
   // Handler membuka tab terminal sekaligus mencatat percakapan di database proyek
-  const handleOpenTerminalTab = async (agent: AgentProvider, projectPath: string) => {
+  const handleOpenTerminalTab = async (agent: AgentProvider, projectPath: string, projectOverride?: ProjectRecord) => {
     const norm = (p?: string) => (p || '').toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
-    const targetProj = ws.projects.find((p) => norm(p.path) === norm(projectPath));
+    // projectOverride: proyek yang baru dibuat belum ada di `ws.projects` (closure lama)
+    const targetProj = projectOverride ?? ws.projects.find((p) => norm(p.path) === norm(projectPath));
 
     let convId = `conv-cli-${agent.id}-${Date.now()}`;
     if (targetProj) {
       ws.setActiveProject(targetProj);
       ws.touchProjectActivity(targetProj.id);
-      // Cari jika sudah ada percakapan CLI untuk agen ini di proyek
+      // Sesi CLI dipakai ulang per proyek+agen; TIDAK menjadi percakapan aktif Chat GUI (chat & CLI terpisah)
       const existingConv = ws.conversations.find(
-        (c) => c.projectId === targetProj.id && c.agentId === agent.id && c.id.startsWith('conv-cli-')
+        (c) => c.projectId === targetProj.id && c.agentId === agent.id && isCliConversation(c)
       );
       if (existingConv) {
         convId = existingConv.id;
-        ws.setActiveConversation(existingConv);
       } else {
         const newConv: ConversationRecord = {
           id: convId,
@@ -137,7 +138,6 @@ export function useTerminalRouting(
 
         const updated = await sorajaDb.createConversation(newConv);
         ws.setConversations(updated);
-        ws.setActiveConversation(newConv);
       }
     }
 
@@ -149,7 +149,7 @@ export function useTerminalRouting(
   const handleSelectConversationWithRouting = async (proj: ProjectRecord, conv: ConversationRecord) => {
     await ws.handleSelectConversation(proj, conv);
     ws.touchProjectActivity(proj.id);
-    if (conv.id.startsWith('conv-cli-') || conv.title.toLowerCase().includes('cli')) {
+    if (isCliConversation(conv)) {
       // 1 tab = 1 direktori: cukup fokus ke tab direktori ini (agennya tidak diganti diam-diam)
       const matchingTab = findTabByPath(terminalManager.tabs, proj.path);
       if (matchingTab) {

@@ -102,6 +102,14 @@ function cliSyncPlugin(): Plugin {
           const claudeCmd = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'npm', 'claude.cmd');
           if (fs.existsSync(claudeCmd)) return claudeCmd;
         }
+        if (command === 'kiro-cli') {
+          for (const kiroExe of [
+            path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Kiro-Cli', 'kiro-cli.exe'),
+            path.join(os.homedir(), '.kiro', 'bin', 'kiro-cli.exe'),
+          ]) {
+            if (fs.existsSync(kiroExe)) return kiroExe;
+          }
+        }
         if (command === 'codex' || command?.includes('codex')) {
           const codexDirectExe = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'npm', 'node_modules', '@openai', 'codex', 'node_modules', '@openai', 'codex-win32-x64', 'vendor', 'x86_64-pc-windows-msvc', 'bin', 'codex.exe');
           if (fs.existsSync(codexDirectExe)) return codexDirectExe;
@@ -312,5 +320,10 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     host: '127.0.0.1',
+    // Agen CLI menulis berkas ke proyek (termasuk gambar tempelan & build); perubahan itu
+    // tidak boleh memicu full-reload webview yang mereset sesi terminal.
+    watch: {
+      ignored: ['**/.soraja/**', '**/dist/**', '**/target/**', '**/.git/**', '**/node_modules/**', '**/*.log'],
+    },
   },
 })

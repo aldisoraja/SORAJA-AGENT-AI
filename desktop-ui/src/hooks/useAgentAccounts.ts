@@ -10,12 +10,14 @@ import {
   ensureWorkspaceTrustedForCli,
   fetchAuthoritativeAgentModels,
   fetchAuthoritativeAgentProviders,
+  fetchInstalledCliStatuses,
   fetchLiveAgentTokenStats,
   fetchUserCliProfile,
   type CliAgentStatus,
 } from '../services/cliAdapters';
 import type { AgentProvider, ModelItem } from '../types/agent';
 import { AGENT_PROVIDERS } from '../constants/agentProviders';
+import { loadSessionState, saveSessionState } from '../utils/sessionState';
 
 export const DEFAULT_FALLBACK_MODEL: ModelItem = {
   id: 'cli-default',
@@ -24,7 +26,12 @@ export const DEFAULT_FALLBACK_MODEL: ModelItem = {
   desc: 'Model dimuat langsung dari CLI agen',
 };
 
-const AGENT_IDS = ['antigravity', 'claude', 'codex', 'opencode'];
+const AGENT_IDS = ['antigravity', 'claude', 'codex', 'opencode', 'kiro'];
+/** Pembacaan profil/kuota agen ini memakai PTY + jeda tunggu, jadi dijalankan terakhir. */
+const HEAVY_AGENT_ID = 'antigravity';
+/** Jeda sebelum pembacaan CLI yang berat dimulai, agar UI sempat tampil & responsif lebih dulu. */
+const STARTUP_PROBE_DELAY_MS = 2500;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 interface AgentAccountsDeps {
   activeProject: ProjectRecord | null;
@@ -34,8 +41,17 @@ interface AgentAccountsDeps {
 
 export function useAgentAccounts({ activeProject, setCredentials, showDbToast }: AgentAccountsDeps) {
   const [agentProviders, setAgentProviders] = useState<AgentProvider[]>(AGENT_PROVIDERS);
-  const [selectedAgent, setSelectedAgent] = useState<AgentProvider>(AGENT_PROVIDERS[0]);
-  const [selectedModel, setSelectedModel] = useState<ModelItem>(AGENT_PROVIDERS[0]?.models?.[0] || DEFAULT_FALLBACK_MODEL);
+  const [selectedAgent, setSelectedAgent] = useState<AgentProvider>(() => {
+    const savedId = loadSessionState<string>('selectedAgentId', '');
+    return AGENT_PROVIDERS.find((p) => p.id === savedId) || AGENT_PROVIDERS[0];
+  });
+  const [selectedModel, setSelectedModel] = useState<ModelItem>(() => {
+    const savedModelId = loadSessionState<string>('selectedModelId', '');
+    const models = selectedAgent.models || [];
+    return models.find((m) => m.id === savedModelId) || models[0] || DEFAULT_FALLBACK_MODEL;
+  });
+  useEffect(() => saveSessionState('selectedAgentId', selectedAgent.id), [selectedAgent.id]);
+  useEffect(() => saveSessionState('selectedModelId', selectedModel.id), [selectedModel.id]);
   const [installedCliAgents, setInstalledCliAgents] = useState<Record<string, CliAgentStatus>>({});
 
   /** Profil (login, email, paket) + kuota untuk satu agen, langsung dari CLI. */
@@ -47,12 +63,28 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
 
   /** Dipanggil juga dari tombol UI (argumen bisa berupa event) → hanya `{ silent: true }` yang membisukan toast. */
   const handleSyncLiveQuota = async (options?: { silent?: boolean }) => {
+    // Agen ringan dibaca paralel; Antigravity (membuka PTY ±6 dtk) menyusul sendiri agar tidak berebut CPU.
+    // Penulisan ke penyimpanan tetap berurutan agar tidak saling menimpa.
+    const read = async (id: string) => {
+      const [profile, stats] = await Promise.all([fetchUserCliProfile(id), fetchLiveAgentTokenStats(id)]);
+      return { id, profile, stats };
+    };
+    const light = await Promise.all(AGENT_IDS.filter((id) => id !== HEAVY_AGENT_ID).map(read));
+    const fetched = [...light, await read(HEAVY_AGENT_ID)];
     let latest: Record<string, CredentialRecord> | null = null;
-    for (const id of AGENT_IDS) {
-      latest = await syncAgentAccount(id);
+    for (const { id, profile, stats } of fetched) {
+      await sorajaDb.applyCliProfile(id, profile);
+      latest = await sorajaDb.syncLiveQuota(id, stats);
     }
     if (latest) setCredentials({ ...latest });
     if (options?.silent !== true) showDbToast('Akun, paket & kuota disinkronkan langsung dari mesin CLI.');
+  };
+
+  /** Status terpasang saja (cepat). Dipakai saat startup & membuka wizard "ganti agen": tidak menjalankan CLI. */
+  const refreshInstalledStatus = async () => {
+    const statuses = await fetchInstalledCliStatuses();
+    if (statuses.length === 0) return;
+    setInstalledCliAgents(Object.fromEntries(statuses.map((s) => [s.id, s])));
   };
 
   const refreshAgentProviders = async () => {
@@ -84,7 +116,10 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
   };
 
   useEffect(() => {
+    // Bertahap: status terpasang (milidetik) → jeda agar UI interaktif → model live → akun & kuota.
     (async () => {
+      await refreshInstalledStatus();
+      await sleep(STARTUP_PROBE_DELAY_MS);
       await refreshAgentProviders();
       await handleSyncLiveQuota({ silent: true });
     })();
@@ -150,6 +185,7 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
     setSelectedModel,
     installedCliAgents,
     refreshAgentProviders,
+    refreshInstalledStatus,
     handleSelectAgent,
     selectAgentById,
     handleSyncLiveQuota,

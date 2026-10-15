@@ -60,6 +60,7 @@ export const DEFAULT_CREDENTIALS: Record<string, CredentialRecord> = {
   claude: emptyCredential('claude'),
   codex: emptyCredential('codex'),
   opencode: emptyCredential('opencode'),
+  kiro: emptyCredential('kiro'),
 };
 
 export const DEFAULT_SCHEDULED_TASKS: ScheduledTaskRecord[] = [

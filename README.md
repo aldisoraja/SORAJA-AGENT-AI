@@ -365,6 +365,15 @@ pnpm --filter desktop-ui tauri dev
 pnpm --filter web-landing dev
 ```
 
+### Build Aplikasi Desktop Rilis (`target/release/soraja-desktop.exe`):
+```bash
+pnpm build:app
+```
+Perintah ini membangun `desktop-ui/dist` lalu menjalankan `cargo build --release -p soraja-desktop --features custom-protocol`.
+**Jangan** memakai `cargo build --release` tanpa `--features custom-protocol`: binary seperti itu tidak meng-embed UI dan
+memuat halaman dari server Vite dev (`127.0.0.1:5173`), sehingga webview ikut *full reload* setiap kali berkas proyek berubah
+(mis. saat agen CLI sedang bekerja) dan data `localStorage` tersimpan di origin yang berbeda.
+
 ### Build Installer Desktop Produksi (Windows `.msi` / `.exe`):
 ```bash
 pnpm --filter desktop-ui tauri build
@@ -473,7 +482,7 @@ Setiap modifikasi sistem wajib dicatat di sini dan di SpecKit (`specs/`):
     - **Kotak Ringkasan Agregat (Tinjau Perubahan Kode):** Menampilkan daftar seluruh berkas yang dimodifikasi (`+X -Y`), tombol *"Tinjau Semua Perubahan"*, *"Terima"*, dan *"Abaikan"*.
     - **Docked Split-Pane Diff Review Panel:** Panel review kode docked di sisi kanan (side-by-side split screen dengan chat timeline), dilengkapi breadcrumbs path berkas, tab file multi-berkas, baris kode berwarna merah (dihapus) & hijau (ditambahkan) dengan penomoran baris ganda, chunk baris tersembunyi (`+591 baris tersembunyi`), dan tombol persetujuan *"Terima Perubahan"*.
 20. **Pembersihan Header, Model Matrix Pro vs Flash, & Sesi Awal Kosong:**
-    - **Pembersihan Header Atas:** Menghapus dropdown model duplikat, tombol budget thinking (LOW, MEDIUM, HIGH), dan dropdown kebijakan warna kuning (*Tool Execution Policy*) dari header atas. Header kini bersih menampilkan navigasi breadcrumb Proyek/Branch/Percakapan dan tombol pengujian guardrail HITL.
+    - **Pembersihan Header Atas:** Menghapus dropdown model duplikat, tombol budget thinking (LOW, MEDIUM, HIGH), dan dropdown kebijakan warna kuning (*Tool Execution Policy*) dari header atas. Header kini bersih menampilkan navigasi breadcrumb Proyek/Branch/Percakapan (tombol simulasi "Izin Keamanan (HITL)" telah dihapus karena hanya demo).
     - **Thinking Budget Terintegrasi di Bawah & Zero-Clip Flyout:** Kontrol pilihan model dan budget thinking sepenuhnya berada di bar input obrolan bawah (`[+] [ Model Budget ^ ]`) dengan sub-menu hover (*Low*, *Medium*, *High*) lengkap dengan tanda centang aktif `✓`. Menu flyout diposisikan di luar kontainer scroll (`overflow-x-hidden`) sehingga tidak pernah terpotong atau menimbulkan scrollbar horizontal.
     - **Detail Model Resmi & Pembeda Pro vs Flash:** Menghapus pemotongan nama model yang sebelumnya menyebabkan kebingungan ("Gemini 2.5" ganda). Menampilkan nama resmi lengkap dengan badge visual: `PRO`, `FLASH`, `THINKING`, `PREVIEW`, `ULTRA`, `HYBRID`, `CODER` dll.
     - **Sesi Awal Bersih (Kosongan Saja):** Menghapus seluruh pesan selamat datang/greeting benih bawaan dari database SQLite WAL maupun dari handler percakapan baru. Sesi baru kini dimulai dengan tampilan kanvas obrolan kosong yang bersih dan siap pakai.
@@ -694,7 +703,6 @@ flowchart TD
    * Di bar atas, sediakan navigasi tab yang jelas:
      * `[ 💬 Chat GUI ]` (Aktif secara default)
      * `[ >_ Mesin CLI Terminal ]`
-     * `[ 🛡️ Uji Izin Terminal (HITL) ]`
    * Menampilkan breadcrumb ruang kerja aktif: `Ruang Kerja: Agent Soraja AI / Percakapan Baru`.
 
 2. **Linimasa Percakapan (Chat Timeline) & Thinking CoT:**

@@ -141,6 +141,15 @@ export async function fetchInstalledCliAgents(): Promise<Record<string, CliAgent
  * Mengambil daftar Agen AI dan seluruh model masing-masing secara 100% dinamis dari Backend Rust (Tauri IPC).
  * Tanpa hardcode di frontend: nama model, token context, dan status binary CLI datang dari backend.
  */
+/** Status terpasang/tidaknya keempat CLI (cepat, tanpa menjalankan CLI). Kosong bila tanpa Tauri. */
+export async function fetchInstalledCliStatuses(): Promise<CliAgentStatus[]> {
+  try {
+    return await invoke<CliAgentStatus[]>('get_available_cli_agents');
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchAuthoritativeAgentProviders(): Promise<AgentProvider[]> {
   try {
     const raw = await invoke<AgentProvider[]>('get_agent_providers');

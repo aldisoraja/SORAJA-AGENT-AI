@@ -9,7 +9,7 @@
 --   "Tab Terminal CLI"    = pty_sessions
 --
 -- Nilai agent_id yang SAH (4 agen CLI native, lihat specs/agent-protocols.md):
---   'antigravity' | 'claude' | 'codex' | 'opencode'
+--   'antigravity' | 'claude' | 'codex' | 'opencode' | 'kiro'
 
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
 CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL UNIQUE
-        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode')),
+        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode', 'kiro')),
     auth_mode TEXT NOT NULL DEFAULT 'cli_login'
         CHECK (auth_mode IN ('cli_login', 'api_key')),
     account_email TEXT,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     workspace_id TEXT NOT NULL,
     title TEXT,
     agent_id TEXT NOT NULL
-        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode')),
+        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode', 'kiro')),
     model_name TEXT NOT NULL,        -- id model dari get_agent_models, atau 'cli-default'
     thinking_budget TEXT,            -- nilai effort/variant yang dikirim ke CLI (mis. 'low', 'medium', 'high')
     permission_mode TEXT DEFAULT 'safe'
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS pty_sessions (
     id TEXT PRIMARY KEY,             -- sessionId untuk start_interactive_pty
     workspace_id TEXT NOT NULL,
     agent_id TEXT NOT NULL
-        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode', 'shell')),
+        CHECK (agent_id IN ('antigravity', 'claude', 'codex', 'opencode', 'kiro', 'shell')),
     agent_session_id TEXT,           -- jika tab dibuka dari percakapan chat ("Buka di Terminal")
     cli_session_id TEXT,             -- id sesi CLI yang di-resume
     args_json TEXT,                  -- argumen yang dipakai saat spawn

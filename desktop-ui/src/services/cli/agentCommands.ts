@@ -6,7 +6,7 @@
  */
 import { CHAT_REASONING_RULE, type ChatEffort } from './chatPrompt.ts';
 
-export type CliAgentId = 'antigravity' | 'claude' | 'codex' | 'opencode';
+export type CliAgentId = 'antigravity' | 'claude' | 'codex' | 'opencode' | 'kiro';
 export type PermissionMode = 'safe' | 'autonomous';
 
 /** Aturan bahasa jawaban agen (lihat specs/agent-protocols.md §5). */
@@ -49,11 +49,18 @@ const API_KEY_ENV: Record<CliAgentId, string[]> = {
   claude: ['ANTHROPIC_API_KEY'],
   codex: ['OPENAI_API_KEY'],
   opencode: [],
+  // Kiro headless (Chat GUI) WAJIB memakai API key (paket Pro ke atas).
+  kiro: ['KIRO_API_KEY'],
 };
+
+/** Agen tanpa flag system prompt: aturan bahasa & Chat GUI disisipkan di awal prompt headless. */
+const PROMPT_PREFIX_AGENTS: CliAgentId[] = ['antigravity', 'kiro'];
 
 export function normalizeAgentId(id: string): CliAgentId | null {
   if (id === 'agy') return 'antigravity';
-  return id === 'antigravity' || id === 'claude' || id === 'codex' || id === 'opencode' ? id : null;
+  if (id === 'kiro-cli') return 'kiro';
+  const known: CliAgentId[] = ['antigravity', 'claude', 'codex', 'opencode', 'kiro'];
+  return (known as string[]).includes(id) ? (id as CliAgentId) : null;
 }
 
 /** Slug/alias model Claude Code yang valid saat ini (mis. claude-sonnet-5-5, sonnet). Slug lama (claude-3-*, *-latest) ditolak akun modern. */
@@ -103,6 +110,9 @@ function sharedArgs(agentId: CliAgentId, o: CliLaunchOptions): string[] {
     case 'opencode':
       if (hasModel(o.modelId, agentId)) args.push('-m', o.modelId);
       break;
+    case 'kiro':
+      if (hasModel(o.modelId, agentId)) args.push('--model', o.modelId);
+      break;
   }
   return args;
 }
@@ -120,6 +130,9 @@ function effortArgs(agentId: CliAgentId, effort?: ChatEffort): string[] {
     case 'opencode':
       // Varian reasoning OpenCode bersifat per provider; "high" & "max" paling umum didukung.
       return ['--thinking', '--variant', effort === 'max' ? 'max' : 'high'];
+    case 'kiro':
+      // Level effort Kiro bergantung model (dilaporkan saat run).
+      return [];
   }
 }
 
@@ -132,11 +145,11 @@ function headlessPrompt(agentId: CliAgentId, o: CliLaunchOptions): string {
   const prefixes: string[] = [];
   if (
     o.forceIndonesian !== false &&
-    (agentId === 'antigravity' || (agentId === 'opencode' && !o.languageRulesPath))
+    (PROMPT_PREFIX_AGENTS.includes(agentId) || (agentId === 'opencode' && !o.languageRulesPath))
   ) {
     prefixes.push(`[Instruksi: ${LANGUAGE_RULE}]`);
   }
-  if (o.chatRules && (agentId === 'antigravity' || agentId === 'opencode')) {
+  if (o.chatRules && (PROMPT_PREFIX_AGENTS.includes(agentId) || agentId === 'opencode')) {
     prefixes.push(`[Instruksi sistem]\n${CHAT_REASONING_RULE}`);
   }
   const full = prefixes.length > 0 ? `${prefixes.join('\n\n')}\n\n${prompt}` : prompt;
@@ -190,6 +203,13 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
       if (o.cliSessionId) args.push('-s', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), ...effortArgs(agentId, o.effort), prompt);
       break;
+    case 'kiro':
+      // Flag hanya berlaku di subcommand `chat`; stream-json butuh engine v2/v3 (kiro.dev/docs/cli/headless).
+      args.push('chat', '--no-interactive', '--output-format', 'stream-json', '--agent-engine', 'v3');
+      if (autonomous) args.push('--trust-all-tools');
+      if (o.cliSessionId) args.push('--resume-id', o.cliSessionId);
+      args.push(...sharedArgs(agentId, o), prompt);
+      break;
   }
   return { executable: o.executable, args, envs: baseEnvs(agentId, o) };
 }
@@ -212,6 +232,10 @@ export function buildInteractiveCommand(o: CliLaunchOptions): CliCommand {
       break;
     case 'opencode':
       if (o.cliSessionId) args.push('-s', o.cliSessionId);
+      break;
+    case 'kiro':
+      args.push('chat');
+      if (o.cliSessionId) args.push('--resume-id', o.cliSessionId);
       break;
   }
   args.push(...sharedArgs(agentId, o));

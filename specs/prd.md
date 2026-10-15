@@ -2,7 +2,7 @@
 ## SORAJA ENGINE (Desktop & CLI) - v1.0.0
 
 ### 1. Visi Produk
-Platform *Agentic Command Center* lokal untuk Windows yang menyatukan **4 agen coding CLI resmi** — **Antigravity** (`agy`), **Claude Code** (`claude`), **Codex** (`codex`), dan **OpenCode** (`opencode`) — dalam satu aplikasi desktop. Soraja **tidak membuat agen sendiri dan tidak memanggil API LLM secara langsung**; Soraja menjalankan biner CLI asli yang sudah terpasang dan login di mesin pengguna, lalu menyajikannya dalam dua mode:
+Platform *Agentic Command Center* lokal untuk Windows yang menyatukan **5 agen coding CLI resmi** — **Antigravity** (`agy`), **Claude Code** (`claude`), **Codex** (`codex`), **OpenCode** (`opencode`), dan **Kiro** (`kiro-cli`) — dalam satu aplikasi desktop. Soraja **tidak membuat agen sendiri dan tidak memanggil API LLM secara langsung**; Soraja menjalankan biner CLI asli yang sudah terpasang dan login di mesin pengguna, lalu menyajikannya dalam dua mode:
 
 | Mode | Pengalaman | Mekanisme |
 | :--- | :--- | :--- |
@@ -12,13 +12,14 @@ Platform *Agentic Command Center* lokal untuk Windows yang menyatukan **4 agen c
 Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehingga pengguna bisa melanjutkan percakapan GUI di terminal dan sebaliknya. Detail teknis: [`sdd-speckit.md`](./sdd-speckit.md) §11 dan [`agent-protocols.md`](./agent-protocols.md).
 
 ### 2. Lingkup Fitur Utama
-1. **Katalog 4 Agen CLI Native:**  
+1. **Katalog 5 Agen CLI Native:**  
    | `agent_id` | Nama di UI | Biner | Vendor |
    | :--- | :--- | :--- | :--- |
    | `antigravity` | Antigravity | `agy` | Google |
    | `claude` | Claude | `claude` (Claude Code) | Anthropic |
    | `codex` | Codex | `codex` | OpenAI |
    | `opencode` | OpenCode | `opencode` | SST / open source (multi-provider) |
+   | `kiro` | Kiro | `kiro-cli` | Amazon Web Services (Chat GUI headless wajib `KIRO_API_KEY`, paket Pro ke atas) |
    - Deteksi instalasi otomatis via `PATH` + unwrap shim npm (`get_available_cli_agents`). Agen yang belum terpasang ditampilkan dengan tombol/perintah instalasi.
    - **Daftar model tidak di-hardcode di UI.** Model diambil dari CLI (`get_agent_models`, mis. `agy models`, `opencode models`) dengan katalog bawaan di `soraja-core` hanya sebagai fallback. Opsi `cli-default` = biarkan CLI memakai model default/konfigurasinya.
 

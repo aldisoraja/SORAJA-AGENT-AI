@@ -16,6 +16,13 @@ import type { AgentProvider } from '../types/agent';
 import type { ConfirmDialogData } from '../components/modals/ConfirmDialogModal';
 import { useAppTheme } from './useAppTheme';
 import { useWorkspaceFiles } from './useWorkspaceFiles';
+import {
+  NEW_CHAT_TITLE,
+  isCliConversation,
+  isPlaceholderTitle,
+  pickResumableChat,
+  uniqueConversationTitle,
+} from '../utils/conversationTitle';
 
 
 export function useWorkspaceState() {
@@ -66,18 +73,10 @@ export function useWorkspaceState() {
 
       if (loadedProjects.length > 0) {
         const firstProj = loadedProjects[0];
+        // Sesi chat baru disiapkan oleh effect "startup" di bawah; sesi lama tetap tersimpan di sidebar
         setActiveProject(firstProj);
-
-        const projConvs = loadedConvs.filter((c) => c.projectId === firstProj.id);
-        if (projConvs.length > 0) {
-          const firstConv = projConvs[0];
-          setActiveConversation(firstConv);
-          const initialMsgs = await sorajaDb.getMessages(firstConv.id);
-          setMessages(initialMsgs);
-        } else {
-          setActiveConversation(null);
-          setMessages([]);
-        }
+        setActiveConversation(null);
+        setMessages([]);
       } else {
         setActiveProject(null);
         setActiveConversation(null);
@@ -127,7 +126,25 @@ export function useWorkspaceState() {
   const [projectFilterQuery, setProjectFilterQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'pinned' | 'active'>('all');
 
+  // Token seleksi: hasil async (pemuatan pesan) dari pilihan lama dibuang bila pengguna sudah memilih yang lain
+  const selectionSeq = useRef(0);
+
+  /** Memilih proyek: melanjutkan sesi chat terakhir bila dibuat hari ini, selain itu draf kosong (belum disimpan). */
+  const handleSelectProject = async (proj: ProjectRecord, options?: { force?: boolean }) => {
+    if (!options?.force && activeProject?.id === proj.id) return;
+    const seq = ++selectionSeq.current;
+    setActiveProject(proj);
+    const conv = pickResumableChat(await sorajaDb.getConversations(), proj.id);
+    if (seq !== selectionSeq.current) return;
+    setActiveConversation(conv);
+    setMessages([]);
+    if (!conv) return;
+    const msgs = await sorajaDb.getMessages(conv.id);
+    if (seq === selectionSeq.current) setMessages(msgs);
+  };
+
   const handleSelectConversation = async (project: ProjectRecord, conv: ConversationRecord) => {
+    const seq = ++selectionSeq.current;
     setActiveProject(project);
     setActiveConversation(conv);
     // Agen & model mengikuti percakapan yang dibuka (mencegah header Codex dengan model Gemini)
@@ -135,7 +152,7 @@ export function useWorkspaceState() {
       accounts.selectAgentById(conv.agentId, conv.modelId);
     }
     const msgs = await sorajaDb.getMessages(conv.id);
-    setMessages(msgs);
+    if (seq === selectionSeq.current) setMessages(msgs);
   };
 
   const touchProjectActivity = async (projectId: string) => {
@@ -150,33 +167,64 @@ export function useWorkspaceState() {
     setProjects(updated);
   };
 
-  const handleCreateNewConversation = async () => {
-    if (!activeProject) return;
-
-    const newConv: ConversationRecord = {
+  /**
+   * Menyiapkan sesi chat kosong yang tersimpan (tampil di sidebar berjudul "Percakapan baru").
+   * Saat startup memakai ulang sesi kosong yang ada; klik eksplisit pengguna (forceNew) selalu membuat sesi baru.
+   */
+  const ensureEmptyChat = async (proj: ProjectRecord, forceNew = false): Promise<{ conv: ConversationRecord; reused: boolean }> => {
+    const all = await sorajaDb.getConversations();
+    const mine = all.filter((c) => c.projectId === proj.id && !isCliConversation(c));
+    for (const c of forceNew ? [] : mine) {
+      if (isPlaceholderTitle(c.title) && (await sorajaDb.getMessages(c.id)).length === 0) {
+        return { conv: c, reused: true };
+      }
+    }
+    const now = new Date().toISOString();
+    const conv: ConversationRecord = {
       id: `conv-${Date.now()}`,
-      projectId: activeProject.id,
-      title: 'Percakapan Baru ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      projectId: proj.id,
+      title: uniqueConversationTitle(NEW_CHAT_TITLE, mine.map((c) => c.title)),
       agentId: selectedAgent.id,
       modelId: selectedModel.id,
       status: 'active',
       timeAgo: 'Baru saja',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
+    setConversations(await sorajaDb.createConversation(conv));
+    return { conv, reused: false };
+  };
 
-    const updatedConvs = await sorajaDb.createConversation(newConv);
-    setConversations(updatedConvs);
-    setActiveConversation(newConv);
+  /** "Mulai sesi chat baru": membuat sesi kosong tersimpan & membukanya; sesi lama tetap utuh. */
+  const startNewChat = async (proj: ProjectRecord, options?: { forceNew?: boolean }) => {
+    const seq = ++selectionSeq.current;
+    setActiveProject(proj);
+    setCollapsedProjects((prev) => ({ ...prev, [proj.id]: false }));
+    const { conv, reused } = await ensureEmptyChat(proj, options?.forceNew);
+    if (seq !== selectionSeq.current) return;
+    setActiveConversation(conv);
     setMessages([]);
+    showDbToast(reused ? 'Sesi chat kosong dibuka kembali.' : 'Sesi chat baru dibuat.');
+  };
 
-    // Naikkan proyek ke posisi teratas (LRU reordering)
-    const updatedProjects = await sorajaDb.touchProject(activeProject.id);
-    setProjects(updatedProjects);
+  // Saat aplikasi dibuka: pindah ke sesi chat baru (kosong) di proyek teratas.
+  // Dijalankan sekali setelah data SQLite selesai dimuat (isLoadingDb=false), memakai daftar proyek yang sudah dimuat.
+  const startupChatDone = useRef(false);
+  useEffect(() => {
+    if (isLoadingDb || startupChatDone.current) return;
+    startupChatDone.current = true;
+    const target = activeProject ?? projects[0];
+    if (target) void startNewChat(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingDb]);
 
-    const health = await sorajaDb.getDatabaseHealth();
-    setDbHealth(health);
-    showDbToast('Sesi percakapan baru dimulai.');
+  const handleCreateNewConversation = async () => {
+    const target = activeProject ?? projects[0];
+    if (!target) {
+      showDbToast('Buat atau pilih proyek terlebih dahulu.');
+      return;
+    }
+    await startNewChat(target, { forceNew: true });
   };
 
   const handleTogglePinProject = async (projectId: string, e: MouseEvent) => {
@@ -210,11 +258,10 @@ export function useWorkspaceState() {
         if (activeProject?.id === projectId) {
           if (updated.length > 0) {
             setActiveProject(updated[0]);
-            const nextConvs = remainingConvs.filter((c) => c.projectId === updated[0].id);
-            if (nextConvs.length > 0) {
-              setActiveConversation(nextConvs[0]);
-              const msgs = await sorajaDb.getMessages(nextConvs[0].id);
-              setMessages(msgs);
+            const nextConv = pickResumableChat(remainingConvs, updated[0].id);
+            if (nextConv) {
+              setActiveConversation(nextConv);
+              setMessages(await sorajaDb.getMessages(nextConv.id));
             } else {
               setActiveConversation(null);
               setMessages([]);
@@ -242,33 +289,7 @@ export function useWorkspaceState() {
 
   const handleCreateConversationForProject = async (proj: ProjectRecord, e: MouseEvent) => {
     e.stopPropagation();
-    setActiveProject(proj);
-    setCollapsedProjects((prev) => ({ ...prev, [proj.id]: false }));
-
-    const newConv: ConversationRecord = {
-      id: `conv-${Date.now()}`,
-      projectId: proj.id,
-      title: 'Percakapan Baru ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      agentId: selectedAgent.id,
-      modelId: selectedModel.id,
-      status: 'active',
-      timeAgo: 'Baru saja',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedConvs = await sorajaDb.createConversation(newConv);
-    setConversations(updatedConvs);
-    setActiveConversation(newConv);
-    setMessages([]);
-
-    // Naikkan proyek ke posisi teratas (LRU reordering)
-    const updatedProjects = await sorajaDb.touchProject(proj.id);
-    setProjects(updatedProjects);
-
-    const health = await sorajaDb.getDatabaseHealth();
-    setDbHealth(health);
-    showDbToast(`Percakapan baru dibuat di ${proj.name}.`);
+    await startNewChat(proj, { forceNew: true });
   };
 
   // 6. Chat GUI (CLI headless) & onboarding folder
@@ -426,6 +447,7 @@ export function useWorkspaceState() {
     ...theme,
     // Handlers
     handleSelectConversation,
+    handleSelectProject,
     handleCreateNewConversation,
     handleTogglePinProject,
     handleDeleteProject,
@@ -446,7 +468,7 @@ export function useWorkspaceState() {
     handleSelectAgent: accounts.handleSelectAgent,
     selectAgentById: accounts.selectAgentById,
     installedCliAgents,
-    refreshInstalledCliAgents: accounts.refreshAgentProviders,
+    refreshInstalledCliAgents: accounts.refreshInstalledStatus,
   };
 }
 

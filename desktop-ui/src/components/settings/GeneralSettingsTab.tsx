@@ -195,7 +195,7 @@ export function GeneralSettingsTab({ settings, isLight, onSaveField }: GeneralSe
             <Languages className="w-4 h-4 text-violet-500" /> Bahasa jawaban AI
           </p>
           <p className={`text-xs mt-1.5 leading-relaxed ${muted}`}>
-            Semua AI (Antigravity, Claude, Codex, OpenCode) otomatis menjawab dalam Bahasa Indonesia, baik di Chat maupun di Terminal.
+            Semua AI (Antigravity, Claude, Codex, OpenCode, Kiro) otomatis menjawab dalam Bahasa Indonesia, baik di Chat maupun di Terminal.
           </p>
         </div>
         <div className={`p-4 rounded-2xl border ${card}`}>

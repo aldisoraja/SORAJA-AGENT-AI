@@ -28,6 +28,15 @@ export function getSlashConfig(agentId: string): SlashConfig {
         usageLabel: 'Cek Kuota (/usage)',
         usageTitle: 'Cek batas pemakaian & sisa kuota Claude Code (/usage)',
       };
+    case 'kiro':
+      return {
+        modelCmd: '/model\r',
+        modelLabel: 'Ganti Model (/model)',
+        modelTitle: 'Ganti model Kiro CLI (/model)',
+        usageCmd: '/usage\r',
+        usageLabel: 'Cek Pemakaian (/usage)',
+        usageTitle: 'Cek pemakaian kredit & konteks Kiro CLI (/usage)',
+      };
     case 'codex':
       return {
         modelCmd: '/model\r',

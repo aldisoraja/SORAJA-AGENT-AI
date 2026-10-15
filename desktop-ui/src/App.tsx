@@ -9,18 +9,26 @@ import { ChatFeed } from './components/chat/ChatFeed';
 import { ChatInputBar } from './components/chat/ChatInputBar';
 import { DiffReviewPanel } from './components/diff/DiffReviewPanel';
 import { AppModals } from './components/AppModals';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { useBlockBrowserShortcuts } from './hooks/useBlockBrowserShortcuts';
 import { EmbeddedCliTerminal } from './components/terminal/EmbeddedCliTerminal';
 import { useTerminalManager } from './hooks/useTerminalManager';
 import { useTerminalRouting } from './hooks/useTerminalRouting';
 import { useAutoApplyToast } from './hooks/useAutoApplyToast';
+import { loadSessionState, saveSessionState } from './utils/sessionState';
+import { isCliConversation } from './utils/conversationTitle';
 import type { ProjectRecord } from './types/database';
 import type { AgentProvider } from './types/agent';
 
 export default function App() {
   const ws = useWorkspaceState();
+  useBlockBrowserShortcuts();
   useAutoApplyToast(ws.messages, ws.showDbToast);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeViewMode, setActiveViewMode] = useState<'chat' | 'terminal'>('chat');
+  const [activeViewMode, setActiveViewMode] = useState<'chat' | 'terminal'>(() =>
+    loadSessionState<'chat' | 'terminal'>('viewMode', 'chat')
+  );
+  useEffect(() => saveSessionState('viewMode', activeViewMode), [activeViewMode]);
   const [hasOpenedTerminal, setHasOpenedTerminal] = useState(activeViewMode === 'terminal');
   if (activeViewMode === 'terminal' && !hasOpenedTerminal) setHasOpenedTerminal(true);
   const [isTerminalExpanded, setIsTerminalExpanded] = useState(false);
@@ -64,8 +72,9 @@ export default function App() {
   // Navigasi otomatis setelah Wizard Workspace selesai (Chat GUI atau Mesin CLI Terminal)
   const handleNavigateAfterCreate = (project: ProjectRecord, agent: AgentProvider, mode: 'chat' | 'terminal') => {
     setActiveViewMode(mode);
+    // Terminal: buka tab + sesi "Sesi <agen> CLI". Chat: draf kosong, sesi dibuat saat input pertama.
     if (mode === 'terminal') {
-      terminalManager.openTab(agent, project.path);
+      void handleOpenTerminalTab(agent, project.path, project);
     }
   };
   ws.navigateAfterCreateRef.current = handleNavigateAfterCreate;
@@ -129,7 +138,7 @@ export default function App() {
         onSetProjectFilterQuery={ws.setProjectFilterQuery}
         onSetFilterTab={ws.setFilterTab}
         onSelectProject={(proj) => {
-          ws.setActiveProject(proj);
+          ws.handleSelectProject(proj);
           terminalManager.syncActiveProject(ws.selectedAgent, proj.path);
         }}
         onSelectConversation={handleSelectConversationWithRouting}
@@ -197,6 +206,10 @@ export default function App() {
           activeViewMode={activeViewMode}
           onChangeViewMode={(mode) => {
             setActiveViewMode(mode);
+            // Sesi CLI tidak boleh tampil sebagai percakapan Chat GUI: kembali ke sesi chat proyek (atau draf)
+            if (mode === 'chat' && ws.activeProject && isCliConversation(ws.activeConversation)) {
+              ws.handleSelectProject(ws.activeProject, { force: true });
+            }
             if (mode === 'terminal' && ws.activeProject) {
               terminalManager.syncActiveProject(ws.selectedAgent, ws.activeProject.path);
             }
@@ -213,7 +226,8 @@ export default function App() {
         <div className="flex-1 flex min-w-0 overflow-hidden relative">
           {/* Terminal tetap ter-mount setelah pertama dibuka agar sesi CLI tidak mati saat pindah ke Chat GUI */}
           {hasOpenedTerminal && (
-            <div className={activeViewMode === 'terminal' ? 'flex-1 h-full w-full' : 'hidden'}>
+            <ErrorBoundary name="Terminal CLI">
+            <div className={activeViewMode === 'terminal' ? 'flex-1 h-full w-full p-4 min-w-0' : 'hidden'}>
               <EmbeddedCliTerminal
                 isVisible={activeViewMode === 'terminal'}
                 onTabStatusChange={terminalManager.setTabStatus}
@@ -237,8 +251,10 @@ export default function App() {
                 onProjectActivity={(path) => ws.touchProjectActivityByPath(path)}
               />
             </div>
+            </ErrorBoundary>
           )}
           {activeViewMode !== 'terminal' && (
+            <ErrorBoundary name="Chat GUI">
             <div
               className={`flex flex-col h-full overflow-hidden transition-all duration-200 ${
                 ws.activeDiffReview?.isOpen
@@ -315,6 +331,7 @@ export default function App() {
                 workspaceFiles={ws.workspaceFiles}
               />
             </div>
+            </ErrorBoundary>
           )}
 
           {/* Docked Split-Pane Diff Review Panel */}
@@ -332,10 +349,12 @@ export default function App() {
       </main>
 
       {/* 3-10. Modal aplikasi */}
-      <AppModals
-        ws={ws}
-        onOpenAgentTerminal={(agent) => handleOpenTerminalTab(agent, ws.activeProject?.path || '')}
-      />
+      <ErrorBoundary name="Modal" fallback={null}>
+        <AppModals
+          ws={ws}
+          onOpenAgentTerminal={(agent) => handleOpenTerminalTab(agent, ws.activeProject?.path || '')}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

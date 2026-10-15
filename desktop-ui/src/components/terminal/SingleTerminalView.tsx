@@ -3,7 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { TerminalTab } from '../../hooks/useTerminalManager';
-import { localizeTerminalOutput } from '../../utils/cliTerminalLocalizer';
+import { createTerminalLocalizer } from '../../utils/cliTerminalLocalizer';
 import { blobToBase64, saveBase64ImageToServer, writeTextToClipboard } from '../../utils/imagePasteHelper';
 import { buildInteractiveCommand } from '../../services/cli/agentCommands';
 import { prepareLanguageRules } from '../../services/cliAdapters';
@@ -201,11 +201,13 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
     });
 
     const targetSessionId = tab.sessionId;
+    // Satu localizer per stream: escape sequence yang terpotong antar-chunk disambung dulu sebelum diproses.
+    const localize = createTerminalLocalizer();
     const unsubscribe = subscribePty(
       targetSessionId,
       (data) => {
         // OpenCode memakai TUI dengan escape kursor presisi; regex lokalisasi akan merusak tata letaknya.
-        term.write(tabRef.current.agent.id === 'opencode' ? data : localizeTerminalOutput(data));
+        term.write(tabRef.current.agent.id === 'opencode' ? data : localize(data));
       },
       (exitCode) => {
         onStatusChangeRef.current?.(false, exitCode);

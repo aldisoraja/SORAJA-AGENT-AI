@@ -1,6 +1,6 @@
 /**
  * streamParsers.ts
- * Menerjemahkan baris NDJSON dari 4 CLI agen menjadi event UI seragam (UiAgentEvent).
+ * Menerjemahkan baris NDJSON dari 6 CLI agen menjadi event UI seragam (UiAgentEvent).
  * Skema diverifikasi dari output nyata — fixture ada di `desktop-ui/tests/fixtures/*.ndjson`.
  * Spesifikasi: specs/agent-protocols.md §3. Modul murni (tanpa import runtime).
  */
@@ -18,7 +18,7 @@ export type UiAgentEvent =
       output?: string;
     }
   | { kind: 'file_change'; path: string }
-  | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number }
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number; credits?: number }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
   | { kind: 'done'; ok: boolean; summary?: string };
@@ -231,12 +231,85 @@ function createAntigravityParser(): StreamParser {
   };
 }
 
+/**
+ * Kiro: `kiro-cli chat --no-interactive --output-format stream-json --agent-engine v3`.
+ * Amplop `{type, data}`; isi `sessionUpdate` mengikuti ACP (`data.update.sessionUpdate`).
+ * Sumber: kiro.dev/docs/cli/headless + output nyata kiro-cli 2.29 (belum ada fixture lokal).
+ */
+function createKiroParser(): StreamParser {
+  let sessionSent = false;
+  let emittedText = false;
+  const toolNames = new Map<string, string>();
+  const toolInputs = new Map<string, Record<string, unknown>>();
+  const toolStatus = (s: unknown): 'running' | 'done' | 'error' =>
+    s === 'completed' ? 'done' : s === 'failed' ? 'error' : 'running';
+  return (line) => {
+    const o = JSON.parse(line) as Json;
+    const d = (o.data ?? {}) as Json;
+    const out: UiAgentEvent[] = [];
+    const sid = d.sessionId ?? d.session_id;
+    if (!sessionSent && typeof sid === 'string' && sid) {
+      sessionSent = true;
+      out.push({ kind: 'session', cliSessionId: sid, model: d.model });
+    }
+    if (o.type === 'sessionUpdate') {
+      const u = (d.update ?? {}) as Json;
+      const kind = u.sessionUpdate;
+      const summaries = u._meta?.kiro?.promptTurnSummaries;
+      if (Array.isArray(summaries)) {
+        // Dikirim sekali per giliran (`kind: "turn_completion"`); satuan nyata dari CLI, bukan perkiraan.
+        const credits = summaries
+          .filter((s: Json) => s?.unit === 'credit')
+          .reduce((sum: number, s: Json) => sum + num(s.usage), 0);
+        if (credits > 0) out.push({ kind: 'usage', inputTokens: 0, outputTokens: 0, credits });
+      }
+      if (kind === 'agent_message_chunk' && u.content?.text) {
+        emittedText = true;
+        out.push({ kind: 'text', delta: u.content.text });
+      } else if (kind === 'agent_thought_chunk' && u.content?.text) {
+        out.push({ kind: 'thinking', delta: u.content.text });
+      } else if (kind === 'tool_call' || kind === 'tool_call_update') {
+        const id = String(u.toolCallId ?? `tool-${toolNames.size}`);
+        // Update sering tanpa `title`: nama dari `tool_call` awal dipertahankan, `kind` hanya cadangan.
+        if (u.title) toolNames.set(id, String(u.title));
+        else if (u.kind && !toolNames.has(id)) toolNames.set(id, String(u.kind));
+        if (u.rawInput && typeof u.rawInput === 'object') toolInputs.set(id, u.rawInput);
+        const status = toolStatus(u.status);
+        const content = Array.isArray(u.content)
+          ? u.content.map((c: Json) => c?.content?.text ?? c?.text ?? '').join('')
+          : '';
+        out.push({
+          kind: 'tool',
+          id,
+          name: toolNames.get(id) ?? 'tool',
+          input: toolInputs.get(id) ?? {},
+          status,
+          output: status === 'running' ? undefined : content || (u.rawOutput != null ? toText(u.rawOutput) : undefined),
+        });
+        const input = (toolInputs.get(id) ?? {}) as Json;
+        const path = u.locations?.[0]?.path ?? input.path ?? input.file_path;
+        if (status === 'done' && u.kind === 'edit' && typeof path === 'string') out.push({ kind: 'file_change', path });
+      }
+    } else if (o.type === 'runFinished') {
+      if (!emittedText && d.finalText) out.push({ kind: 'text', delta: toText(d.finalText) });
+      out.push({ kind: 'done', ok: d.status === 'success', summary: d.status === 'success' ? undefined : toText(d.stopReason) });
+    } else if (o.type === 'runError') {
+      out.push({ kind: 'done', ok: false, summary: toText(d.message) });
+    } else if (typeof o.type === 'string' && /interrupt/i.test(o.type)) {
+      out.push({ kind: 'done', ok: false, summary: 'Proses Kiro dihentikan.' });
+    }
+    return out;
+  };
+}
+
 const FACTORIES: Record<string, () => StreamParser> = {
   claude: createClaudeParser,
   codex: createCodexParser,
   opencode: createOpencodeParser,
   antigravity: createAntigravityParser,
   agy: createAntigravityParser,
+  kiro: createKiroParser,
+  'kiro-cli': createKiroParser,
 };
 
 /**
