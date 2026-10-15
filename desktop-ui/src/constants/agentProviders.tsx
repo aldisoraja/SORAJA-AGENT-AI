@@ -184,6 +184,7 @@ export const SETTINGS_CATEGORIES = [
   { id: 'General', label: 'Umum' },
   { id: 'Appearance', label: 'Tampilan' },
   { id: 'Models', label: 'Akun & Kuota AI' },
+  { id: 'Data', label: 'Data & Bantuan' },
 ];
 
 export const THEME_PRESETS: Record<

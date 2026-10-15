@@ -22,6 +22,8 @@ export interface ConversationRecord {
   status: 'active' | 'completed' | 'thinking';
   /** Id sesi milik CLI agen (claude session_id, codex thread_id, dll.) untuk resume. */
   cliSessionId?: string;
+  /** Ditandai bintang oleh user agar mudah ditemukan di menu Favorit. */
+  isFavorite?: boolean;
   timeAgo: string;
   createdAt: string;
   updatedAt: string;
@@ -136,6 +138,7 @@ export interface MessageRecord {
 
 /** Kedalaman penalaran agen di Chat GUI (dikirim sebagai flag effort CLI). */
 export type ChatReasoningEffort = 'high' | 'xhigh' | 'max';
+export type UiScale = 'small' | 'default' | 'large' | 'xlarge';
 
 export interface AppSettings {
   queuedMessages: 'Queue' | 'Send Immediately';
@@ -152,6 +155,12 @@ export interface AppSettings {
   /** Kedalaman penalaran Chat GUI (lebih dalam dari default Terminal CLI). */
   chatReasoningEffort: ChatReasoningEffort;
   conversationWidth: 'narrow' | 'default' | 'wide';
+  /** Ukuran seluruh tampilan aplikasi (zoom WebView). */
+  uiScale: UiScale;
+  /** Matikan animasi & transisi (aksesibilitas / PC lambat). */
+  reduceMotion: boolean;
+  /** Bunyi + tanda di judul jendela saat AI selesai menjawab di Chat. */
+  notifyOnFinish: boolean;
   logLevel: 'Debug' | 'Info' | 'Warn' | 'Error';
   autoUpdates: boolean;
   dataStoragePath: string;
@@ -192,15 +201,6 @@ export interface CredentialRecord {
   totalFiveHourTokens?: number;
   enableCreditOverages?: boolean;
   updatedAt: string;
-}
-
-export interface ScheduledTaskRecord {
-  id: string;
-  name: string;
-  schedule: string;
-  status: 'Active' | 'Idle' | 'Paused';
-  lastRun: string;
-  nextRun: string;
 }
 
 /**

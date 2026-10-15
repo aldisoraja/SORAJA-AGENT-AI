@@ -4,7 +4,6 @@ import type {
   MessageRecord,
   AppSettings,
   CredentialRecord,
-  ScheduledTaskRecord,
 } from '../types/database';
 
 export const INITIAL_GENUINE_PROJECTS: ProjectRecord[] = [];
@@ -25,6 +24,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   verboseAgentChat: true,
   chatReasoningEffort: 'high',
   conversationWidth: 'default',
+  uiScale: 'default',
+  reduceMotion: false,
+  notifyOnFinish: true,
   logLevel: 'Info',
   autoUpdates: true,
   dataStoragePath: '%USERPROFILE%\\.soraja\\engine',
@@ -62,30 +64,3 @@ export const DEFAULT_CREDENTIALS: Record<string, CredentialRecord> = {
   opencode: emptyCredential('opencode'),
   kiro: emptyCredential('kiro'),
 };
-
-export const DEFAULT_SCHEDULED_TASKS: ScheduledTaskRecord[] = [
-  {
-    id: 'task-wal-chk',
-    name: 'SQLite WAL Checkpoint Optimization',
-    schedule: 'Setiap 6 jam',
-    status: 'Active',
-    lastRun: '1 jam lalu',
-    nextRun: 'Dalam 5 jam',
-  },
-  {
-    id: 'task-wt-gc',
-    name: 'Git Worktree Garbage Collection',
-    schedule: 'Setiap hari 00:00',
-    status: 'Active',
-    lastRun: 'Kemarin',
-    nextRun: 'Malam ini',
-  },
-  {
-    id: 'task-dpapi-sync',
-    name: 'DPAPI Credential Keyring Refresh',
-    schedule: 'Saat startup & reload',
-    status: 'Active',
-    lastRun: 'Saat boot',
-    nextRun: 'Saat restart',
-  },
-];

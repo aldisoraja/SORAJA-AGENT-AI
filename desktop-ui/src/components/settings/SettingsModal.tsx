@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, SlidersHorizontal, Palette, KeyRound, FolderGit2, Pin, CheckCircle2 } from 'lucide-react';
+import { X, SlidersHorizontal, Palette, KeyRound, FolderGit2, Pin, CheckCircle2, LifeBuoy } from 'lucide-react';
 import type { AppSettings, ProjectRecord, CredentialRecord } from '../../types/database';
 import type { AgentProvider } from '../../types/agent';
 import { SETTINGS_CATEGORIES } from '../../constants/agentProviders';
@@ -8,6 +8,7 @@ import type { CliAgentStatus } from '../../services/cliAdapters';
 import { AppearanceTab } from './AppearanceTab';
 import { GeneralSettingsTab } from './GeneralSettingsTab';
 import { ProjectDetailPanel } from './ProjectDetailPanel';
+import { DataHelpTab } from './DataHelpTab';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -69,6 +70,8 @@ export function SettingsModal({
         return <Palette className="w-4 h-4 shrink-0" />;
       case 'Models':
         return <KeyRound className="w-4 h-4 shrink-0" />;
+      case 'Data':
+        return <LifeBuoy className="w-4 h-4 shrink-0" />;
       default:
         return <SlidersHorizontal className="w-4 h-4 shrink-0" />;
     }
@@ -207,6 +210,7 @@ export function SettingsModal({
                         {activeTab === 'General' && 'Pengaturan Umum'}
                         {activeTab === 'Appearance' && 'Tampilan'}
                         {activeTab === 'Models' && 'Akun & Kuota AI'}
+                        {activeTab === 'Data' && 'Data & Bantuan'}
                       </span>
                     </>
                   )}
@@ -215,9 +219,11 @@ export function SettingsModal({
                   {selectedProject
                     ? 'Informasi direktori kerja, riwayat repositori, dan tindakan cepat untuk proyek ini.'
                     : activeTab === 'General'
-                    ? 'Atur cara AI bekerja: seberapa bebas ia bertindak dan kapan meminta persetujuan Anda.'
+                    ? 'Atur cara AI bekerja di Chat. Perubahan langsung berlaku untuk pesan berikutnya.'
                     : activeTab === 'Appearance'
-                    ? 'Pilih tema terang/gelap dan warna aksen. Perubahan langsung diterapkan.'
+                    ? 'Atur tema, warna, dan ukuran tampilan. Perubahan langsung diterapkan.'
+                    : activeTab === 'Data'
+                    ? 'Lihat data yang tersimpan, kembalikan pengaturan bawaan, dan pelajari pintasan keyboard.'
                     : 'Lihat akun yang terhubung, paket langganan, dan sisa kuota tiap AI — dibaca langsung dari aplikasi CLI-nya.'}
                 </p>
               </div>
@@ -239,6 +245,7 @@ export function SettingsModal({
                 <GeneralSettingsTab
                   settings={settings}
                   isLight={isLight}
+                  currentAccent={currentAccent}
                   onSaveField={onSaveField}
                 />
               )}
@@ -264,6 +271,11 @@ export function SettingsModal({
                   onSaveMultipleSettings={onSaveMultipleSettings}
                   onSaveField={onSaveField}
                 />
+              )}
+
+              {/* TAB 4: DATA & BANTUAN */}
+              {activeTab === 'Data' && (
+                <DataHelpTab isLight={isLight} currentAccent={currentAccent} onSaveMultipleSettings={onSaveMultipleSettings} />
               )}
 
               {/* TAB DETAIL PROYEK */}

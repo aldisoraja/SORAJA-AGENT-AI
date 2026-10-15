@@ -6,7 +6,6 @@ import {
   type MessageRecord,
   type AppSettings,
   type CredentialRecord,
-  type ScheduledTaskRecord,
   type CodeEditChunk,
 } from '../services/db';
 import { useAgentAccounts } from './useAgentAccounts';
@@ -15,6 +14,8 @@ import { useProjectFolders } from './useProjectFolders';
 import type { AgentProvider } from '../types/agent';
 import type { ConfirmDialogData } from '../components/modals/ConfirmDialogModal';
 import { useAppTheme } from './useAppTheme';
+import { useDisplayPreferences } from './useDisplayPreferences';
+import { useFinishNotifier } from './useFinishNotifier';
 import { useWorkspaceFiles } from './useWorkspaceFiles';
 import {
   NEW_CHAT_TITLE,
@@ -36,7 +37,6 @@ export function useWorkspaceState() {
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [credentials, setCredentials] = useState<Record<string, CredentialRecord>>({});
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTaskRecord[]>([]);
   const [dbHealth, setDbHealth] = useState<{ mode: string; totalProjects: number; totalSessions: number; totalMessages: number; sizeKb: string } | null>(null);
 
   // Dynamic Collapsed States & Toast Feedback
@@ -55,12 +55,11 @@ export function useWorkspaceState() {
       setIsLoadingDb(true);
       await sorajaDb.init();
 
-      const [loadedProjects, loadedConvs, loadedSettings, loadedCreds, loadedTasks, health] = await Promise.all([
+      const [loadedProjects, loadedConvs, loadedSettings, loadedCreds, health] = await Promise.all([
         sorajaDb.getProjects(),
         sorajaDb.getConversations(),
         sorajaDb.getSettings(),
         sorajaDb.getCredentials(),
-        sorajaDb.getScheduledTasks(),
         sorajaDb.getDatabaseHealth(),
       ]);
 
@@ -68,7 +67,6 @@ export function useWorkspaceState() {
       setConversations(loadedConvs);
       setSettings(loadedSettings);
       setCredentials(loadedCreds);
-      setScheduledTasks(loadedTasks);
       setDbHealth(health);
 
       if (loadedProjects.length > 0) {
@@ -91,6 +89,7 @@ export function useWorkspaceState() {
 
   // 3. Reactive Theme & Appearance
   const theme = useAppTheme(settings);
+  useDisplayPreferences(settings);
 
   // 4. Agen & akun (dinamis dari CLI) + state modal
   const accounts = useAgentAccounts({ activeProject, setCredentials, showDbToast });
@@ -99,7 +98,7 @@ export function useWorkspaceState() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [pickedFolderName, setPickedFolderName] = useState('');
@@ -218,20 +217,16 @@ export function useWorkspaceState() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingDb]);
 
-  const handleCreateNewConversation = async () => {
-    const target = activeProject ?? projects[0];
-    if (!target) {
-      showDbToast('Buat atau pilih proyek terlebih dahulu.');
-      return;
-    }
-    await startNewChat(target, { forceNew: true });
-  };
-
   const handleTogglePinProject = async (projectId: string, e: MouseEvent) => {
     e.stopPropagation();
     const updated = await sorajaDb.togglePinProject(projectId);
     setProjects(updated);
     showDbToast('Status pin project diperbarui di DB.');
+  };
+
+  const handleToggleFavoriteConversation = async (convId: string, e?: MouseEvent) => {
+    e?.stopPropagation();
+    setConversations(await sorajaDb.toggleFavoriteConversation(convId));
   };
 
   const handleDeleteProject = (projectId: string, e: MouseEvent) => {
@@ -309,6 +304,7 @@ export function useWorkspaceState() {
     setExpandedReasoning,
     showDbToast,
   });
+  useFinishNotifier(generation.isGenerating, messages, settings?.notifyOnFinish ?? true);
 
   const folders = useProjectFolders({
     projects,
@@ -358,9 +354,12 @@ export function useWorkspaceState() {
       securityPreset: 'Mode kerja AI',
       verboseAgentChat: 'Tampilan proses berpikir',
       conversationWidth: 'Lebar area obrolan',
-      chatReasoningEffort: 'Kedalaman penalaran Chat',
+      chatReasoningEffort: 'Ketelitian AI',
       theme: 'Tema',
       accentColor: 'Warna aksen',
+      uiScale: 'Ukuran tampilan',
+      reduceMotion: 'Kurangi animasi',
+      notifyOnFinish: 'Pemberitahuan selesai',
     };
     showDbToast(`✓ ${labels[key] ?? 'Pengaturan'} disimpan.`);
   };
@@ -369,7 +368,7 @@ export function useWorkspaceState() {
     if (!settings) return;
     const updated = await sorajaDb.saveSettings(partial);
     setSettings(updated);
-    showDbToast('✓ Tampilan diperbarui.');
+    showDbToast('✓ Pengaturan diperbarui.');
   };
 
   const handleToggleCreditOverages = async () => {
@@ -398,8 +397,6 @@ export function useWorkspaceState() {
     messages,
     settings,
     credentials,
-    scheduledTasks,
-    setScheduledTasks,
     dbHealth,
     collapsedProjects,
     toastMessage,
@@ -417,8 +414,8 @@ export function useWorkspaceState() {
     setIsSettingsOpen,
     isHistoryModalOpen,
     setIsHistoryModalOpen,
-    isTasksModalOpen,
-    setIsTasksModalOpen,
+    isFavoritesModalOpen,
+    setIsFavoritesModalOpen,
     isNewProjectModalOpen,
     setIsNewProjectModalOpen,
     wizardStep,
@@ -448,8 +445,8 @@ export function useWorkspaceState() {
     // Handlers
     handleSelectConversation,
     handleSelectProject,
-    handleCreateNewConversation,
     handleTogglePinProject,
+    handleToggleFavoriteConversation,
     handleDeleteProject,
     ...generation,
     toggleProjectCollapsed,

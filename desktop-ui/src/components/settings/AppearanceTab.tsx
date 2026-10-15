@@ -1,6 +1,7 @@
-import { Check, Contrast, Monitor, Moon, Palette, RotateCcw, Sun } from 'lucide-react';
+import { Check, Contrast, MessageSquare, Monitor, Moon, Palette, RotateCcw, Sun, Type, Wind, ZoomIn } from 'lucide-react';
 import type { AppSettings } from '../../types/database';
 import { THEME_PRESETS } from '../../constants/agentProviders';
+import { Segmented, SettingRow, SettingsCard, Toggle } from './SettingsControls';
 
 interface AppearanceTabProps {
   settings: AppSettings;
@@ -16,6 +17,19 @@ const MODES = [
   { id: 'dark', label: 'Gelap', desc: 'Nyaman untuk mata', icon: Moon, preview: ['#0c101a', '#1e293b'] },
 ] as const;
 
+const UI_SCALES = [
+  ['small', 'Kecil'],
+  ['default', 'Normal'],
+  ['large', 'Besar'],
+  ['xlarge', 'Sangat besar'],
+] as const;
+
+const WIDTHS = [
+  ['narrow', 'Ringkas'],
+  ['default', 'Standar'],
+  ['wide', 'Penuh'],
+] as const;
+
 const ACCENTS = [
   { color: '#06b6d4', name: 'Cyan' },
   { color: '#3b82f6', name: 'Biru' },
@@ -27,7 +41,7 @@ const ACCENTS = [
   { color: '#64748b', name: 'Abu-abu' },
 ];
 
-/** Tab "Tampilan": semua pilihan cukup satu klik dan langsung diterapkan. */
+/** Tab "Tampilan": tema, warna, ukuran & kenyamanan — semua satu klik dan langsung diterapkan. */
 export function AppearanceTab({ settings, isLight, currentAccent, onSaveMultipleSettings, onSaveField }: AppearanceTabProps) {
   const card = isLight ? 'bg-white border-slate-200' : 'bg-slate-900/50 border-slate-800';
   const muted = isLight ? 'text-slate-500' : 'text-slate-400';
@@ -142,26 +156,39 @@ export function AppearanceTab({ settings, isLight, currentAccent, onSaveMultiple
         </section>
       )}
 
-      {/* 4. Kontras & reset */}
-      <section className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${card}`}>
-        <div>
-          <p className={`text-sm font-semibold flex items-center gap-2 ${strong}`}>
-            <Contrast className="w-4 h-4" /> Kontras tinggi
-          </p>
-          <p className={`text-xs mt-0.5 ${muted}`}>Garis tepi lebih tegas agar tampilan lebih mudah dibaca.</p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isStrong}
-            onClick={() => onSaveMultipleSettings({ contrast: isStrong ? 'default' : 'strong' })}
-            className={`relative w-11 h-6 rounded-full transition cursor-pointer ${isStrong ? '' : isLight ? 'bg-slate-300' : 'bg-slate-700'}`}
-            style={isStrong ? { background: currentAccent } : undefined}
+      {/* 4. Ukuran & kenyamanan */}
+      <section className="space-y-3">
+        {heading(<Type className="w-4 h-4 text-emerald-500" />, 'Ukuran & kenyamanan')}
+        <SettingsCard isLight={isLight}>
+          <SettingRow
+            isLight={isLight}
+            icon={<ZoomIn className="w-4 h-4" />}
+            title="Ukuran tampilan"
+            desc="Perbesar seluruh aplikasi (teks, tombol, ikon) bila tulisan terasa terlalu kecil."
           >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${isStrong ? 'translate-x-5' : ''}`} />
-          </button>
-        </div>
+            <Segmented isLight={isLight} value={settings.uiScale ?? 'default'} options={UI_SCALES} onChange={(v) => onSaveField('uiScale', v)} />
+          </SettingRow>
+          <SettingRow
+            isLight={isLight}
+            icon={<MessageSquare className="w-4 h-4" />}
+            title="Lebar area obrolan"
+            desc={'"Ringkas" lebih nyaman dibaca, "Penuh" memakai seluruh lebar layar.'}
+          >
+            <Segmented isLight={isLight} value={settings.conversationWidth} options={WIDTHS} onChange={(v) => onSaveField('conversationWidth', v)} />
+          </SettingRow>
+          <SettingRow isLight={isLight} icon={<Contrast className="w-4 h-4" />} title="Kontras tinggi" desc="Garis tepi lebih tegas agar tampilan lebih mudah dibedakan.">
+            <Toggle
+              isLight={isLight}
+              accent={currentAccent}
+              label="Kontras tinggi"
+              checked={isStrong}
+              onChange={(v) => onSaveMultipleSettings({ contrast: v ? 'strong' : 'default' })}
+            />
+          </SettingRow>
+          <SettingRow isLight={isLight} icon={<Wind className="w-4 h-4" />} title="Kurangi animasi" desc="Matikan efek gerak & transisi. Terasa lebih ringan di komputer lama.">
+            <Toggle isLight={isLight} accent={currentAccent} label="Kurangi animasi" checked={settings.reduceMotion ?? false} onChange={(v) => onSaveField('reduceMotion', v)} />
+          </SettingRow>
+        </SettingsCard>
       </section>
 
       <button
@@ -175,6 +202,9 @@ export function AppearanceTab({ settings, isLight, currentAccent, onSaveMultiple
             foregroundColor: def.fg,
             accentColor: def.accent,
             contrast: 'default',
+            uiScale: 'default',
+            conversationWidth: 'default',
+            reduceMotion: false,
           });
         }}
         className={`text-xs font-medium flex items-center gap-1.5 cursor-pointer hover:underline ${muted}`}
