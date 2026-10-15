@@ -33,7 +33,7 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
    - Dilengkapi tautan bawah *Lihat kuota* menuju pengaturan akun & kuota.
 
 15. **Standardisasi Lokalisasi Bahasa Indonesia & Keselarasan Ekosistem Web-Landing:**  
-   Seluruh antarmuka aplikasi desktop (Sidebar, Header Canvas, Modal Pengaturan, Modal Riwayat, Modal Tugas, Modal Wizard, Dialog Konfirmasi) dan halaman publik web portal `web-landing` diselaraskan menggunakan Bahasa Indonesia alami serta identitas agen resmi: **Antigravity**, **Claude**, **Codex**, dan **OpenCode**. Jawaban agen di mode Chat GUI maupun Terminal CLI diwajibkan berbahasa Indonesia (lihat poin 10).
+   Seluruh antarmuka aplikasi desktop (Sidebar, Header Canvas, Modal Pengaturan, Modal Riwayat, Modal Favorit, Modal Wizard, Dialog Konfirmasi) dan halaman publik web portal `web-landing` diselaraskan menggunakan Bahasa Indonesia alami serta identitas agen resmi: **Antigravity**, **Claude**, **Codex**, dan **OpenCode**. Jawaban agen di mode Chat GUI maupun Terminal CLI diwajibkan berbahasa Indonesia (lihat poin 10).
 
 16. **Models & Usage Quota Management (Batas Harian, Mingguan & Circular Progress):**  
    - **Semua angka berasal dari CLI** (lihat [`agent-protocols.md`](./agent-protocols.md) §4): paket asli (mis. "Claude Pro", "ChatGPT Free"), email akun, sisa kuota 5 jam & mingguan/30 hari beserta waktu reset. Bila CLI tidak melaporkan suatu jendela kuota, UI menampilkan "Tidak dilaporkan oleh CLI" — tidak ada angka default/karangan.  
@@ -88,7 +88,13 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
      - Agen yang belum terhubung dikelompokkan terpisah dengan tombol aksi cepat `+ Hubungkan [Agent]` langsung menuju modal DPAPI.
    - **Penyederhanaan Pengaturan:**
      - Menghapus tombol *Reset DB ke Default* dari sidebar pengaturan demi keamanan data pengguna, digantikan indikator kesehatan database bersih: `SQLite WAL • X KB`.
-     - Menghapus tab *Aplikasi* (Application) dari daftar kategori pengaturan, menyisakan 3 pilar esensial: *Umum* (mode kerja AI Aman/Otonom & tampilan obrolan), *Tampilan* (tema, warna aksen, kontras — satu klik), dan *Akun & Kuota AI* (akun, paket & kuota dinamis dari CLI). Tab *Kustomisasi* (skills/MCP) dihapus (Okt 2026) karena tidak terhubung ke agen CLI.
+     - Menghapus tab *Aplikasi* (Application) dari daftar kategori pengaturan. Tab *Kustomisasi* (skills/MCP) dihapus (Okt 2026) karena tidak terhubung ke agen CLI.
+     - **Struktur 4 tab (Okt 2026)** — setiap opsi wajib berdampak langsung pada aplikasi dan dijelaskan dengan bahasa sehari-hari (kontrol bersama di `SettingsControls.tsx`):
+       - *Umum* (`GeneralSettingsTab.tsx`): Mode Aman/Otonom (`securityPreset` → `permissionMode` CLI), *Ketelitian AI di Chat* `Normal`/`Teliti`/`Paling teliti` (`chatReasoningEffort` → `high`/`xhigh`/`max`), sakelar *Tampilkan proses berpikir* (`verboseAgentChat`), dan sakelar *Beri tahu saat AI selesai* (`notifyOnFinish`: nada Web Audio + kedip taskbar via `requestUserAttention` bila jendela tidak aktif; tidak berbunyi bila dihentikan pengguna — `useFinishNotifier.ts`).
+       - *Tampilan* (`AppearanceTab.tsx`): mode tema, warna aksen, gaya latar gelap, serta kartu *Ukuran & kenyamanan*: *Ukuran tampilan* `Kecil`/`Normal`/`Besar`/`Sangat besar` (`uiScale` → zoom WebView native 0,9/1/1,1/1,25 via `setZoom`), *Lebar area obrolan* (`conversationWidth`), *Kontras tinggi*, dan *Kurangi animasi* (`reduceMotion` → kelas `html.reduce-motion`, spinner tetap berputar) — `useDisplayPreferences.ts`.
+       - *Akun & Kuota AI*: akun, paket & kuota dinamis dari CLI.
+       - *Data & Bantuan* (`DataHelpTab.tsx`): statistik penyimpanan lokal (proyek, obrolan, pesan, ukuran), tombol *Kembalikan semua pengaturan ke bawaan* (konfirmasi dua langkah; proyek & riwayat tidak dihapus), dan daftar pintasan keyboard.
+     - Izin Tauri tambahan di `capabilities/default.json`: `core:webview:allow-set-webview-zoom` & `core:window:allow-request-user-attention`.
    - **Appearance Studio (Kustomisasi Tampilan Penuh):**
      - **Mode Tampilan & Kontras:** Pilihan Sistem, Terang, Gelap, serta tingkat kontras (Default & Kuat).
      - **Preset Tema Gelap:** Menyediakan preset *Default Dark*, *Midnight Aurora*, *Deep Space Violet*, *Emerald Terminal*, dan *Solar Amber*, dilengkapi tombol *Reset Default (↺)*.
@@ -109,7 +115,7 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
      - `desktop-ui/src/components/chat/ChatFeed.tsx`, `ChatInputBar.tsx`, & `ModelSelectorDropdown.tsx`: Bilah interaksi dan drawer CoT.
      - `desktop-ui/src/components/diff/DiffReviewPanel.tsx`: Panel docked peninjauan perubahan kode per-baris.
      - `desktop-ui/src/components/settings/SettingsModal.tsx`, `AppearanceTab.tsx`, & `ModelsUsageDashboard.tsx`: Modal pengaturan dan kuota multi-agen.
-     - `desktop-ui/src/components/modals/*`: Dialog terisolasi (New Project Wizard, DPAPI Credentials, HITL Terminal, History, Scheduled Tasks, Confirm Dialog).
+     - `desktop-ui/src/components/modals/*`: Dialog terisolasi (New Project Wizard, DPAPI Credentials, HITL Terminal, History, Favorites, Confirm Dialog).
      - `crates/*`: Submodul Rust backend dipertahankan sangat ringkas (< 90 baris per berkas).
    - Status audit (12 Okt 2026): **belum 100% patuh** — `desktop-ui/src/components/terminal/EmbeddedCliTerminal.tsx` (1.801 baris) dan `crates/soraja-desktop/src/main.rs` (544 baris) wajib dipecah (mis. `pty.rs`, `headless.rs`, `catalog_cmds.rs`).
 
