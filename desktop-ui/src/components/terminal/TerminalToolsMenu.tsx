@@ -58,26 +58,32 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
         title="Alat mesin, clipboard, kuota & opsi terminal"
         aria-label="Alat CLI"
       >
-        <MoreVertical className="w-3.5 h-3.5 text-cyan-400" />
+        <MoreVertical className={`w-3.5 h-3.5 ${isLight ? 'text-cyan-600' : 'text-cyan-400'}`} />
       </button>
 
       {isOpen && (
         <div className={menuPanelClass(isLight, 'w-60')}>
-          <MenuSectionTitle>Perintah Mesin CLI</MenuSectionTitle>
+          <MenuSectionTitle isLight={isLight}>Perintah Mesin CLI</MenuSectionTitle>
           <TerminalMenuItem
-            icon={<Layers className="w-4 h-4 text-cyan-400 shrink-0" />}
+            isLight={isLight}
+            icon={Layers}
+            tone="cyan"
             title={slashConfig.modelLabel}
             subtitle={slashConfig.modelTitle}
             onClick={run(() => onSend('\x15' + slashConfig.modelCmd))}
           />
           <TerminalMenuItem
-            icon={<Activity className="w-4 h-4 text-emerald-400 shrink-0" />}
+            isLight={isLight}
+            icon={Activity}
+            tone="emerald"
             title={slashConfig.usageLabel}
             subtitle={slashConfig.usageTitle}
             onClick={run(() => onSend('\x15' + slashConfig.usageCmd))}
           />
           <TerminalMenuItem
-            icon={<Sparkles className="w-4 h-4 text-amber-400 shrink-0" />}
+            isLight={isLight}
+            icon={Sparkles}
+            tone="amber"
             title="Bersihkan Layar (/clear)"
             subtitle="Redraw tampilan TUI terminal"
             onClick={run(() => {
@@ -87,30 +93,36 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
           />
 
           <MenuDivider isLight={isLight} />
-          <MenuSectionTitle>Clipboard & Media</MenuSectionTitle>
+          <MenuSectionTitle isLight={isLight}>Clipboard & Media</MenuSectionTitle>
           <TerminalMenuItem
-            icon={<Clipboard className="w-4 h-4 text-sky-400 shrink-0" />}
+            isLight={isLight}
+            icon={Clipboard}
+            tone="sky"
             title="Tempel Teks (Ctrl+V)"
             subtitle="Tempel teks multiline dari clipboard"
             onClick={run(onPasteText)}
           />
           <TerminalMenuItem
-            icon={<ImageIcon className="w-4 h-4 text-pink-400 shrink-0" />}
+            isLight={isLight}
+            icon={ImageIcon}
+            tone="pink"
             title="Tempel Gambar dari Clipboard"
             subtitle="Sisipkan screenshot / gambar yang baru disalin"
             onClick={run(onPasteImage)}
           />
           <TerminalMenuItem
-            icon={<FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />}
+            isLight={isLight}
+            icon={FolderOpen}
+            tone="amber"
             title="Pilih Berkas Gambar dari Komputer"
             subtitle="Buka dialog untuk memilih berkas gambar"
             onClick={run(onPickImageFile)}
           />
 
           <MenuDivider isLight={isLight} />
-          <MenuSectionTitle>Skala Tampilan (Zoom)</MenuSectionTitle>
+          <MenuSectionTitle isLight={isLight}>Skala Tampilan (Zoom)</MenuSectionTitle>
           <div className="px-3 py-1.5 flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-xs">Ukuran Font:</span>
+            <span className={`text-xs ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Ukuran Font:</span>
             <div
               className={`flex items-center rounded-lg border p-0.5 ${
                 isLight ? 'bg-slate-50 border-slate-300' : 'bg-slate-900 border-slate-700'
@@ -120,7 +132,7 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onZoomOut}
                 disabled={zoomLevel <= minZoom}
-                className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-slate-100 disabled:opacity-40 transition cursor-pointer"
+                className={`p-1 rounded disabled:opacity-40 transition cursor-pointer ${isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'}`}
                 title="Perkecil (-)"
               >
                 <ZoomOut className="w-3 h-3" />
@@ -128,7 +140,7 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onResetZoom}
-                className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+                className={`px-1.5 py-0.5 text-[10px] font-mono font-bold hover:underline cursor-pointer ${isLight ? 'text-cyan-700 hover:text-cyan-800' : 'text-cyan-400 hover:text-cyan-300'}`}
                 title="Reset 100%"
               >
                 {zoomLevel}%
@@ -137,7 +149,7 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onZoomIn}
                 disabled={zoomLevel >= maxZoom}
-                className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-slate-100 disabled:opacity-40 transition cursor-pointer"
+                className={`p-1 rounded disabled:opacity-40 transition cursor-pointer ${isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'}`}
                 title="Perbesar (+)"
               >
                 <ZoomIn className="w-3 h-3" />

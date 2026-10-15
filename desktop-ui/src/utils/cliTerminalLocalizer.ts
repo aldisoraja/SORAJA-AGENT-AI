@@ -3,6 +3,10 @@
  * Penerjemah cerdas real-time untuk output Terminal CLI (agy, opencode, claude, codex).
  * Mengubah loading proses, ringkasan berpikir, serta prompt pilihan opsi perizinan
  * ke dalam Bahasa Indonesia yang ramah bagi pengguna pemula maupun teknis.
+ *
+ * Stream PTY langsung HANYA dilokalisasi (`localizeTerminalOutput`). Pewarnaan markdown
+ * (`beautifyTerminalText`) tidak boleh dipakai pada output TUI: CLI agen sudah mewarnai sendiri,
+ * dan `ESC[0m` sisipan mereset latar diff (merah/hijau) serta backtick kode ikut terhapus.
  */
 
 interface ReplacementRule {
@@ -232,29 +236,31 @@ function applyWidthSafe(text: string, rule: ReplacementRule): string {
   });
 }
 
-function applyRules(text: string): string {
-  let translated = text;
-  // 1. Terjemahkan loading, ringkasan, dan izin prompt
-  for (const rule of LOCALIZATION_RULES) {
-    translated = applyWidthSafe(translated, rule);
-  }
-  // 2. Percantik tampilan teks markdown, heading, pohon berkas & sintaks
-  for (const rule of BEAUTIFY_RULES) {
-    translated = applyWidthSafe(translated, rule);
-  }
-  return translated;
+function applyRules(text: string, rules: ReplacementRule[]): string {
+  return rules.reduce((acc, rule) => applyWidthSafe(acc, rule), text);
 }
 
-/**
- * Menerjemahkan potongan teks atau buffer ANSI stream dari PTY sekaligus
- * mempercantik formatting Markdown, heading, penomoran, dan kode.
- * Escape sequence di dalam chunk dijamin tidak diubah.
- */
-export function localizeTerminalOutput(chunk: string): string {
+function transform(chunk: string, rules: ReplacementRule[]): string {
   if (!chunk) return chunk;
   const m = maskEscapes(chunk);
   if (!m) return chunk;
-  return unmaskEscapes(applyRules(m.masked), m.sequences);
+  return unmaskEscapes(applyRules(m.masked, rules), m.sequences);
+}
+
+/**
+ * Menerjemahkan potongan teks atau buffer ANSI stream dari PTY ke Bahasa Indonesia
+ * tanpa mengubah warna maupun lebar tampilan. Escape sequence di dalam chunk dijamin tidak diubah.
+ */
+export function localizeTerminalOutput(chunk: string): string {
+  return transform(chunk, LOCALIZATION_RULES);
+}
+
+/**
+ * Mewarnai teks markdown polos (heading, penomoran, kode, pohon berkas) dengan ANSI.
+ * Hanya untuk teks yang dihasilkan sendiri — JANGAN untuk stream TUI agen (lihat catatan di atas).
+ */
+export function beautifyTerminalText(text: string): string {
+  return transform(text, BEAUTIFY_RULES);
 }
 
 /**

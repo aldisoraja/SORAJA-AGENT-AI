@@ -7,7 +7,8 @@ import { createTerminalLocalizer } from '../../utils/cliTerminalLocalizer';
 import { blobToBase64, saveBase64ImageToServer, writeTextToClipboard } from '../../utils/imagePasteHelper';
 import { buildInteractiveCommand } from '../../services/cli/agentCommands';
 import { prepareLanguageRules } from '../../services/cliAdapters';
-import { fontSizeForZoom, xtermTheme } from './xtermThemes';
+import { fontSizeForZoom, minimumContrastFor, xtermTheme } from './xtermThemes';
+import { adaptOutputForLightTheme } from './lightTerminalColors';
 import { isTauri, ptyRelease, ptyResize, ptyRetain, ptySpawn, ptyWrite, subscribePty } from './ptyTransport';
 import { createKeyHandler } from './terminalInput';
 
@@ -23,6 +24,8 @@ export interface SingleTerminalViewProps {
   registerSendInput: (tabId: string, fn: (data: string) => Promise<void>) => void;
   registerFocus: (tabId: string, fn: () => void) => void;
   registerClear?: (tabId: string, fn: () => void) => void;
+  /** Dipanggil sekali per mount saat baris input pertama pengguna dikirim (Enter); untuk melabeli sesi CLI. */
+  onFirstInput?: (line: string) => void;
 }
 
 /** Banner sambutan hanya untuk CLI non-TUI layar penuh (OpenCode menggambar ulang seluruh layar). */
@@ -49,6 +52,7 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
   registerSendInput,
   registerFocus,
   registerClear,
+  onFirstInput,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -58,6 +62,11 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
 
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
+  const onFirstInputRef = useRef(onFirstInput);
+  onFirstInputRef.current = onFirstInput;
+  const inputLineRef = useRef('');
+  const isLightRef = useRef(isLight);
+  isLightRef.current = isLight;
   const tabRef = useRef(tab);
   tabRef.current = tab;
   const zoomRef = useRef({ zoomLevel, onZoomIn, onZoomOut, onResetZoom });
@@ -139,7 +148,9 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (xtermRef.current) xtermRef.current.options.theme = xtermTheme(isLight);
+    if (!xtermRef.current) return;
+    xtermRef.current.options.theme = xtermTheme(isLight);
+    xtermRef.current.options.minimumContrastRatio = minimumContrastFor(isLight);
   }, [isLight]);
 
   useEffect(() => {
@@ -171,6 +182,7 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
       windowsPty: isWindows ? { backend: 'conpty', buildNumber: 22621 } : undefined,
       scrollback: isOpencode ? 2000 : 5000,
       theme: xtermTheme(isLight),
+      minimumContrastRatio: minimumContrastFor(isLight),
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -192,6 +204,23 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
     // Input terminal murni dikirim ke PTY; tidak boleh memicu pembuatan percakapan di sidebar chat.
     term.onData((data) => {
       sendInput(data);
+      if (data.startsWith('\x1b')) return;
+      // Kumpulkan ketikan sampai Enter; setiap baris terkirim dilaporkan, penerima yang memutuskan
+      // apakah baris itu memberi label sesi CLI (sesi berlabel / bukan draf kosong diabaikan).
+      for (const ch of data) {
+        if (ch === '\r' || ch === '\n') {
+          const line = inputLineRef.current.trim();
+          inputLineRef.current = '';
+          if (line) {
+            onFirstInputRef.current?.(line);
+            return;
+          }
+        } else if (ch === '\x7f' || ch === '\b') {
+          inputLineRef.current = inputLineRef.current.slice(0, -1);
+        } else if (ch >= ' ') {
+          inputLineRef.current += ch;
+        }
+      }
     });
 
     term.onResize(({ cols, rows }) => {
@@ -207,7 +236,9 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
       targetSessionId,
       (data) => {
         // OpenCode memakai TUI dengan escape kursor presisi; regex lokalisasi akan merusak tata letaknya.
-        term.write(tabRef.current.agent.id === 'opencode' ? data : localize(data));
+        const text = tabRef.current.agent.id === 'opencode' ? data : localize(data);
+        // CLI menggambar diff dengan latar gelap; di tema terang diubah ke tint terang.
+        term.write(isLightRef.current ? adaptOutputForLightTheme(text) : text);
       },
       (exitCode) => {
         onStatusChangeRef.current?.(false, exitCode);

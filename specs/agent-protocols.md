@@ -164,6 +164,9 @@ Keputusan produk: **jawaban agen wajib berbahasa Indonesia** di kedua mode. Teks
 
 Selain itu, **teks UI bawaan CLI** di mode Terminal (prompt izin, "Thinking…", "esc to cancel", dll.) diterjemahkan oleh
 `utils/cliTerminalLocalizer.ts` — kecuali OpenCode, karena regex pada stream TUI-nya merusak posisi kursor.
+Stream PTY hanya **diterjemahkan** (`localizeTerminalOutput`, lebar tampilan tetap) dan **tidak diwarnai ulang**:
+pewarnaan markdown (`beautifyTerminalText`) menyisipkan `ESC[0m` yang mereset latar diff merah/hijau CLI dan
+menghapus backtick kode, sehingga dilarang dipakai pada output TUI agen.
 
 ---
 

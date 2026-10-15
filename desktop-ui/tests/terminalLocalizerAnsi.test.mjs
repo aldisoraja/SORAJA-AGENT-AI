@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTerminalLocalizer, localizeTerminalOutput } from '../src/utils/cliTerminalLocalizer.ts';
+import { beautifyTerminalText, createTerminalLocalizer, localizeTerminalOutput } from '../src/utils/cliTerminalLocalizer.ts';
 
 /** Semua escape sequence CSI di keluaran harus utuh (tidak ada ESC di tengah parameter CSI lain). */
 const brokenCsi = /\x1b\[[0-?]*\x1b/;
@@ -85,4 +85,12 @@ test('Lebar tetap: penghapusan baris ganda tidak dilakukan di dalam TUI', () => 
 test('Lebar tetap: heading markdown tidak diganti simbol yang lebih lebar', () => {
   const input = '\n## Ringkasan\n';
   assert.equal(stripAnsi(localizeTerminalOutput(input)), input);
+});
+
+test('Diff TUI: latar merah & backtick kode tidak diubah (bug blok merah terputus di diff Claude)', () => {
+  const RED_BG = '\x1b[48;2;61;1;8m';
+  const input = `${RED_BG}115 -    className={\`relative w-11 \${x}\`} // String foo.tsx (Idempotency)\x1b[K\x1b[0m`;
+  const out = localizeTerminalOutput(input);
+  assert.equal(out, input, 'baris diff harus diteruskan apa adanya');
+  assert.ok(!out.slice(RED_BG.length, -4).includes('\x1b[0m'), 'tidak boleh ada reset SGR sisipan sebelum ESC[K');
 });

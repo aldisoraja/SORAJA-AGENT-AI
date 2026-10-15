@@ -11,7 +11,15 @@ export const LIGHT_XTERM_THEME = {
   blue: '#2563eb',
   magenta: '#9333ea',
   cyan: '#0891b2',
-  white: '#f1f5f9',
+  white: '#cbd5e1',
+  // Varian "bright" default xterm terlalu neon di latar terang → pakai nada yang lebih pekat.
+  brightRed: '#be123c',
+  brightGreen: '#15803d',
+  brightYellow: '#a16207',
+  brightBlue: '#1d4ed8',
+  brightMagenta: '#7e22ce',
+  brightCyan: '#0e7490',
+  brightWhite: '#94a3b8',
 };
 
 export const DARK_XTERM_THEME = {
@@ -32,6 +40,11 @@ export const DARK_XTERM_THEME = {
 
 export function xtermTheme(isLight: boolean) {
   return isLight ? LIGHT_XTERM_THEME : DARK_XTERM_THEME;
+}
+
+/** Tema terang: xterm otomatis menggelapkan warna teks yang kontrasnya kurang (mis. sintaks tema gelap). */
+export function minimumContrastFor(isLight: boolean): number {
+  return isLight ? 4.5 : 1;
 }
 
 export function fontSizeForZoom(zoomLevel: number): number {
