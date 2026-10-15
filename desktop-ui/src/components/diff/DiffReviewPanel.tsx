@@ -97,7 +97,7 @@ export function DiffReviewPanel({
           <div
             className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono border ${
               isLight
-                ? 'bg-blue-50/70 border-blue-200 text-blue-900'
+                ? 'soraja-grad-soft border-blue-200 text-blue-900'
                 : 'bg-cyan-950/30 border-cyan-800/40 text-cyan-300'
             }`}
           >
@@ -167,7 +167,7 @@ export function DiffReviewPanel({
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono transition cursor-pointer text-left ${
                       isSelected
                         ? isLight
-                          ? 'bg-blue-50 text-blue-800 font-bold'
+                          ? 'soraja-grad-soft text-blue-800 font-bold'
                           : 'bg-cyan-950/60 text-cyan-300 font-bold'
                         : isLight
                         ? 'hover:bg-slate-100 text-slate-700'

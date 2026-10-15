@@ -141,7 +141,7 @@ export function TimelineStep({ step, isLight, now, verbose, onOpenDiff }: Timeli
             </span>
           )}
           {canDiff && (
-            <span className={`px-1.5 py-0.5 rounded-md font-semibold opacity-70 group-hover:opacity-100 ${isLight ? 'text-blue-700 bg-blue-50' : 'text-cyan-300 bg-cyan-500/10'}`}>
+            <span className={`px-1.5 py-0.5 rounded-md font-semibold opacity-70 group-hover:opacity-100 ${isLight ? 'text-blue-700 soraja-grad-soft' : 'text-cyan-300 bg-cyan-500/10'}`}>
               Tinjau
             </span>
           )}

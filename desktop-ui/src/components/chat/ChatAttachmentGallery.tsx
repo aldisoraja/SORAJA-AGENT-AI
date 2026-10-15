@@ -34,7 +34,7 @@ export function ChatAttachmentGallery({
         <div
           className={`p-3 rounded-2xl border transition-all ${
             isLight
-              ? 'bg-gradient-to-r from-blue-50/60 via-slate-50/70 to-indigo-50/40 border-slate-200/90 shadow-xs'
+              ? 'bg-gradient-to-r from-blue-50/50 via-slate-50/70 to-indigo-50/50 border-slate-200/90 shadow-xs'
               : 'bg-slate-900/90 border-slate-800 shadow-inner'
           }`}
         >

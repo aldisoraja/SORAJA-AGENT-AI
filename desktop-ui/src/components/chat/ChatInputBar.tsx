@@ -150,7 +150,7 @@ export function ChatInputBar({
           <div
             className={`absolute inset-2 z-30 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 backdrop-blur-md animate-in fade-in ${
               isLight
-                ? 'border-blue-500 bg-blue-50/90 text-blue-900 shadow-xl'
+                ? 'border-blue-500 soraja-grad-soft text-blue-900 shadow-xl'
                 : 'border-cyan-400 bg-slate-950/90 text-cyan-300 shadow-xl'
             }`}
           >
@@ -330,7 +330,7 @@ export function ChatInputBar({
                 className={`p-1.5 rounded-xl border transition cursor-pointer disabled:opacity-40 ${
                   isAddContextOpen
                     ? isLight
-                      ? 'bg-blue-50 text-blue-700 border-blue-300'
+                      ? 'soraja-grad-soft text-blue-700 border-blue-300'
                       : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
                     : isLight
                     ? 'text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-slate-200/80 border-slate-200'
@@ -350,7 +350,7 @@ export function ChatInputBar({
                 className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border transition cursor-pointer text-xs font-medium select-none shadow-2xs disabled:opacity-50 min-w-0 max-w-[170px] xs:max-w-[220px] sm:max-w-xs md:max-w-sm ${
                   isModelDropdownOpen
                     ? isLight
-                      ? 'bg-blue-50 text-blue-700 border-blue-300'
+                      ? 'soraja-grad-soft text-blue-700 border-blue-300'
                       : 'bg-slate-800 text-cyan-300 border-cyan-500/40'
                     : isLight
                     ? 'bg-gradient-to-r from-slate-100 via-slate-50 to-white hover:bg-slate-100 border-slate-200 text-slate-800'
@@ -414,7 +414,7 @@ export function ChatInputBar({
                   title="Kirim Instruksi (Enter)"
                   className={`w-8 h-8 rounded-full disabled:opacity-30 text-white flex items-center justify-center transition cursor-pointer shadow-md ${
                     isLight
-                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/25'
+                      ? 'soraja-grad-primary'
                       : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40'
                   }`}
                 >

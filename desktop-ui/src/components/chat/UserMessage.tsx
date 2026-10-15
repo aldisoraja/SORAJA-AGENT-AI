@@ -16,7 +16,7 @@ export function UserMessage({ msg, isLight, onPreviewImage }: UserMessageProps) 
 
   return (
     <div className="group flex flex-col items-end max-w-[min(42rem,92%)]">
-      <div className="rounded-2xl rounded-br-md px-4 py-3 text-[14px] leading-relaxed bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15 space-y-2.5 select-text">
+      <div className={`rounded-2xl rounded-br-md px-4 py-3 text-[14px] leading-relaxed text-white space-y-2.5 select-text ${isLight ? 'soraja-grad-fill shadow-md shadow-indigo-900/15' : 'bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-600/15'}`}>
         {images.length > 0 && (
           <div className={`grid gap-1.5 ${images.length === 1 ? 'grid-cols-1 max-w-xs' : images.length === 2 ? 'grid-cols-2 max-w-sm' : 'grid-cols-3 sm:grid-cols-4'}`}>
             {images.map((att, idx) => (

@@ -147,7 +147,7 @@ export const AgentLauncherDropdown: React.FC<AgentLauncherDropdownProps> = ({
                 className={`w-full flex items-start justify-between p-2.5 rounded-xl text-left transition cursor-pointer border ${
                   isTabOpen
                     ? isLight
-                      ? 'bg-blue-50/70 border-blue-200 hover:bg-blue-100/80'
+                      ? 'soraja-grad-soft border-blue-200 hover:bg-blue-100/80'
                       : 'bg-cyan-950/40 border-cyan-700/50 hover:bg-cyan-900/50'
                     : isLight
                     ? 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'

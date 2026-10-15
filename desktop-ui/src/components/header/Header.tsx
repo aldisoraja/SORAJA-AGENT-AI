@@ -58,7 +58,7 @@ export function Header({
             className={`p-1.5 rounded-lg border transition cursor-pointer flex items-center justify-center shrink-0 md:hidden ${
               isSidebarCollapsed
                 ? isLight
-                  ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-2xs'
+                  ? 'soraja-grad-soft text-blue-700 border-blue-300 shadow-2xs'
                   : 'bg-cyan-950/60 text-cyan-300 border-cyan-800/60'
                 : isLight
                 ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'
@@ -82,7 +82,7 @@ export function Header({
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-medium hidden sm:inline-block ${
                     isLight
-                      ? 'text-blue-700 bg-blue-50 border border-blue-200/60'
+                      ? 'text-blue-700 soraja-grad-soft border border-blue-200/60'
                       : 'text-cyan-400/90 bg-cyan-950/60 border border-cyan-800/50'
                   }`}
                 >
@@ -97,7 +97,7 @@ export function Header({
             {activeViewMode === 'terminal' ? (
               <div
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border font-medium shrink-0 shadow-2xs ${
-                  isLight ? 'bg-blue-50/80 border-blue-200 text-blue-900' : 'bg-cyan-950/50 border-cyan-700/60 text-cyan-300'
+                  isLight ? 'soraja-grad-soft border-blue-200 text-blue-900' : 'bg-cyan-950/50 border-cyan-700/60 text-cyan-300'
                 }`}
               >
                 <span

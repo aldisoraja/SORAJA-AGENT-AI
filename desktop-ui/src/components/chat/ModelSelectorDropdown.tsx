@@ -163,7 +163,7 @@ export function ModelSelectorDropdown({
                 placeholder="ID model, mis. gpt-5-codex"
                 className={`w-full text-[11px] px-2 py-1 rounded-lg border bg-transparent outline-none ${isLight ? 'border-slate-300' : 'border-slate-700'}`}
               />
-              <button type="submit" className="text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shrink-0 cursor-pointer">
+              <button type="submit" className={`text-[10px] font-bold px-2 py-1 rounded-lg text-white shrink-0 cursor-pointer ${isLight ? 'soraja-grad-primary' : 'bg-blue-600 hover:bg-blue-500'}`}>
                 Pilih
               </button>
             </form>
@@ -184,7 +184,7 @@ export function ModelSelectorDropdown({
                   className={`group flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs cursor-pointer transition ${
                     isCurrent
                       ? isLight
-                        ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-200'
+                        ? 'soraja-grad-soft text-blue-800 ring-1 ring-blue-200'
                         : 'bg-cyan-500/10 text-cyan-100 ring-1 ring-cyan-500/30'
                       : isLight
                       ? 'hover:bg-slate-100'

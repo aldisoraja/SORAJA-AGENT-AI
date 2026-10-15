@@ -105,7 +105,7 @@ export function ProjectDetailPanel({ project, isLight, onSelectProject, onToggle
           <div className="mt-5 pt-4 border-t border-slate-800/80 flex justify-end">
             <button
               onClick={() => onSelectProject(project)}
-              className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
+              className={`px-5 py-2.5 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-2 ${isLight ? 'soraja-grad-primary' : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-md'}`}
             >
               <MessageSquare className="w-4 h-4" />
               <span>Mulai Percakapan di Proyek Ini</span>

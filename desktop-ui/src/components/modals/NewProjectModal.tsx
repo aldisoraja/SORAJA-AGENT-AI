@@ -59,9 +59,9 @@ export function NewProjectModal({
           ? 'bg-white/95 text-slate-800 border-slate-200 shadow-2xl'
           : 'bg-[#0c101a] text-slate-100 border-cyan-500/30 shadow-[0_0_60px_-10px_rgba(6,182,212,0.25)]'
       }`}>
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent ${
-          isLight ? 'via-blue-500' : 'via-cyan-400'
-        } to-transparent`} />
+        <div className={`absolute top-0 left-0 right-0 h-1 ${
+          isLight ? 'soraja-grad-line' : `bg-gradient-to-r from-transparent via-cyan-400 to-transparent`
+        }`} />
         <div className={`flex items-center justify-between border-b pb-3 ${
           isLight ? 'border-slate-200' : 'border-slate-800/80'
         }`}>
@@ -102,7 +102,7 @@ export function NewProjectModal({
               onClick={onPickFolderDirectly}
               className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition group ${
                 isLight
-                  ? 'border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50/70'
+                  ? 'border-blue-300 hover:border-blue-500 soraja-grad-soft hover:bg-blue-50/70'
                   : 'border-cyan-500/40 hover:border-cyan-400 bg-slate-950/60 hover:bg-slate-950'
               }`}
             >
@@ -120,7 +120,7 @@ export function NewProjectModal({
             {pickedFolderName && (
               <div className={`p-3 rounded-xl flex items-center justify-between border animate-fadeIn ${
                 isLight
-                  ? 'bg-blue-50 border-blue-200 text-blue-900'
+                  ? 'soraja-grad-soft border-blue-200 text-blue-900'
                   : 'bg-cyan-950/40 border-cyan-500/50 text-cyan-200'
               }`}>
                 <div className="flex items-center gap-2.5 truncate">
@@ -158,7 +158,7 @@ export function NewProjectModal({
                 disabled={!pickedFolderName}
                 className={`flex-1 py-2.5 rounded-xl font-bold text-xs disabled:opacity-40 transition cursor-pointer shadow-md ${
                   isLight
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/20'
+                    ? 'soraja-grad-primary text-white'
                     : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950/40'
                 }`}
               >
@@ -188,7 +188,7 @@ export function NewProjectModal({
                     className={`p-3 rounded-2xl border text-xs cursor-pointer transition flex items-center justify-between ${
                       highlightedAgentId === agent.id
                         ? isLight
-                          ? 'bg-blue-50/90 border-blue-400 shadow-xs ring-1 ring-blue-400'
+                          ? 'soraja-grad-soft border-blue-400 shadow-xs ring-1 ring-blue-400'
                           : 'bg-cyan-950/40 border-cyan-500/70 shadow-sm ring-1 ring-cyan-500/40'
                         : isLight
                         ? 'bg-slate-50/80 hover:bg-white border-slate-200 hover:border-slate-300'
@@ -269,7 +269,7 @@ export function NewProjectModal({
                     onClick={() => onSetWizardStep(3)}
                     className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-md ${
                       isLight
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/20'
+                        ? 'soraja-grad-primary text-white'
                         : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950/40'
                     }`}
                   >
@@ -309,7 +309,7 @@ export function NewProjectModal({
                   className={`p-3 rounded-2xl border text-xs cursor-pointer transition flex items-center gap-3 ${
                     selectedMode === mode
                       ? isLight
-                        ? 'bg-blue-50/90 border-blue-400 ring-1 ring-blue-400'
+                        ? 'soraja-grad-soft border-blue-400 ring-1 ring-blue-400'
                         : 'bg-cyan-950/40 border-cyan-500/70 ring-1 ring-cyan-500/40'
                       : isLight
                       ? 'bg-slate-50/80 hover:bg-white border-slate-200 hover:border-slate-300'
@@ -348,7 +348,7 @@ export function NewProjectModal({
                 }}
                 className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-md ${
                   isLight
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/20'
+                    ? 'soraja-grad-primary text-white'
                     : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950/40'
                 }`}
               >

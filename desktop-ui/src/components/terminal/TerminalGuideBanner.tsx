@@ -5,7 +5,7 @@ export const TerminalGuideBanner: React.FC<{ isLight: boolean; onClose: () => vo
   <div
     className={`p-3 border-b text-xs transition animate-in fade-in slide-in-from-top-1 z-10 ${
       isLight
-        ? 'bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 border-blue-200 text-slate-700'
+        ? 'soraja-grad-soft border-indigo-200/80 text-slate-700'
         : 'bg-gradient-to-r from-[#0c1426]/95 via-[#0e172a]/95 to-[#0c1426]/95 border-cyan-900/60 text-slate-200'
     }`}
   >

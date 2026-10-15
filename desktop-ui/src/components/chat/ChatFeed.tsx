@@ -79,7 +79,7 @@ export function ChatFeed({
               onClick={onOpenNewProjectWizard}
               className={`px-4 py-2 font-bold text-xs rounded-xl hover:opacity-90 transition cursor-pointer flex items-center gap-2 shadow-md ${
                 isLight
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-blue-500/20'
+                  ? 'soraja-grad-primary text-white'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-cyan-950/40'
               }`}
             >

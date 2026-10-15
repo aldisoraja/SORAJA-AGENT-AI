@@ -35,7 +35,7 @@ export function AgentAccountCard({ provider, cred, isInstalled, isLight, onManag
               {connected ? '● Terhubung' : 'Belum Terhubung'}
             </span>
             {connected && plan && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${isLight ? 'bg-blue-50 text-blue-700' : 'bg-sky-500/15 text-sky-300'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${isLight ? 'soraja-grad-soft text-blue-700' : 'bg-sky-500/15 text-sky-300'}`}>
                 {plan}
               </span>
             )}
@@ -57,7 +57,7 @@ export function AgentAccountCard({ provider, cred, isInstalled, isLight, onManag
               ? isLight
                 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-              : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:brightness-110'
+              : isLight ? 'soraja-grad-primary text-white' : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:brightness-110'
           }`}
         >
           {connected ? 'Kelola' : 'Hubungkan'}

@@ -66,7 +66,7 @@ export const AgentSwitcher: React.FC<AgentSwitcherProps> = ({ isLight, agents, a
                 className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-xs text-left transition cursor-pointer ${
                   isCurrent
                     ? isLight
-                      ? 'bg-blue-50 text-blue-800'
+                      ? 'soraja-grad-soft text-blue-800'
                       : 'bg-cyan-500/10 text-cyan-200'
                     : isLight
                     ? 'hover:bg-slate-100'

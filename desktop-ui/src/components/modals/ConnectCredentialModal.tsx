@@ -144,7 +144,7 @@ export function ConnectCredentialModal({
               <button
                 onClick={handleUse}
                 disabled={isActivating}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-70"
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold text-white cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-70 ${isLight ? 'soraja-grad-primary' : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110'}`}
               >
                 {isActivating && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Gunakan Agen Ini
               </button>
@@ -160,7 +160,7 @@ export function ConnectCredentialModal({
               </button>
               <button
                 onClick={() => onOpenTerminal(provider)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 cursor-pointer flex items-center justify-center gap-1.5"
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold text-white cursor-pointer flex items-center justify-center gap-1.5 ${isLight ? 'soraja-grad-primary' : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110'}`}
               >
                 <Terminal className="w-3.5 h-3.5" /> Buka Terminal CLI
               </button>

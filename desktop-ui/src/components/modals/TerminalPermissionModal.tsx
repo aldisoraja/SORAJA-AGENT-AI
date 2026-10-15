@@ -30,9 +30,9 @@ export function TerminalPermissionModal({
           ? 'bg-gradient-to-b from-white via-slate-50 to-white border-blue-200/80 shadow-[0_20px_50px_-15px_rgba(37,99,235,0.2)] text-slate-900'
           : 'bg-[#0c101a] border-blue-500/40 text-slate-100 shadow-[0_0_60px_-10px_rgba(59,130,246,0.3)]'
       }`}>
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent ${
-          isLight ? 'via-blue-500' : 'via-blue-500'
-        } to-transparent`} />
+        <div className={`absolute top-0 left-0 right-0 h-1 ${
+          isLight ? 'soraja-grad-line' : `bg-gradient-to-r from-transparent via-blue-500 to-transparent`
+        }`} />
 
         {/* Top Banner: 2 Running background tasks */}
         <div className={`flex items-center justify-between pb-1 border-b ${
@@ -89,7 +89,7 @@ export function TerminalPermissionModal({
                 className={`p-3 rounded-2xl border text-xs cursor-pointer transition flex items-center gap-3 ${
                   isSelected
                     ? isLight
-                      ? 'bg-blue-50/90 border-blue-500/80 shadow-sm'
+                      ? 'soraja-grad-soft border-blue-500/80 shadow-sm'
                       : 'bg-blue-600/15 border-blue-500/60 shadow-sm'
                     : isLight
                     ? 'bg-white/80 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
@@ -142,7 +142,7 @@ export function TerminalPermissionModal({
             onClick={() => onSubmit(modal.selectedOption || 1)}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-md ${
               isLight
-                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-blue-500/25 hover:opacity-95'
+                ? 'soraja-grad-primary text-white'
                 : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-blue-950/60'
             }`}
           >
