@@ -44,8 +44,10 @@ Baris `kiro` diverifikasi dengan kiro-cli 2.31 terpasang (stream-json v3, `--res
   Mode **Terminal** tidak menerima effort dari Soraja (pengguna mengaturnya lewat slash command CLI).
 * **Aturan Chat GUI** (`CHAT_REASONING_RULE`, `services/cli/chatPrompt.ts`): pahami pesan kalimat demi kalimat, baca semua
   lampiran, verifikasi asumsi dengan membaca sumber, laporkan hasil build/tes apa adanya, dan susun jawaban Markdown
-  terstruktur. Dikirim lewat `--append-system-prompt` (claude), `developer_instructions` (codex, nilai TOML via
-  `JSON.stringify`), atau prefiks prompt (antigravity, opencode). Tidak dipakai di mode Terminal.
+  terstruktur, tanpa LaTeX (aplikasi tidak merender math). Dikirim lewat `--append-system-prompt` (claude),
+  `developer_instructions` (codex, nilai TOML via `JSON.stringify`), atau prefiks prompt (antigravity, opencode).
+  Tidak dipakai di mode Terminal. Jaring pengaman render: `utils/mathText.ts normalizeLatexMath` mengubah rumus ber-
+  pembatas `\( \)`, `\[ \]`, `$$ $$` (di luar kode) menjadi teks Unicode, mis. `38{,}5^\circ\text{C}` → `38,5 °C`.
 
 ### Lampiran Chat GUI (gambar & dokumen)
 1. Hingga 10 gambar (paste/drag/unggah) + dokumen. Gambar ≤ 5 MB berformat umum dikirim **tanpa kompresi**; yang lebih
@@ -61,7 +63,16 @@ Baris `kiro` diverifikasi dengan kiro-cli 2.31 terpasang (stream-json v3, `--res
    pemilih model, dan kolom input menampilkan peringatan bila gambar dilampirkan.
 5. **Uji langsung 13 Okt 2026** (gambar berisi kode + prompt multi-baris ber-`" & | % <>`): claude ✓ (`Read`),
    codex ✓ (`--image=`), antigravity ✓ (`view_file`), opencode ✓ dengan model vision (`mimo-v2.6-flash-free`).
-6. **Integritas teks prompt:** shim npm `.cmd` dibuka ke biner aslinya (`agent_catalog::resolve_cli_launch`: `.exe` langsung,
+6. **Dokumen Office (docx/xlsx/pptx)** adalah ZIP biner: di mode aman agen tidak boleh menjalankan skrip ekstraksi
+   (uji 16 Okt 2026: Claude & Antigravity gagal menjawab; `opencode run --file=<docx>` → "Cannot read binary file", exit 1).
+   Karena itu `chatAttachmentStore` mengekstrak teksnya (`services/cli/officeText.ts`, tabel → tabel Markdown, per sheet/
+   slide) dan menyimpannya via `save_chat_attachment` sebagai `NN-nama.ext.txt`. Prompt mencantumkan
+   `Teks hasil ekstraksi (baca berkas ini): <path .txt>`; OpenCode menerima `.txt` itu lewat `--file`, dan berkas biner
+   lain tidak pernah dikirim lewat `--file`. Format lama (.doc/.xls/.ppt) tidak diekstrak.
+7. **Uji langsung 16 Okt 2026** (harness memakai modul asli: gambar invoice ber-total salah + grafik, PDF, DOCX, CSV,
+   XLSX+PPTX, prompt 7 permintaan, input Inggris, resume sesi, edit kode): semua agen menjawab akurat & berbahasa
+   Indonesia; OpenCode membaca gambar hanya dengan model vision (model tanpa vision menolak jujur, tanpa menebak).
+8. **Integritas teks prompt:** shim npm `.cmd` dibuka ke biner aslinya (`agent_catalog::resolve_cli_launch`: `.exe` langsung,
    `.js` via `node`) sehingga prompt multi-baris & karakter `" & | % < >` tidak melewati `cmd.exe`. Prompt berawalan `-`
    diberi spasi di depan agar tidak dibaca sebagai flag.
 * `codex exec resume` **tidak** menerima `-C` maupun `--approve-for-me`; direktori kerja diatur oleh `cwd` proses.
@@ -71,11 +82,11 @@ Diatur oleh **Pengaturan → Preset Keamanan** (`AppSettings.securityPreset`): `
 
 | Agen | Mode aman (default) | Mode otonom (`Permissive`) | Perilaku mode aman yang terverifikasi |
 | :--- | :--- | :--- | :--- |
-| `antigravity` | `--mode accept-edits` | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) → UI menampilkan notice + saran "Buka di Terminal". |
+| `antigravity` | `--mode accept-edits` + prefiks `[Mode aman] …` (`AGY_SAFE_MODE_RULE`) | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) dan agy lalu mengakhiri seluruh giliran tanpa jawaban — karena itu prompt memberi tahu agen agar memakai tool berkas bawaan. `--mode auto` juga menolak semua perintah (diuji 16 Okt 2026). |
 | `claude` | `--permission-mode acceptEdits` | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna ditolak oleh CLI. |
 | `codex` | `--approve-for-me` | `--dangerously-bypass-approvals-and-sandbox` | Permintaan izin ditinjau otomatis oleh Codex. *Catatan: `--sandbox workspace-write` di Windows memblokir bahkan `Set-Content` sehingga tidak dipakai.* |
 | `opencode` | tanpa `--auto` | `--auto` | Mengikuti aturan `permission` di config OpenCode pengguna. |
-| `kiro` | tanpa flag trust | `--trust-all-tools` | Tanpa trust, Kiro menolak tool yang butuh persetujuan di mode non-interaktif (belum diverifikasi lokal). |
+| `kiro` | `--trust-tools=read_file,list_directory,file_search,grep_search,fs_write,fs_append,str_replace` | `--trust-all-tools` | ID tool engine v3 (KAS, kiro-cli 2.31). Tanpa trust, *semua* edit berkas ditolak di mode non-interaktif (diuji 16 Okt 2026); kini setara agen lain: baca/ubah berkas jalan, shell & `delete_file` ditolak. Chat GUI berjalan dengan login Kiro biasa (tanpa `KIRO_API_KEY`). |
 
 ---
 

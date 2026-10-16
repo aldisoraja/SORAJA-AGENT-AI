@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { AttachedFile } from '../types/database';
 import { isTauriRuntime } from './headlessTransport';
 import { attachmentFileName, type PromptAttachment } from './cli/chatPrompt';
+import { OFFICE_EXTRACTABLE, extractOfficeText } from './cli/officeText';
 import { imageExtFromDataUrl } from '../utils/imageUtils';
 
 async function saveOne(projectPath: string, messageId: string, fileName: string, dataUrl: string): Promise<string> {
@@ -33,6 +34,27 @@ export interface PersistedAttachments {
   failed: string[];
 }
 
+function dataUrlBytes(dataUrl: string): Uint8Array {
+  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+function textDataUrl(text: string): string {
+  let bin = '';
+  for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b);
+  return `data:text/plain;charset=utf-8;base64,${btoa(bin)}`;
+}
+
+/**
+ * Dokumen Office (docx/xlsx/pptx): teksnya diekstrak ke `<nama>.txt` di samping berkas asli agar agen bisa
+ * membacanya tanpa menjalankan skrip (yang ditolak di mode aman). Gagal ekstraksi → tanpa berkas pendamping.
+ */
+async function saveExtractedText(projectPath: string, messageId: string, fileName: string, att: AttachedFile, data: string) {
+  if (att.type === 'image' || !OFFICE_EXTRACTABLE.test(att.name)) return undefined;
+  const text = await extractOfficeText(dataUrlBytes(data), att.name);
+  return text ? saveOne(projectPath, messageId, `${fileName}.txt`, textDataUrl(text)) : undefined;
+}
+
 /** Menyimpan semua lampiran secara paralel; kegagalan satu berkas tidak menggagalkan yang lain. */
 export async function persistChatAttachments(
   projectPath: string,
@@ -44,9 +66,14 @@ export async function persistChatAttachments(
       const data = att.dataUrl || (att.type === 'image' ? att.previewUrl : undefined);
       if (!data || !data.startsWith('data:')) return { att, path: undefined };
       const ext = att.type === 'image' ? imageExtFromDataUrl(data) : 'bin';
+      const fileName = attachmentFileName(idx, att.name, ext);
       try {
-        const path = await saveOne(projectPath, messageId, attachmentFileName(idx, att.name, ext), data);
-        return { att, path };
+        const path = await saveOne(projectPath, messageId, fileName, data);
+        const textPath = await saveExtractedText(projectPath, messageId, fileName, att, data).catch((err) => {
+          console.warn(`Gagal mengekstrak teks ${att.name}:`, err);
+          return undefined;
+        });
+        return { att, path, textPath };
       } catch (err) {
         console.warn(`Gagal menyimpan lampiran ${att.name}:`, err);
         return { att, path: undefined };
@@ -60,8 +87,13 @@ export async function persistChatAttachments(
       return path ? { ...rest, savedPath: path } : rest;
     }),
     forPrompt: results
-      .filter((r): r is { att: AttachedFile; path: string } => !!r.path)
-      .map(({ att, path }) => ({ path, name: att.name, kind: att.type === 'image' ? 'image' : 'document' })),
+      .filter((r): r is { att: AttachedFile; path: string; textPath?: string } => !!r.path)
+      .map(({ att, path, textPath }) => ({
+        path,
+        name: att.name,
+        kind: att.type === 'image' ? 'image' : 'document',
+        ...(textPath ? { textPath } : {}),
+      })),
     failed: results.filter((r) => !r.path).map((r) => r.att.name),
   };
 }

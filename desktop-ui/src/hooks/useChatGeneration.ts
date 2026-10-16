@@ -327,7 +327,8 @@ export function useChatGeneration(d: ChatGenerationDeps) {
         chatRules: true,
         imagePaths: promptFiles.filter((f) => f.kind === 'image').map((f) => f.path),
         // Hanya OpenCode yang memakai --file untuk dokumen; agen lain membaca dari daftar path di prompt.
-        filePaths: promptFiles.filter((f) => f.kind === 'document').map((f) => f.path),
+        // Dokumen Office dikirim sebagai teks hasil ekstraksi (`--file` menolak berkas biner → exit 1).
+        filePaths: promptFiles.filter((f) => f.kind === 'document').map((f) => f.textPath ?? f.path),
       });
     } catch (err) {
       console.warn('Spawn Headless Error:', err);

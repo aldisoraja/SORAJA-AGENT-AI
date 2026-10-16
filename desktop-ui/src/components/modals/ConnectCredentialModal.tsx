@@ -19,7 +19,7 @@ const LOGIN_HINT: Record<string, string> = {
   codex: 'jalankan codex login',
   antigravity: 'ikuti login Google saat pertama dibuka',
   opencode: 'jalankan opencode auth login',
-  kiro: 'jalankan kiro-cli login (Chat GUI memerlukan env KIRO_API_KEY)',
+  kiro: 'jalankan kiro-cli login (dipakai juga oleh Chat GUI)',
 };
 
 /**

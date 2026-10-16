@@ -49,9 +49,16 @@ const API_KEY_ENV: Record<CliAgentId, string[]> = {
   claude: ['ANTHROPIC_API_KEY'],
   codex: ['OPENAI_API_KEY'],
   opencode: [],
-  // Kiro headless (Chat GUI) WAJIB memakai API key (paket Pro ke atas).
+  // Opsional: Kiro headless (Chat GUI) berjalan dengan sesi `kiro-cli login` (diuji 16 Okt 2026).
   kiro: ['KIRO_API_KEY'],
 };
+
+/** Tool Kiro v3 yang dipercaya di mode aman Chat GUI (baca/cari/ubah berkas; tanpa shell & hapus). */
+const KIRO_SAFE_TOOLS = ['read_file', 'list_directory', 'file_search', 'grep_search', 'fs_write', 'fs_append', 'str_replace'];
+
+/** Petunjuk mode aman Antigravity headless: perintah shell selalu ditolak, tool berkas bawaan tetap jalan. */
+export const AGY_SAFE_MODE_RULE =
+  'Perintah terminal/shell (RunCommand) otomatis ditolak di sesi ini. Gunakan hanya tool bawaan untuk membaca, mencari, dan mengubah berkas; jangan menjalankan perintah. Bila sebuah langkah benar-benar butuh perintah, tetap selesaikan bagian lain lalu sebutkan perintah yang perlu dijalankan pengguna.';
 
 /** Agen tanpa flag system prompt: aturan bahasa & Chat GUI disisipkan di awal prompt headless. */
 const PROMPT_PREFIX_AGENTS: CliAgentId[] = ['antigravity', 'kiro'];
@@ -152,6 +159,8 @@ function headlessPrompt(agentId: CliAgentId, o: CliLaunchOptions): string {
   if (o.chatRules && (PROMPT_PREFIX_AGENTS.includes(agentId) || agentId === 'opencode')) {
     prefixes.push(`[Instruksi sistem]\n${CHAT_REASONING_RULE}`);
   }
+  // agy headless mengakhiri SELURUH giliran tanpa jawaban begitu satu perintah shell ditolak (`denied_actions`).
+  if (agentId === 'antigravity' && o.permissionMode !== 'autonomous') prefixes.push(`[Mode aman] ${AGY_SAFE_MODE_RULE}`);
   const full = prefixes.length > 0 ? `${prefixes.join('\n\n')}\n\n${prompt}` : prompt;
   // Prompt berawalan "-" akan dibaca CLI sebagai flag; spasi di depan menjadikannya argumen posisi.
   return full.startsWith('-') ? ` ${full}` : full;
@@ -161,6 +170,12 @@ function headlessPrompt(agentId: CliAgentId, o: CliLaunchOptions): string {
 function attachFlags(flag: string, paths: string[] = []): string[] {
   return paths.map((p) => `${flag}=${p}`);
 }
+
+/**
+ * Berkas biner yang ditolak `opencode run --file` ("Cannot read binary file" → exit 1, jawaban tampil gagal).
+ * Path-nya tetap tercantum di prompt; dokumen Office dikirim lewat teks hasil ekstraksi.
+ */
+const OPENCODE_BINARY_FILE = /\.(docx?|docm|xlsx?|xlsm|pptx?|pptm|odt|ods|odp|zip|rar|7z|exe|dll|bin)$/i;
 
 /** Mode Chat GUI: CLI non-interaktif dengan output NDJSON. */
 export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
@@ -197,7 +212,10 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
       args.push(prompt);
       break;
     case 'opencode':
-      args.push('run', ...attachFlags('--file', [...(o.imagePaths ?? []), ...(o.filePaths ?? [])]));
+      args.push(
+        'run',
+        ...attachFlags('--file', [...(o.imagePaths ?? []), ...(o.filePaths ?? []).filter((p) => !OPENCODE_BINARY_FILE.test(p))])
+      );
       args.push('--format', 'json', '--dir', o.cwd);
       if (autonomous) args.push('--auto');
       if (o.cliSessionId) args.push('-s', o.cliSessionId);
@@ -206,7 +224,9 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
     case 'kiro':
       // Flag hanya berlaku di subcommand `chat`; stream-json butuh engine v2/v3 (kiro.dev/docs/cli/headless).
       args.push('chat', '--no-interactive', '--output-format', 'stream-json', '--agent-engine', 'v3');
-      if (autonomous) args.push('--trust-all-tools');
+      // Mode aman = setara agen lain: baca, cari & ubah berkas diizinkan; shell & hapus berkas tetap ditolak
+      // (non-interaktif). ID tool engine v3 (KAS) diverifikasi dari kiro-cli 2.31, 16 Okt 2026.
+      args.push(autonomous ? '--trust-all-tools' : `--trust-tools=${KIRO_SAFE_TOOLS.join(',')}`);
       if (o.cliSessionId) args.push('--resume-id', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), prompt);
       break;

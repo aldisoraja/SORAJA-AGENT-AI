@@ -194,6 +194,26 @@ test('Kiro: tool yang ditolak di mode non-interaktif tampil "ditolak", bukan "ga
   assert.equal(byType(msg, 'command')[0].status, 'denied');
 });
 
+test('Kiro & Antigravity: teks yang berlanjut setelah tool menjadi paragraf baru (bug "…fungsi lain.Sepertinya…")', () => {
+  const upd = (update) => json({ type: 'sessionUpdate', data: { sessionId: 'k', update } });
+  const kiro = replay('kiro', [
+    upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Saya ubah ' } }),
+    upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'berkasnya.' } }),
+    upd({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'Replace in File', kind: 'edit', status: 'pending' }),
+    upd({ sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'completed' }),
+    upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Selesai.' } }),
+  ]);
+  assert.equal(kiro.msg.content, 'Saya ubah berkasnya.\n\nSelesai.');
+  const step = (s) => json({ event: 'step_update', step_update: s });
+  const agy = replay('antigravity', [
+    step({ step_index: 1, step_type: 'agent_response', text_delta: 'Membaca dulu.' }),
+    step({ step_index: 2, step_type: 'tool', tool_name: 'view_file', state: 'DONE', tool_info: { parameters: {} } }),
+    step({ step_index: 3, step_type: 'agent_response', text_delta: 'Ini ' }),
+    step({ step_index: 3, step_type: 'agent_response', text_delta: 'hasilnya.' }),
+  ]);
+  assert.equal(agy.msg.content, 'Membaca dulu.\n\nIni hasilnya.');
+});
+
 test('applyFileDiff: diff nyata ditempel; berkas tanpa perubahan nyata dibersihkan', () => {
   const { msg } = replay('claude', fixture('claude'));
   const chunk = { file: 'C:\\work\\demo\\hello.txt', relativePath: 'hello.txt', additions: 1, deletions: 0, diffLines: [{ type: 'added', newLineNo: 1, text: 'halo' }] };

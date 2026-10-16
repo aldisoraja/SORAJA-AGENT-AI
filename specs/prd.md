@@ -19,7 +19,7 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
    | `claude` | Claude | `claude` (Claude Code) | Anthropic |
    | `codex` | Codex | `codex` | OpenAI |
    | `opencode` | OpenCode | `opencode` | SST / open source (multi-provider) |
-   | `kiro` | Kiro | `kiro-cli` | Amazon Web Services (Chat GUI headless wajib `KIRO_API_KEY`, paket Pro ke atas) |
+   | `kiro` | Kiro | `kiro-cli` | Amazon Web Services (Chat GUI headless memakai sesi `kiro-cli login`; `KIRO_API_KEY` opsional) |
    - Deteksi instalasi otomatis via `PATH` + unwrap shim npm (`get_available_cli_agents`). Agen yang belum terpasang ditampilkan dengan tombol/perintah instalasi.
    - **Daftar model tidak di-hardcode di UI.** Model diambil dari CLI (`get_agent_models`, mis. `agy models`, `opencode models`) dengan katalog bawaan di `soraja-core` hanya sebagai fallback. Opsi `cli-default` = biarkan CLI memakai model default/konfigurasinya.
 

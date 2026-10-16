@@ -223,6 +223,8 @@ function createOpencodeParser(): StreamParser {
 /** Antigravity: `agy -p --output-format stream-json`. */
 function createAntigravityParser(): StreamParser {
   let emittedText = false;
+  /** Teks berlanjut setelah tool → paragraf baru (delta per token tidak membawa pemisah antarblok). */
+  let textBreak = false;
   return (line) => {
     const o = JSON.parse(line) as Json;
     const out: UiAgentEvent[] = [];
@@ -234,9 +236,11 @@ function createAntigravityParser(): StreamParser {
         out.push({ kind: 'thinking', delta: s.thinking_delta });
       }
       if (s.step_type === 'agent_response' && typeof s.text_delta === 'string' && s.text_delta) {
+        out.push({ kind: 'text', delta: (textBreak ? '\n\n' : '') + s.text_delta });
         emittedText = true;
-        out.push({ kind: 'text', delta: s.text_delta });
+        textBreak = false;
       } else if (s.step_type === 'tool') {
+        textBreak = emittedText;
         const name = s.tool_name ?? s.tool_info?.name ?? 'tool';
         const params = (s.tool_info?.parameters ?? {}) as Json;
         const status = s.state === 'DONE' ? 'done' : s.state === 'ACTIVE' ? 'running' : 'error';
@@ -274,6 +278,8 @@ function createAntigravityParser(): StreamParser {
 function createKiroParser(): StreamParser {
   let sessionSent = false;
   let emittedText = false;
+  /** Teks berlanjut setelah tool → paragraf baru (bug "…fungsi lain.Sepertinya…"). */
+  let textBreak = false;
   const toolNames = new Map<string, string>();
   const toolInputs = new Map<string, Record<string, unknown>>();
   const toolKinds = new Map<string, string>();
@@ -300,8 +306,9 @@ function createKiroParser(): StreamParser {
         if (credits > 0) out.push({ kind: 'usage', inputTokens: 0, outputTokens: 0, credits });
       }
       if (kind === 'agent_message_chunk' && u.content?.text) {
+        out.push({ kind: 'text', delta: (textBreak ? '\n\n' : '') + u.content.text });
         emittedText = true;
-        out.push({ kind: 'text', delta: u.content.text });
+        textBreak = false;
       } else if (kind === 'agent_thought_chunk' && u.content?.text) {
         out.push({ kind: 'thinking', delta: u.content.text });
       } else if (kind === 'plan' && Array.isArray(u.entries)) {
@@ -309,6 +316,7 @@ function createKiroParser(): StreamParser {
         const done = u.entries.every((e: Json) => e?.status === 'completed');
         out.push({ kind: 'tool', id: 'kiro-plan', name: 'plan', input: { entries: u.entries }, status: done ? 'done' : 'running' });
       } else if (kind === 'tool_call' || kind === 'tool_call_update') {
+        textBreak = emittedText;
         const id = String(u.toolCallId ?? `tool-${toolNames.size}`);
         // Update sering tanpa `title`: nama dari `tool_call` awal dipertahankan, `kind` hanya cadangan.
         if (u.title) toolNames.set(id, String(u.title));

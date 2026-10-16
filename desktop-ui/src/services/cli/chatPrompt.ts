@@ -18,6 +18,7 @@ export const CHAT_REASONING_RULE = [
   '2. Bernalar secara mendalam sebelum bertindak: telusuri kode dan berkas yang relevan, verifikasi setiap asumsi dengan membaca sumber aslinya, dan pertimbangkan edge case. Jangan mengarang nama berkas, fungsi, maupun hasil.',
   '3. Setelah mengubah kode, verifikasi (build/tes/lint) bila memungkinkan dan laporkan hasilnya apa adanya, termasuk bila gagal.',
   '4. Susun jawaban akhir agar mudah dipahami semua pengguna: buka dengan ringkasan 1–2 kalimat, lalu bagian ber-heading (###), poin-poin singkat, tabel untuk perbandingan, blok kode berlabel bahasa, dan path berkas dalam `backtick`. Tutup dengan langkah berikutnya bila relevan.',
+  '5. Aplikasi tidak merender LaTeX: tulis rumus & satuan dengan teks biasa/Unicode (mis. 17 × 23 − 45 = 346, 38,5 °C = 101,3 °F), jangan memakai \\( \\), \\[ \\], atau $…$.',
 ].join('\n');
 
 export interface PromptAttachment {
@@ -26,6 +27,8 @@ export interface PromptAttachment {
   /** Nama asli dari pengguna (mis. "screenshot-1.png"). */
   name: string;
   kind: 'image' | 'document';
+  /** Dokumen Office: path `.txt` berisi teks hasil ekstraksi Soraja (lihat officeText.ts). */
+  textPath?: string;
 }
 
 /** Dokumen biner yang perlu diekstrak (bukan teks/PDF yang bisa dibaca langsung). */
@@ -50,7 +53,10 @@ export function buildChatPrompt(
     .join(', ');
   const lines = [
     ...images.map((a, i) => `- Gambar #${i + 1} "${a.name}": ${a.path}`),
-    ...docs.map((a, i) => `- Dokumen #${i + 1} "${a.name}": ${a.path}`),
+    ...docs.map(
+      (a, i) =>
+        `- Dokumen #${i + 1} "${a.name}": ${a.path}` + (a.textPath ? `\n  Teks hasil ekstraksi (baca berkas ini): ${a.textPath}` : '')
+    ),
   ];
   const notes = [
     'Wajib: buka dan periksa SETIAP lampiran di atas dengan tool baca berkas sebelum menjawab. ' +
@@ -60,7 +66,13 @@ export function buildChatPrompt(
   if (images.length > 0 && imagesAttachedNatively) {
     notes.push('Gambar juga sudah dilampirkan langsung pada pesan ini dengan urutan yang sama.');
   }
-  if (docs.some((d) => NEEDS_EXTRACTION.test(d.name))) {
+  if (docs.some((d) => d.textPath)) {
+    notes.push(
+      'Isi dokumen Office sudah diekstrak Soraja ke berkas .txt di atas (tabel ditulis sebagai tabel Markdown): ' +
+        'baca berkas .txt itu dengan tool baca berkas biasa, tidak perlu menjalankan skrip.'
+    );
+  }
+  if (docs.some((d) => !d.textPath && NEEDS_EXTRACTION.test(d.name))) {
     notes.push('Untuk dokumen Word/Excel/PowerPoint, ekstrak isinya dengan tool yang tersedia (mis. skrip Python) bila tidak bisa dibaca langsung.');
   }
 

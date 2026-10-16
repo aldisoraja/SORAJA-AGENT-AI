@@ -53,8 +53,11 @@ test('antigravity headless: prefiks bahasa di prompt, mode otonom memakai skip-p
 test('forceIndonesian=false mematikan semua injeksi bahasa', () => {
   const claude = buildHeadlessCommand({ ...base, agentId: 'claude', executable: 'claude', forceIndonesian: false });
   assert.ok(!claude.args.includes('--append-system-prompt'));
-  const agy = buildHeadlessCommand({ ...base, agentId: 'antigravity', executable: 'agy', forceIndonesian: false });
+  // Mode otonom: tanpa prefiks mode aman, sehingga hanya injeksi bahasa yang diuji di sini.
+  const agy = buildHeadlessCommand({ ...base, agentId: 'antigravity', executable: 'agy', forceIndonesian: false, permissionMode: 'autonomous' });
   assert.equal(agy.args[1], 'halo');
+  const agySafe = buildHeadlessCommand({ ...base, agentId: 'antigravity', executable: 'agy', forceIndonesian: false });
+  assert.doesNotMatch(agySafe.args[1], /Bahasa Indonesia/);
 });
 
 test('mode terminal interaktif: tanpa prompt, resume per agen, API key hanya di env', () => {
