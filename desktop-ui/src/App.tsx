@@ -103,6 +103,15 @@ export default function App() {
   };
   ws.navigateAfterCreateRef.current = handleNavigateAfterCreate;
 
+  /** "Buka di Terminal": me-resume sesi CLI percakapan aktif di tab Terminal. */
+  const openConversationInTerminal = () => {
+    const conv = ws.activeConversation;
+    if (!conv?.cliSessionId || !ws.activeProject) return;
+    const agent = ws.agentProviders.find((a) => a.id === conv.agentId) || ws.selectedAgent;
+    terminalManager.openResumeTab(agent, ws.activeProject.path, conv.cliSessionId, conv.id);
+    setActiveViewMode('terminal');
+  };
+
   return (
     <div
       className={`flex h-screen w-screen overflow-hidden font-sans select-none antialiased transition-colors duration-150 ${
@@ -232,13 +241,7 @@ export default function App() {
               terminalManager.syncActiveProject(ws.selectedAgent, ws.activeProject.path);
             }
           }}
-          onOpenInTerminal={() => {
-            const conv = ws.activeConversation;
-            if (!conv?.cliSessionId || !ws.activeProject) return;
-            const agent = ws.agentProviders.find((a) => a.id === conv.agentId) || ws.selectedAgent;
-            terminalManager.openResumeTab(agent, ws.activeProject.path, conv.cliSessionId, conv.id);
-            setActiveViewMode('terminal');
-          }}
+          onOpenInTerminal={openConversationInTerminal}
         />
 
         <div className="flex-1 flex min-w-0 overflow-hidden relative">
@@ -306,6 +309,8 @@ export default function App() {
                 onOpenDiffReview={(files, idx = 0, turnPrompt) => {
                   ws.setActiveDiffReview({ isOpen: true, files, activeFileIndex: idx, turnPrompt });
                 }}
+                onRetryWithPermission={ws.handleRetryWithPermission}
+                onOpenInTerminal={ws.activeConversation?.cliSessionId ? openConversationInTerminal : undefined}
               />
 
               <ChatInputBar

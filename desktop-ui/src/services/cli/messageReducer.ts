@@ -5,7 +5,7 @@
  * NDJSON nyata (`tests/chatMessageReducer.test.mjs`). Spesifikasi: specs/agent-protocols.md §3.
  */
 import type { CodeEditChunk, MessageRecord } from '../../types/database.ts';
-import type { UiAgentEvent } from './streamParsers.ts';
+import { DENIED_NOTICE_PREFIX, type UiAgentEvent } from './streamParsers.ts';
 import {
   addUsage,
   appendLog,
@@ -13,6 +13,7 @@ import {
   applyFileChange,
   applyToolEvent,
   attachDiffToSteps,
+  isUserRejection,
   markDenied,
   removeCodeEdit,
   samePath,
@@ -23,6 +24,11 @@ import {
 const STREAMING_THINKING_AGENTS = ['antigravity', 'kiro'];
 
 const NOTICE_ICON = { error: '❌', warn: '⚠️', info: 'ℹ️' } as const;
+
+function addDenied(m: MessageRecord, action?: string): MessageRecord {
+  if (!action || m.deniedActions?.includes(action)) return m;
+  return { ...m, deniedActions: [...(m.deniedActions ?? []), action] };
+}
 
 export function applyAgentEvent(m: MessageRecord, ev: UiAgentEvent, now: number): MessageRecord {
   switch (ev.kind) {
@@ -38,16 +44,25 @@ export function applyAgentEvent(m: MessageRecord, ev: UiAgentEvent, now: number)
     }
     case 'log':
       return { ...m, logs: appendLog(m.logs, ev.line) };
-    case 'tool':
-      return { ...m, trajectory: applyToolEvent(m.trajectory || [], ev, now) };
+    case 'tool': {
+      const trajectory = applyToolEvent(m.trajectory || [], ev, now);
+      const step = trajectory.find((s) => s.toolId === ev.id);
+      const deniedByPolicy = step?.status === 'denied' && !isUserRejection(step.output);
+      return addDenied({ ...m, trajectory }, deniedByPolicy ? ev.name : undefined);
+    }
     case 'file_change':
       return { ...m, trajectory: applyFileChange(m.trajectory, ev.path, now) };
-    case 'denied':
-      return { ...m, trajectory: markDenied(m.trajectory, ev) };
+    case 'denied': {
+      // Aksi yang ditolak pengguna lewat modal HITL tidak perlu tombol "Izinkan & ulangi".
+      const step = ev.toolId ? m.trajectory?.find((s) => s.toolId === ev.toolId) : undefined;
+      const next = { ...m, trajectory: markDenied(m.trajectory, ev) };
+      return isUserRejection(step?.output) ? next : addDenied(next, ev.action);
+    }
     case 'usage':
       return { ...m, usage: addUsage(m.usage, ev) };
     case 'notice': {
-      const line = `> ${NOTICE_ICON[ev.level]} ${ev.message}`;
+      const byUserOnly = ev.message.startsWith(DENIED_NOTICE_PREFIX) && !m.deniedActions?.length;
+      const line = byUserOnly ? `> ${NOTICE_ICON.info} Aksi yang Anda tolak tidak dijalankan.` : `> ${NOTICE_ICON[ev.level]} ${ev.message}`;
       // Notice yang sama (mis. dikirim ulang CLI) tidak ditulis dua kali.
       return m.content.includes(line) ? m : { ...m, content: `${m.content}${m.content.trim() ? '\n\n' : ''}${line}` };
     }

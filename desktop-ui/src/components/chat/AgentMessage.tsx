@@ -7,6 +7,7 @@ import { MarkdownContent } from '../ui/MarkdownContent';
 import { CopyButton } from '../ui/CopyButton';
 import { AgentWorkTimeline } from './work/AgentWorkTimeline';
 import { CodeEditsCard } from './CodeEditsCard';
+import { DeniedActionsBar } from './DeniedActionsBar';
 import { formatDuration } from './work/workSummary';
 
 interface AgentMessageProps {
@@ -16,6 +17,9 @@ interface AgentMessageProps {
   /** Dipakai untuk pesan lama yang belum menyimpan identitas agen. */
   fallbackAgent: AgentProvider;
   onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number) => void;
+  /** Diisi hanya untuk jawaban terakhir yang punya aksi ditolak mode aman. */
+  onRetryWithPermission?: () => void;
+  onOpenInTerminal?: () => void;
 }
 
 const WIDTH = { narrow: 'max-w-2xl', default: 'max-w-4xl', wide: 'max-w-5xl' } as const;
@@ -38,6 +42,8 @@ export function AgentMessage({
   settings,
   fallbackAgent,
   onOpenDiffReview,
+  onRetryWithPermission,
+  onOpenInTerminal,
 }: AgentMessageProps) {
   const running = msg.status === 'running';
   const now = useTicker(running);
@@ -82,6 +88,17 @@ export function AgentMessage({
       {msg.codeEdits && msg.codeEdits.length > 0 && !running && (
         <CodeEditsCard edits={msg.codeEdits} isLight={isLight} onOpenDiffReview={onOpenDiffReview} />
       )}
+
+      {!running && onRetryWithPermission && msg.deniedActions?.length ? (
+        <DeniedActionsBar
+          actions={msg.deniedActions}
+          agentName={agentName}
+          preciseGrant={agentId === 'claude'}
+          isLight={isLight}
+          onRetry={onRetryWithPermission}
+          onOpenInTerminal={onOpenInTerminal}
+        />
+      ) : null}
 
       {!running && msg.content.trim() && (
         <div className="flex items-center gap-1 -ml-2 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

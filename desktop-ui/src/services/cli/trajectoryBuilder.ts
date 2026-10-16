@@ -27,7 +27,13 @@ const CATEGORY_TYPE: Record<string, StepType> = {
 };
 /** Keluaran tool yang menandakan aksi ditolak kebijakan izin (bukan gagal dijalankan). */
 const DENIED_OUTPUT =
-  /requested permissions? to use|haven't granted|BLOCKED by|permission (?:was )?denied by|rejected by (?:the )?user|user rejected this tool|requires approval/i;
+  /requested permissions? to use|haven't granted|BLOCKED by|permission (?:was )?denied by|rejected by (?:the )?user|user rejected this tool|requires approval|ditolak oleh pengguna/i;
+/** Penolakan dari modal HITL Soraja (`permission_bridge.rs`): keputusan pengguna, bukan mode aman. */
+const USER_REJECTED_OUTPUT = /ditolak oleh pengguna/i;
+
+export function isUserRejection(output?: string): boolean {
+  return USER_REJECTED_OUTPUT.test(output || '');
+}
 /** Batas cuplikan keluaran tool yang disimpan (riwayat tetap ringan). */
 const MAX_OUTPUT_CHARS = 4000;
 const MAX_LOG_LINES = 200;

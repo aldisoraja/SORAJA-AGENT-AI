@@ -100,6 +100,8 @@ export type AgentRunStatus = 'running' | 'done' | 'error' | 'stopped';
 export interface AgentRunInfo {
   workspace?: string;
   permission?: 'safe' | 'autonomous';
+  /** Aksi yang diizinkan ulang pengguna untuk giliran ini ("Izinkan & ulangi"). */
+  grantedActions?: string[];
   effort?: ChatReasoningEffort;
   resumedSession?: string;
   /** Jumlah lampiran yang diteruskan ke CLI sebagai berkas. */
@@ -143,6 +145,8 @@ export interface MessageRecord {
   runInfo?: AgentRunInfo;
   /** Baris log non-JSON dari CLI (stderr), ditampilkan terpisah dari penalaran. */
   logs?: string[];
+  /** Aksi yang ditolak kebijakan izin CLI (bukan oleh pengguna) → tombol "Izinkan & ulangi". */
+  deniedActions?: string[];
 }
 
 /** Kedalaman penalaran agen di Chat GUI (dikirim sebagai flag effort CLI). */
@@ -175,6 +179,10 @@ export interface AppSettings {
   dataStoragePath: string;
   networkAllowedUrls: string[];
   sandboxCommandsWhitelist: string[];
+  /** Kunci aturan HITL "selalu izinkan secara global" (lihat `services/cli/permissionRules.ts`). */
+  hitlAllowGlobal?: string[];
+  /** Kunci aturan HITL "selalu izinkan di proyek ini", per path folder proyek. */
+  hitlAllowProjects?: Record<string, string[]>;
 }
 
 export interface CredentialRecord {

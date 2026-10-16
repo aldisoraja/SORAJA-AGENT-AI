@@ -71,10 +71,19 @@ Menjeda / melanjutkan proses via `NtSuspendProcess` / `NtResumeProcess` (Windows
 * **Input:** `pid: u32`
 * **Output:** `Result<(), String>`
 
+### `prepare_permission_bridge`
+Menyalakan (sekali per aplikasi) jembatan izin HITL Chat GUI: MCP server HTTP lokal di `127.0.0.1:<port acak>` dengan token acak,
+lalu mengembalikan URL MCP untuk satu sesi. Dipakai Claude headless mode aman lewat `--mcp-config` + `--permission-prompt-tool
+mcp__soraja__approval_prompt` (lihat [`agent-protocols.md`](./agent-protocols.md) §7). Implementasi: `commands/permission_bridge.rs`.
+* **Input:** `session_id: String` (id pesan agen = `sessionId` di `spawn_headless_agent`)
+* **Output:** `Result<String, String>` — `http://127.0.0.1:<port>/mcp/<token>/<session_id>`
+* **Event dipicu:** `agent:permission_request` (tiap kali CLI meminta izin)
+
 ### `approve_human_in_the_loop`
-Keputusan pengguna atas modal HITL. *Status: stub (hanya log), lihat [`agent-protocols.md`](./agent-protocols.md) §7.*
-* **Input:** `session_id: String, tool_call_id: String, approved: bool`
-* **Output:** `Result<(), String>`
+Keputusan pengguna atas modal HITL Chat GUI, diteruskan ke CLI yang sedang menunggu (`allow` + input asli, atau `deny` dengan pesan
+"Ditolak oleh pengguna di Soraja."). Permintaan yang belum dijawab otomatis ditolak saat sesi berakhir (`agent:session_end`).
+* **Input:** `session_id: String, tool_call_id: String, approved: bool` — `tool_call_id` = `requestId` dari `agent:permission_request`
+* **Output:** `Result<(), String>` — error bila permintaan sudah tidak aktif atau milik sesi lain
 
 ---
 
@@ -207,7 +216,8 @@ Menyimpan API key opsional ke Windows Credential Manager (DPAPI) via `keyring`. 
 | `pty:exit` | `{ sessionId: string, exitCode: number }` | `start_interactive_pty` | Status tab terminal |
 | `agent:session_start` | `{ sessionId: string, agent: string, executable: string, pid: number }` | `spawn_headless_agent` | Simpan `pid` untuk Stop/Jeda |
 | `agent:token_stream` | `{ sessionId: string, chunk: string }` | `spawn_headless_agent` (1 baris stdout/stderr + `\n`) | `agentStreamParser.ts` → `cli/streamParsers.ts` (NDJSON → `UiAgentEvent`) |
-| `agent:session_end` | `{ sessionId: string, exitCode: number, summary: string }` | `spawn_headless_agent` | `useAgentStreamBridge`: tutup bubble & simpan pesan |
+| `agent:session_end` | `{ sessionId: string, exitCode: number, summary: string }` | `spawn_headless_agent` | `useAgentStreamBridge`: tutup bubble & simpan pesan; `useHitlPermissions`: buang antrean izin sesi itu |
+| `agent:permission_request` | `{ sessionId: string, requestId: string, toolName: string, input: object }` | `prepare_permission_bridge` (MCP `tools/call` dari CLI) | `useHitlPermissions`: aturan "selalu izinkan" atau Modal HITL 5 opsi → `approve_human_in_the_loop` |
 
 Tidak ada event Tauri lain. Nama lama `agent:thinking_step`, `agent:tool_invoked`, `agent:diff_preview` **tidak dipakai lagi**: parsing terjadi di frontend dan menghasilkan `UiAgentEvent` ([`agent-protocols.md`](./agent-protocols.md) §3). Bila kelak parsing dipindah ke Rust, emit `UiAgentEvent` apa adanya dengan nama `agent:ui_event`.
 
@@ -216,6 +226,6 @@ Tidak ada event Tauri lain. Nama lama `agent:thinking_step`, `agent:tool_invoked
 ## 7. Utang Teknis yang Diketahui
 1. `stop/pause/resume_agent_session` memakai `pid`, bukan `session_id` → backend belum menyimpan peta `session_id → Child` untuk mode headless.
 2. Proses headless belum diikat ke **Windows Job Object** (target SDD §7C); kill masih via `taskkill /T`.
-3. `approve_human_in_the_loop` dan `get_workspaces` masih stub.
+3. `get_workspaces` masih stub. HITL Chat GUI baru tersedia untuk Claude (agen lain: "Izinkan & ulangi", lihat agent-protocols §7).
 4. `toggle_skill` membuat `SkillRegistry` baru setiap panggilan (state tidak persisten).
 5. `crates/soraja-core/src/db.rs` (pool SQLite + migrasi dari `database-schema.sql`) belum dipanggil aplikasi; data UI masih disimpan `desktop-ui/src/services/db.ts`.

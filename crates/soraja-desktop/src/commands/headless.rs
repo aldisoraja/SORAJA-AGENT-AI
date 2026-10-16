@@ -90,6 +90,8 @@ pub async fn spawn_headless_agent(
             .await
             .map(|s| s.code().unwrap_or(0))
             .unwrap_or(-1);
+        // Permintaan izin yang belum dijawab tidak lagi berarti: modal ditutup UI, CLI sudah selesai.
+        crate::commands::permission_bridge::cancel_session(&app, &sid_end);
         let _ = app.emit(
             "agent:session_end",
             serde_json::json!({

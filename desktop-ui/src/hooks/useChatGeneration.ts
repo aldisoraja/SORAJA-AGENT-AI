@@ -24,6 +24,7 @@ import {
 import type { AgentProvider, ModelItem } from '../types/agent';
 import { hasHeadlessBridge, isTauriRuntime as isTauri } from '../services/headlessTransport';
 import { useAgentStreamBridge, type ActiveGeneration } from './useAgentStreamBridge';
+import { useHitlPermissions } from './useHitlPermissions';
 import { persistChatAttachments } from '../services/chatAttachmentStore';
 import { buildChatPrompt } from '../services/cli/chatPrompt';
 import {
@@ -46,6 +47,11 @@ interface PendingRequest {
   agentMsgId: string;
   conversationId: string;
 }
+interface SendOptions {
+  /** Aksi yang tadi ditolak dan kini diizinkan pengguna untuk giliran ini ("Izinkan & ulangi"). */
+  grantedActions?: string[];
+}
+
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 interface ChatGenerationDeps {
@@ -71,6 +77,11 @@ export function useChatGeneration(d: ChatGenerationDeps) {
   const activeGenRef = useRef<ActiveGeneration | null>(null);
   /** Permintaan CLI yang sedang berjalan; dipakai untuk fallback bila CLI gagal tanpa jawaban. */
   const pendingRef = useRef<PendingRequest | null>(null);
+  const hitl = useHitlPermissions({
+    activeGenRef,
+    agentName: (agentId) => (agentId === d.selectedAgent.id || !agentId ? d.selectedAgent.name : agentId),
+    showDbToast: d.showDbToast,
+  });
 
   useAgentStreamBridge({
     enabled: canRunCli,
@@ -194,7 +205,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     activeGenRef.current = null;
   };
 
-  const handleSendMessage = async (promptText: string, stagedAttachments: AttachedFile[]) => {
+  const handleSendMessage = async (promptText: string, stagedAttachments: AttachedFile[], options: SendOptions = {}) => {
     const prompt = promptText.trim();
     const { activeProject, selectedAgent, selectedModel } = d;
     if (!prompt && stagedAttachments.length === 0) return;
@@ -293,6 +304,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
         ? {
             workspace: activeProject?.path,
             permission: permissionMode,
+            grantedActions: options.grantedActions,
             effort,
             resumedSession: resumeId,
             attachmentCount: promptFiles.length,
@@ -329,6 +341,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
         // Hanya OpenCode yang memakai --file untuk dokumen; agen lain membaca dari daftar path di prompt.
         // Dokumen Office dikirim sebagai teks hasil ekstraksi (`--file` menolak berkas biner → exit 1).
         filePaths: promptFiles.filter((f) => f.kind === 'document').map((f) => f.textPath ?? f.path),
+        grantedActions: options.grantedActions,
       });
     } catch (err) {
       console.warn('Spawn Headless Error:', err);
@@ -337,5 +350,28 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     }
   };
 
-  return { isGenerating, isPaused, handleStopGeneration, handleTogglePauseGeneration, handleSendMessage };
+  /**
+   * "Izinkan & ulangi": melanjutkan sesi CLI yang sama dengan izin untuk aksi yang tadi ditolak (satu giliran).
+   * Hanya bermakna untuk agen yang menjawab pesan tersebut, karena sesi CLI tidak bisa dipindah antaragen.
+   */
+  const handleRetryWithPermission = async (msg: MessageRecord) => {
+    const actions = msg.deniedActions ?? [];
+    if (actions.length === 0 || isGenerating) return;
+    if (msg.agentId && msg.agentId !== d.selectedAgent.id) {
+      d.showDbToast(`Pilih kembali agen ${msg.agentName ?? msg.agentId} untuk mengulang aksi yang ditolak.`);
+      return;
+    }
+    const prompt = `Saya mengizinkan aksi yang tadi ditolak (${actions.join(', ')}). Ulangi langkah tersebut, lalu lanjutkan sampai tugasnya selesai.`;
+    await handleSendMessage(prompt, [], { grantedActions: actions });
+  };
+
+  return {
+    isGenerating,
+    isPaused,
+    handleStopGeneration,
+    handleTogglePauseGeneration,
+    handleSendMessage,
+    handleRetryWithPermission,
+    ...hitl,
+  };
 }

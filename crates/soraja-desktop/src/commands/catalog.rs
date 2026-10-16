@@ -1,4 +1,4 @@
-//! Katalog & deteksi agen CLI, kredensial, HITL, skills. Kontrak: specs/ipc-contracts.md §2-§5.
+//! Katalog & deteksi agen CLI, kredensial, skills (HITL: `permission_bridge.rs`). Kontrak: specs/ipc-contracts.md §2-§5.
 
 use soraja_core::agent_catalog::{self, CliAgentProvider, CliModelItem, UserCliProfile};
 
@@ -96,13 +96,6 @@ fn trust_workspace_blocking(workspace_path: String, agent_id: String) -> Result<
 #[tauri::command]
 pub fn save_account_credential(provider: String, secret_token: String) -> Result<(), String> {
     soraja_core::auth::save_token(&provider, &secret_token).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn approve_human_in_the_loop(session_id: String, tool_call_id: String, approved: bool) -> Result<(), String> {
-    // TODO(spec agent-protocols §7): teruskan ke permission-prompt-tool MCP.
-    println!("Persetujuan HITL untuk sesi {} tool {}: {}", session_id, tool_call_id, approved);
-    Ok(())
 }
 
 #[tauri::command]

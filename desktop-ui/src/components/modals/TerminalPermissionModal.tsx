@@ -1,4 +1,4 @@
-import { Terminal, X } from 'lucide-react';
+import { AlertTriangle, Terminal, X } from 'lucide-react';
 
 interface TerminalPermissionModalProps {
   modal: {
@@ -10,6 +10,16 @@ interface TerminalPermissionModalProps {
   onSelectOption: (optionId: number) => void;
   onSubmit: (optionId: number) => void;
   isLight?: boolean;
+  /** Judul banner; bawaan = teks demo tombol uji HITL. */
+  title?: string;
+  /** Keterangan di bawah pratinjau (mis. penjelasan agen tentang perintahnya). */
+  description?: string;
+  /** Peringatan perintah berbahaya. */
+  warning?: string;
+  /** Jumlah permintaan izin yang mengantre (termasuk yang tampil). */
+  queueCount?: number;
+  /** Opsi yang tidak boleh dipilih (mis. "selalu izinkan" untuk perintah berbahaya). */
+  disabledOptions?: number[];
 }
 
 export function TerminalPermissionModal({
@@ -18,8 +28,14 @@ export function TerminalPermissionModal({
   onSelectOption,
   onSubmit,
   isLight = false,
+  title = '2 Running background tasks',
+  description = 'Perintah terminal di atas akan dieksekusi di terminal terintegrasi',
+  warning,
+  queueCount = 0,
+  disabledOptions = [],
 }: TerminalPermissionModalProps) {
   if (!modal?.open) return null;
+  const selected = disabledOptions.includes(modal.selectedOption || 1) ? 1 : modal.selectedOption || 1;
 
   return (
     <div className={`fixed inset-0 backdrop-blur-md flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150 ${
@@ -48,8 +64,13 @@ export function TerminalPermissionModal({
               }`}></span>
             </span>
             <span className={`font-bold ${isLight ? 'text-blue-700' : 'text-cyan-300'}`}>
-              2 Running background tasks
+              {title}
             </span>
+            {queueCount > 1 && (
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'}`}>
+                +{queueCount - 1} menunggu
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -65,11 +86,15 @@ export function TerminalPermissionModal({
         <div className="space-y-1.5">
           <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-xs text-cyan-300 break-all flex items-center gap-2 shadow-inner">
             <Terminal className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span>{modal.command}</span>
+            <span className="max-h-32 overflow-y-auto whitespace-pre-wrap">{modal.command}</span>
           </div>
-          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Perintah terminal di atas akan dieksekusi di terminal terintegrasi
-          </p>
+          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{description}</p>
+          {warning && (
+            <p className={`flex items-center gap-1.5 text-[11px] font-semibold ${isLight ? 'text-rose-600' : 'text-rose-400'}`}>
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              {warning}
+            </p>
+          )}
         </div>
 
         {/* 5 Radio Options */}
@@ -81,12 +106,16 @@ export function TerminalPermissionModal({
             { id: 4, label: 'Always allow globally', desc: 'Selalu izinkan untuk semua proyek & sesi' },
             { id: 5, label: 'Reject (Do not allow)', desc: 'Tolak eksekusi perintah terminal ini' },
           ].map((opt) => {
-            const isSelected = (modal.selectedOption || 1) === opt.id;
+            const isSelected = selected === opt.id;
+            const disabled = disabledOptions.includes(opt.id);
             return (
               <div
                 key={opt.id}
-                onClick={() => onSelectOption(opt.id)}
-                className={`p-3 rounded-2xl border text-xs cursor-pointer transition flex items-center gap-3 ${
+                onClick={() => !disabled && onSelectOption(opt.id)}
+                aria-disabled={disabled}
+                className={`p-3 rounded-2xl border text-xs transition flex items-center gap-3 ${
+                  disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                } ${
                   isSelected
                     ? isLight
                       ? 'soraja-grad-soft border-blue-500/80 shadow-sm'
@@ -139,7 +168,7 @@ export function TerminalPermissionModal({
             Skip
           </button>
           <button
-            onClick={() => onSubmit(modal.selectedOption || 1)}
+            onClick={() => onSubmit(selected)}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-md ${
               isLight
                 ? 'soraja-grad-primary text-white'

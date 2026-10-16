@@ -36,6 +36,14 @@ export interface CliLaunchOptions {
   imagePaths?: string[];
   /** Khusus headless: path absolut dokumen lampiran (opencode `--file`). */
   filePaths?: string[];
+  /** Khusus Claude headless mode aman: URL MCP jembatan izin Soraja (IPC `prepare_permission_bridge`). */
+  permissionPromptUrl?: string;
+  /**
+   * Khusus headless: aksi yang tadi ditolak lalu diizinkan pengguna ("Izinkan & ulangi") untuk satu giliran.
+   * Claude: `--allowedTools` persis untuk aksi itu; CLI lain tidak punya allow-list per tool sehingga giliran ini
+   * berjalan dengan izin penuh (setara mode otonom).
+   */
+  grantedActions?: string[];
 }
 
 export interface CliCommand {
@@ -59,6 +67,12 @@ const KIRO_SAFE_TOOLS = ['read_file', 'list_directory', 'file_search', 'grep_sea
 /** Petunjuk mode aman Antigravity headless: perintah shell selalu ditolak, tool berkas bawaan tetap jalan. */
 export const AGY_SAFE_MODE_RULE =
   'Perintah terminal/shell (RunCommand) otomatis ditolak di sesi ini. Gunakan hanya tool bawaan untuk membaca, mencari, dan mengubah berkas; jangan menjalankan perintah. Bila sebuah langkah benar-benar butuh perintah, tetap selesaikan bagian lain lalu sebutkan perintah yang perlu dijalankan pengguna.';
+
+/** Tool MCP jembatan izin Soraja (`permission_bridge.rs`) untuk `--permission-prompt-tool` Claude. */
+export const PERMISSION_PROMPT_TOOL = 'mcp__soraja__approval_prompt';
+
+/** Batas waktu tool MCP Claude (ms): pengguna boleh menimbang permintaan izin selama apa pun dalam sehari. */
+const PERMISSION_PROMPT_TIMEOUT_MS = '86400000';
 
 /** Agen tanpa flag system prompt: aturan bahasa & Chat GUI disisipkan di awal prompt headless. */
 const PROMPT_PREFIX_AGENTS: CliAgentId[] = ['antigravity', 'kiro'];
@@ -160,7 +174,7 @@ function headlessPrompt(agentId: CliAgentId, o: CliLaunchOptions): string {
     prefixes.push(`[Instruksi sistem]\n${CHAT_REASONING_RULE}`);
   }
   // agy headless mengakhiri SELURUH giliran tanpa jawaban begitu satu perintah shell ditolak (`denied_actions`).
-  if (agentId === 'antigravity' && o.permissionMode !== 'autonomous') prefixes.push(`[Mode aman] ${AGY_SAFE_MODE_RULE}`);
+  if (agentId === 'antigravity' && o.permissionMode !== 'autonomous' && !o.grantedActions?.length) prefixes.push(`[Mode aman] ${AGY_SAFE_MODE_RULE}`);
   const full = prefixes.length > 0 ? `${prefixes.join('\n\n')}\n\n${prompt}` : prompt;
   // Prompt berawalan "-" akan dibaca CLI sebagai flag; spasi di depan menjadikannya argumen posisi.
   return full.startsWith('-') ? ` ${full}` : full;
@@ -182,19 +196,30 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
   const agentId = normalizeAgentId(o.agentId);
   if (!agentId) throw new Error(`Agen CLI tidak dikenal: ${o.agentId}`);
   const autonomous = o.permissionMode === 'autonomous';
+  // CLI tanpa allow-list per tool: aksi yang diizinkan ulang = izin penuh untuk giliran ini saja.
+  const elevated = autonomous || (!!o.grantedActions?.length && agentId !== 'claude');
   const prompt = headlessPrompt(agentId, o);
   const args: string[] = [];
+  const envs = baseEnvs(agentId, o);
 
   switch (agentId) {
     case 'antigravity':
       args.push('-p', prompt, '--output-format', 'stream-json', '--add-dir', o.cwd);
-      args.push(...(autonomous ? ['--dangerously-skip-permissions'] : ['--mode', 'accept-edits']));
+      args.push(...(elevated ? ['--dangerously-skip-permissions'] : ['--mode', 'accept-edits']));
       if (o.cliSessionId) args.push('--conversation', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), ...effortArgs(agentId, o.effort));
       break;
     case 'claude':
       args.push('-p', prompt, '--output-format', 'stream-json', '--verbose');
+      // Opsi variadik (`--allowedTools`, `--mcp-config`) selalu diikuti flag lain agar tidak menelan argumen.
+      if (!autonomous && o.grantedActions?.length) args.push('--allowedTools', ...o.grantedActions);
       args.push('--permission-mode', autonomous ? 'bypassPermissions' : 'acceptEdits');
+      if (!autonomous && o.permissionPromptUrl) {
+        // Aksi di luar acceptEdits ditanyakan ke pengguna lewat modal HITL Soraja, bukan langsung ditolak.
+        const mcpConfig = { mcpServers: { soraja: { type: 'http', url: o.permissionPromptUrl } } };
+        args.push('--mcp-config', JSON.stringify(mcpConfig), '--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
+        envs.MCP_TOOL_TIMEOUT = PERMISSION_PROMPT_TIMEOUT_MS;
+      }
       if (o.cliSessionId) args.push('--resume', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), ...effortArgs(agentId, o.effort));
       break;
@@ -204,7 +229,7 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
       if (o.cliSessionId) args.push('resume');
       args.push(...attachFlags('--image', o.imagePaths));
       args.push('--json', '--skip-git-repo-check');
-      if (autonomous) args.push('--dangerously-bypass-approvals-and-sandbox');
+      if (elevated) args.push('--dangerously-bypass-approvals-and-sandbox');
       else if (!o.cliSessionId) args.push('--approve-for-me');
       if (!o.cliSessionId) args.push('-C', o.cwd);
       args.push(...sharedArgs(agentId, o), ...effortArgs(agentId, o.effort));
@@ -217,7 +242,7 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
         ...attachFlags('--file', [...(o.imagePaths ?? []), ...(o.filePaths ?? []).filter((p) => !OPENCODE_BINARY_FILE.test(p))])
       );
       args.push('--format', 'json', '--dir', o.cwd);
-      if (autonomous) args.push('--auto');
+      if (elevated) args.push('--auto');
       if (o.cliSessionId) args.push('-s', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), ...effortArgs(agentId, o.effort), prompt);
       break;
@@ -226,12 +251,12 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
       args.push('chat', '--no-interactive', '--output-format', 'stream-json', '--agent-engine', 'v3');
       // Mode aman = setara agen lain: baca, cari & ubah berkas diizinkan; shell & hapus berkas tetap ditolak
       // (non-interaktif). ID tool engine v3 (KAS) diverifikasi dari kiro-cli 2.31, 16 Okt 2026.
-      args.push(autonomous ? '--trust-all-tools' : `--trust-tools=${KIRO_SAFE_TOOLS.join(',')}`);
+      args.push(elevated ? '--trust-all-tools' : `--trust-tools=${KIRO_SAFE_TOOLS.join(',')}`);
       if (o.cliSessionId) args.push('--resume-id', o.cliSessionId);
       args.push(...sharedArgs(agentId, o), prompt);
       break;
   }
-  return { executable: o.executable, args, envs: baseEnvs(agentId, o) };
+  return { executable: o.executable, args, envs };
 }
 
 /** Mode Terminal: CLI interaktif (TUI asli) di dalam PTY. */

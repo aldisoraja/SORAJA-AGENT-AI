@@ -26,6 +26,21 @@ export interface HeadlessSpawnOptions {
   /** Path absolut lampiran yang sudah disimpan (chatAttachmentStore). */
   imagePaths?: string[];
   filePaths?: string[];
+  /** Aksi yang diizinkan ulang pengguna untuk satu giliran ("Izinkan & ulangi"). */
+  grantedActions?: string[];
+}
+
+/**
+ * URL MCP jembatan izin HITL untuk sesi Claude di mode aman (specs/agent-protocols.md §7).
+ * Gagal → `undefined`: Claude kembali ke perilaku lama (aksi berisiko ditolak otomatis).
+ */
+async function preparePermissionBridge(sessionId: string): Promise<string | undefined> {
+  try {
+    return await invoke<string>('prepare_permission_bridge', { sessionId });
+  } catch (err) {
+    console.warn('Jembatan izin HITL tidak tersedia:', err);
+    return undefined;
+  }
 }
 
 const languageRulesCache = new Map<string, Promise<string | undefined>>();
@@ -56,6 +71,10 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
     await ensureWorkspaceTrustedForCli(o.projectPath, 'antigravity');
   }
   const languageRulesPath = isTauriRuntime ? await prepareLanguageRules(agentId) : undefined;
+  const permissionPromptUrl =
+    isTauriRuntime && agentId === 'claude' && o.permissionMode !== 'autonomous'
+      ? await preparePermissionBridge(o.sessionId)
+      : undefined;
   const command = buildHeadlessCommand({
     agentId,
     executable: o.agent.binaryPath || o.agent.executable || (agentId === 'antigravity' ? 'agy' : agentId),
@@ -70,6 +89,8 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
     chatRules: o.chatRules,
     imagePaths: o.imagePaths,
     filePaths: o.filePaths,
+    permissionPromptUrl,
+    grantedActions: o.grantedActions,
   });
 
   registerSessionAgent(o.sessionId, agentId);

@@ -83,7 +83,7 @@ Diatur oleh **Pengaturan → Preset Keamanan** (`AppSettings.securityPreset`): `
 | Agen | Mode aman (default) | Mode otonom (`Permissive`) | Perilaku mode aman yang terverifikasi |
 | :--- | :--- | :--- | :--- |
 | `antigravity` | `--mode accept-edits` + prefiks `[Mode aman] …` (`AGY_SAFE_MODE_RULE`) | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) dan agy lalu mengakhiri seluruh giliran tanpa jawaban — karena itu prompt memberi tahu agen agar memakai tool berkas bawaan. `--mode auto` juga menolak semua perintah (diuji 16 Okt 2026). |
-| `claude` | `--permission-mode acceptEdits` | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna ditolak oleh CLI. |
+| `claude` | `--permission-mode acceptEdits` + jembatan izin (`--mcp-config`, `--permission-prompt-tool`, §7) | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna **ditanyakan** lewat Modal HITL (tanpa jembatan: ditolak oleh CLI). |
 | `codex` | `--approve-for-me` | `--dangerously-bypass-approvals-and-sandbox` | Permintaan izin ditinjau otomatis oleh Codex. *Catatan: `--sandbox workspace-write` di Windows memblokir bahkan `Set-Content` sehingga tidak dipakai.* |
 | `opencode` | tanpa `--auto` | `--auto` | Mengikuti aturan `permission` di config OpenCode pengguna. |
 | `kiro` | `--trust-tools=read_file,list_directory,file_search,grep_search,fs_write,fs_append,str_replace` | `--trust-all-tools` | ID tool engine v3 (KAS, kiro-cli 2.31). Tanpa trust, *semua* edit berkas ditolak di mode non-interaktif (diuji 16 Okt 2026); kini setara agen lain: baca/ubah berkas jalan, shell & `delete_file` ditolak. Chat GUI berjalan dengan login Kiro biasa (tanpa `KIRO_API_KEY`). |
@@ -141,6 +141,7 @@ Aturan tambahan (diuji `tests/chatMessageReducer.test.mjs` dengan fixture nyata)
   jawaban; `file_change` dikirim saat `tool_result` sukses (bukan saat `tool_use`); `result.permission_denials[]` → `denied` + notice.
 * **Antigravity:** tiap `result.denied_actions[]` → `denied` (per jenis aksi, mis. `command` → langkah perintah terakhir).
 * **Penolakan di keluaran tool** (mis. OpenCode `BLOCKED by …`, Claude `requested permissions … haven't granted`) → status `denied`.
+  Keluaran `Ditolak oleh pengguna …` (modal HITL Soraja) juga `denied`, tetapi tidak masuk `deniedActions` (lihat §7).
 * **Rencana kerja:** `TodoWrite` (Claude), `todowrite` (OpenCode), `todo_list` (Codex), `sessionUpdate: plan` (Kiro) → satu langkah
   `plan` yang diperbarui. `web_search` Codex / `WebFetch` / `WebSearch` → langkah `web`.
 * Reducer murni event → pesan: `services/cli/messageReducer.ts` (dipakai `useAgentStreamBridge`).
@@ -220,9 +221,27 @@ Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-sc
 
 ## 7. HITL (Human-in-the-Loop) pada CLI Native
 * **Mode Terminal:** HITL ditangani 100% oleh prompt izin bawaan CLI (pengguna menjawab langsung di xterm; teks prompt dilokalisasi).
-* **Mode Chat GUI:**
-  1. *Saat ini:* mode aman (§2) membuat CLI menolak aksi berisiko; penolakan tampil sebagai notice dan pengguna bisa melanjutkan lewat **"Buka di Terminal"**.
-  2. *Target:* `claude --permission-prompt-tool <mcp_tool>` → MCP server lokal Soraja memunculkan **Modal HITL 5-Opsi** dan menjawab via `approve_human_in_the_loop`.
+* **Mode Chat GUI — Claude (tanya izin langsung):** di mode aman, `cliAdapters.ts` memanggil `prepare_permission_bridge` lalu
+  `buildHeadlessCommand` menambahkan `--mcp-config '{"mcpServers":{"soraja":{"type":"http","url":…}}}' --permission-prompt-tool
+  mcp__soraja__approval_prompt` (+ env `MCP_TOOL_TIMEOUT=86400000`). Aksi di luar `acceptEdits` (mis. Bash/PowerShell, WebFetch)
+  tidak lagi ditolak otomatis:
+  1. Claude memanggil tool MCP `approval_prompt` `{tool_name, input, tool_use_id}` → `permission_bridge.rs` memancarkan
+     `agent:permission_request` dan menahan jawaban HTTP (SSE + komentar keepalive 15 detik, tanpa batas waktu).
+  2. `hooks/useHitlPermissions.ts` menjawab otomatis bila ada aturan "selalu izinkan"; selain itu menampilkan **Modal HITL 5 opsi**
+     (antre bila lebih dari satu). Opsi 2 disimpan di memori per percakapan, opsi 3 di `AppSettings.hitlAllowProjects[pathProyek]`,
+     opsi 4 di `AppSettings.hitlAllowGlobal`. Kunci aturan (`services/cli/permissionRules.ts`): perintah shell per program pertama
+     (`Bash:npm`), tool lain per nama tool. Perintah berantai (`&&`, `;`, `|`, `` ` ``, `$(`) dan perintah berbahaya (`rm -rf`,
+     `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, format, shutdown, …) **selalu ditanyakan** dan hanya bisa
+     diizinkan sekali. *Skip*/tutup modal = tolak.
+  3. Jawaban → `approve_human_in_the_loop` → Claude menerima `{"behavior":"allow","updatedInput":…}` atau
+     `{"behavior":"deny","message":"Ditolak oleh pengguna di Soraja."}`. Penolakan oleh pengguna tampil sebagai langkah "ditolak"
+     dengan notice info, tanpa tombol ulangi.
+  4. Jembatan gagal disiapkan → Claude berjalan seperti sebelumnya (aksi berisiko ditolak otomatis).
+* **Mode Chat GUI — semua agen ("Izinkan & ulangi"):** aksi yang ditolak kebijakan izin CLI dicatat di `MessageRecord.deniedActions`
+  (dari `permission_denials`/`denied_actions` atau keluaran tool yang diblokir). Di jawaban terakhir muncul tombol **Izinkan & ulangi**
+  (dan **Buka di Terminal** bila sesi CLI tersimpan). Tombol ini mengirim giliran baru di sesi CLI yang sama dengan
+  `grantedActions`: Claude mendapat `--allowedTools <aksi>` persis; Antigravity, Codex, OpenCode, dan Kiro tidak punya allow-list
+  per tool sehingga giliran itu memakai flag mode otonom (§2) — hanya untuk satu giliran tersebut, dan UI menyebutkannya.
 * Regex destruktif `TerminalExecutor::is_destructive_command` tetap berlaku untuk `run_workspace_terminal` milik Soraja.
 
 ---

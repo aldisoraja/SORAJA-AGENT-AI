@@ -18,6 +18,9 @@ interface ChatFeedProps {
   onOpenNewProjectWizard: () => void;
   /** `turnPrompt` = pesan pengguna yang memicu jawaban agen tersebut (bukan pesan terakhir di sesi). */
   onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number, turnPrompt?: string) => void;
+  /** "Izinkan & ulangi" untuk aksi yang ditolak mode aman di jawaban terakhir. */
+  onRetryWithPermission?: (msg: MessageRecord) => void;
+  onOpenInTerminal?: () => void;
 }
 
 /** Jarak (px) dari dasar yang masih dianggap "mengikuti" percakapan untuk auto-scroll. */
@@ -32,6 +35,8 @@ export function ChatFeed({
   isGenerating = false,
   onOpenNewProjectWizard,
   onOpenDiffReview,
+  onRetryWithPermission,
+  onOpenInTerminal,
 }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -118,6 +123,10 @@ export function ChatFeed({
                       const turn = messages.slice(0, i).reverse().find((m) => m.sender === 'user');
                       onOpenDiffReview(files, idx, turn?.content);
                     }}
+                    onRetryWithPermission={
+                      i === messages.length - 1 && !isGenerating && onRetryWithPermission ? () => onRetryWithPermission(msg) : undefined
+                    }
+                    onOpenInTerminal={onOpenInTerminal}
                   />
                 )}
               </div>

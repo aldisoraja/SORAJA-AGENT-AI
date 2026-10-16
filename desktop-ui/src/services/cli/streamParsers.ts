@@ -31,6 +31,13 @@ export type StreamParser = (line: string) => UiAgentEvent[];
 
 type Json = Record<string, any>;
 
+/** Awal notice aksi yang ditolak kebijakan izin CLI (dikenali reducer untuk penolakan oleh pengguna). */
+export const DENIED_NOTICE_PREFIX = 'Aksi ditolak di mode aman';
+
+function deniedNotice(names: string): string {
+  return `${DENIED_NOTICE_PREFIX}: ${names}. Pilih **Izinkan & ulangi** di bawah untuk mengizinkannya, atau buka sesi ini di Terminal.`;
+}
+
 const FILE_TOOLS: Record<string, string[]> = {
   claude: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
   opencode: ['write', 'edit', 'patch', 'multiedit'],
@@ -107,7 +114,7 @@ function createClaudeParser(): StreamParser {
         out.push({
           kind: 'notice',
           level: 'warn',
-          message: `Aksi ditolak di mode aman: ${names}. Buka sesi ini di Terminal untuk menyetujuinya secara interaktif.`,
+          message: deniedNotice(names),
         });
       }
       out.push({ kind: 'done', ok: !o.is_error, summary: o.is_error ? toText(o.result) : undefined });
@@ -261,7 +268,7 @@ function createAntigravityParser(): StreamParser {
         out.push({
           kind: 'notice',
           level: 'warn',
-          message: `Aksi ditolak di mode aman: ${names}. Buka sesi ini di Terminal untuk menyetujuinya secara interaktif.`,
+          message: deniedNotice(names),
         });
       }
       out.push({ kind: 'done', ok: r.status === 'SUCCESS' });

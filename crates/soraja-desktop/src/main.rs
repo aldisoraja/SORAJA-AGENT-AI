@@ -5,7 +5,7 @@
 
 mod commands;
 
-use commands::{attachments, catalog, headless, language_rules, pty, workspace};
+use commands::{attachments, catalog, headless, language_rules, permission_bridge, pty, workspace};
 
 fn main() {
     tauri::Builder::default()
@@ -13,6 +13,8 @@ fn main() {
         // Dialog folder native → path absolut proyek (pengganti showDirectoryPicker)
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
+        // Jembatan izin HITL Chat GUI (MCP lokal untuk `--permission-prompt-tool` Claude)
+        .manage(permission_bridge::PermissionBridge::default())
         .invoke_handler(tauri::generate_handler![
             // Mode Terminal (PTY interaktif)
             pty::start_interactive_pty,
@@ -25,6 +27,8 @@ fn main() {
             headless::stop_agent_session,
             headless::pause_agent_session,
             headless::resume_agent_session,
+            permission_bridge::prepare_permission_bridge,
+            permission_bridge::approve_human_in_the_loop,
             // Katalog, kredensial, HITL, skills
             catalog::get_available_cli_agents,
             catalog::get_agent_providers,
@@ -33,7 +37,6 @@ fn main() {
             catalog::get_user_cli_profile,
             catalog::trust_and_prepare_workspace_for_cli,
             catalog::save_account_credential,
-            catalog::approve_human_in_the_loop,
             catalog::get_skills,
             catalog::toggle_skill,
             language_rules::prepare_agent_language_rules,

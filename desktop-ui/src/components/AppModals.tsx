@@ -107,6 +107,22 @@ export function AppModals({
         }}
       />
 
+      {/* 6b. HITL Chat GUI: agen meminta izin menjalankan tool (specs/agent-protocols.md §7) */}
+      {ws.hitlRequest && (
+        <TerminalPermissionModal
+          isLight={ws.isLight}
+          modal={{ open: true, command: ws.hitlRequest.preview, selectedOption: ws.hitlSelectedOption }}
+          title={`${ws.hitlRequest.agentName} meminta izin · ${ws.hitlRequest.toolName}`}
+          description={ws.hitlRequest.description ?? 'Agen menunggu persetujuan Anda sebelum menjalankan aksi ini.'}
+          warning={ws.hitlRequest.destructive ? 'Perintah berisiko merusak data — hanya bisa diizinkan sekali.' : undefined}
+          queueCount={ws.hitlQueueLength}
+          disabledOptions={ws.hitlRequest.ruleKey && !ws.hitlRequest.destructive ? [] : [2, 3, 4]}
+          onClose={() => ws.answerHitl(5)}
+          onSelectOption={ws.setHitlSelectedOption}
+          onSubmit={ws.answerHitl}
+        />
+      )}
+
       {/* 7. History Modal */}
       <HistoryModal
         isLight={ws.isLight}
