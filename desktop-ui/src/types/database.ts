@@ -56,10 +56,17 @@ export interface CodeEditChunk {
   }>;
 }
 
-export type StepStatus = 'running' | 'done' | 'error';
+/** `denied` = aksi ditolak kebijakan izin CLI (mode aman), bukan gagal dijalankan. */
+export type StepStatus = 'running' | 'done' | 'error' | 'denied';
+
+/** Satu butir rencana kerja agen (TodoWrite Claude, todo_list Codex, plan Kiro/OpenCode). */
+export interface PlanItem {
+  text: string;
+  status: 'pending' | 'active' | 'done';
+}
 
 export interface TrajectoryStep {
-  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool';
+  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool' | 'plan' | 'web';
   label: string;
   count?: number;
   file?: string;
@@ -81,6 +88,8 @@ export interface TrajectoryStep {
   detail?: string;
   /** Cuplikan keluaran tool (dipotong). */
   output?: string;
+  /** Butir rencana kerja (langkah `plan`). */
+  todos?: PlanItem[];
   startedAt?: number;
   endedAt?: number;
 }

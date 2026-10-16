@@ -89,8 +89,9 @@ type UiAgentEvent =
   | { kind: 'session'; cliSessionId: string; model?: string }      // → ConversationRecord.cliSessionId
   | { kind: 'text'; delta: string }                                 // → isi bubble jawaban
   | { kind: 'thinking'; delta: string }                             // → langkah timeline 'thought' (+ reasoning)
-  | { kind: 'tool'; id: string; name: string; input: object; status: 'running' | 'done' | 'error'; output?: string } // → trajectory
-  | { kind: 'file_change'; path: string }                           // → git diff → pill "Edited" + DiffReviewPanel
+  | { kind: 'tool'; id: string; name: string; input: object; status: 'running' | 'done' | 'error'; output?: string; category?: string } // → trajectory (category = jenis tool ACP Kiro)
+  | { kind: 'file_change'; path: string }                           // → git diff → pill "Edited" + DiffReviewPanel (hanya setelah tool edit BERHASIL)
+  | { kind: 'denied'; toolId?: string; action?: string }            // → langkah berstatus 'denied' (ditolak mode aman, bukan gagal)
   | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
@@ -124,10 +125,22 @@ Kiro (amplop `{type, data}`, isi ACP), dari dokumentasi resmi — belum ada fixt
 | `notice` | — | `{type:"error"}` | `{type:"error"}` | `result.denied_actions[]` |
 | `done` | `{type:"result",is_error}` | `turn.completed` / `turn.failed` | (exit proses) | `result.status="SUCCESS"` |
 
+Aturan tambahan (diuji `tests/chatMessageReducer.test.mjs` dengan fixture nyata):
+* **Claude:** blok `text` dipisah baris kosong; pesan sub-agen (`parent_tool_use_id`) hanya menyumbang langkah tool, bukan teks
+  jawaban; `file_change` dikirim saat `tool_result` sukses (bukan saat `tool_use`); `result.permission_denials[]` → `denied` + notice.
+* **Antigravity:** tiap `result.denied_actions[]` → `denied` (per jenis aksi, mis. `command` → langkah perintah terakhir).
+* **Penolakan di keluaran tool** (mis. OpenCode `BLOCKED by …`, Claude `requested permissions … haven't granted`) → status `denied`.
+* **Rencana kerja:** `TodoWrite` (Claude), `todowrite` (OpenCode), `todo_list` (Codex), `sessionUpdate: plan` (Kiro) → satu langkah
+  `plan` yang diperbarui. `web_search` Codex / `WebFetch` / `WebSearch` → langkah `web`.
+* Reducer murni event → pesan: `services/cli/messageReducer.ts` (dipakai `useAgentStreamBridge`).
+
 ### Diff untuk `DiffReviewPanel`
 CLI tidak selalu mengirim isi diff. Untuk setiap `file_change`, UI menjalankan `git diff --no-color -- <path>` via
-`run_workspace_terminal`. Bila kosong (berkas baru/untracked) atau folder bukan repo git, isi berkas dibaca dengan
-`read_workspace_file` dan seluruhnya ditandai sebagai tambahan (`services/cli/fileChangeDiff.ts`).
+`run_workspace_terminal` (path relatif diselesaikan terhadap folder proyek). Bila diff kosong, `git status --porcelain --ignored`
+menentukan: berkas baru/untracked/diabaikan (`??`, `A`, `!!`) atau folder bukan repo git → isi berkas dibaca dengan
+`read_workspace_file` dan seluruhnya ditandai tambahan; berkas ter-track **tanpa perubahan** → tidak ada diff (statistik lama
+dibuang). Hanya hasil diff terbaru per berkas yang diterapkan, dan diff yang selesai setelah sesi berakhir tetap disimpan
+(`services/cli/fileChangeDiff.ts`).
 
 ---
 

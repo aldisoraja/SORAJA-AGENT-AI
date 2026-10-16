@@ -1,34 +1,61 @@
 /**
  * workSummary.ts
- * Helper murni untuk panel "Proses kerja" agen: ringkasan langkah, label aktivitas live, format durasi & token.
+ * Helper murni untuk panel "Proses kerja" agen: ringkasan langkah, pengelompokan, label aktivitas live,
+ * statistik diff, serta format durasi & token. Diuji di `tests/chatWorkSummary.test.mjs`.
  */
-import type { ChatReasoningEffort, MessageRecord, TrajectoryStep } from '../../../types/database';
+import type { ChatReasoningEffort, CodeEditChunk, MessageRecord, TrajectoryStep } from '../../../types/database.ts';
+import { samePath } from '../../../services/cli/trajectoryBuilder.ts';
 
 export interface StepCounts {
   thoughts: number;
   reads: number;
   searches: number;
+  web: number;
   commands: number;
+  /** Jumlah berkas unik yang diubah (bukan jumlah panggilan tool edit). */
   edits: number;
   tools: number;
   errors: number;
+  denied: number;
   additions: number;
   deletions: number;
 }
 
-export function countSteps(steps: TrajectoryStep[]): StepCounts {
-  const c: StepCounts = { thoughts: 0, reads: 0, searches: 0, commands: 0, edits: 0, tools: 0, errors: 0, additions: 0, deletions: 0 };
+const norm = (p = '') => p.replace(/\\/g, '/').toLowerCase();
+
+/**
+ * Hitungan langkah untuk ringkasan. Total +/− diambil dari `codeEdits` (diff kumulatif per berkas)
+ * agar berkas yang diedit berkali-kali tidak terhitung ganda.
+ */
+export function countSteps(steps: TrajectoryStep[], codeEdits?: CodeEditChunk[]): StepCounts {
+  const c: StepCounts = { thoughts: 0, reads: 0, searches: 0, web: 0, commands: 0, edits: 0, tools: 0, errors: 0, denied: 0, additions: 0, deletions: 0 };
+  const editedFiles = new Map<string, { additions: number; deletions: number }>();
   for (const s of steps) {
     if (s.status === 'error') c.errors++;
+    if (s.status === 'denied') c.denied++;
     if (s.type === 'thought') c.thoughts++;
     else if (s.type === 'analyzed') c.reads++;
     else if (s.type === 'explored') c.searches++;
+    else if (s.type === 'web') c.web++;
     else if (s.type === 'command') c.commands++;
     else if (s.type === 'tool') c.tools++;
-    else if (s.type === 'edited') {
-      c.edits++;
-      c.additions += s.additions ?? 0;
-      c.deletions += s.deletions ?? 0;
+    else if (s.type === 'edited' && s.status !== 'denied' && s.status !== 'error') {
+      const key = norm(s.diff?.file || s.file || s.label);
+      // Diff kumulatif ditempel ke setiap langkah berkas yang sama → cukup diambil sekali.
+      editedFiles.set(key, { additions: s.additions ?? 0, deletions: s.deletions ?? 0 });
+    }
+  }
+  if (codeEdits && codeEdits.length > 0) {
+    c.edits = codeEdits.length;
+    for (const e of codeEdits) {
+      c.additions += e.additions;
+      c.deletions += e.deletions;
+    }
+  } else {
+    c.edits = editedFiles.size;
+    for (const v of editedFiles.values()) {
+      c.additions += v.additions;
+      c.deletions += v.deletions;
     }
   }
   return c;
@@ -40,6 +67,66 @@ export function displaySteps(msg: MessageRecord): TrajectoryStep[] {
   const reasoning = (msg.reasoning || '').trim();
   if (!reasoning || steps.some((s) => s.type === 'thought' && s.thoughtContent)) return steps;
   return [{ type: 'thought', label: 'Penalaran', thoughtContent: reasoning, status: 'done' }, ...steps];
+}
+
+export type StepItem =
+  | { kind: 'step'; step: TrajectoryStep; key: string }
+  | { kind: 'group'; steps: TrajectoryStep[]; key: string };
+
+const EXPLORE_TYPES: TrajectoryStep['type'][] = ['analyzed', 'explored'];
+
+/**
+ * Menggabungkan rangkaian baca/cari berurutan (≥ `min` langkah, sudah selesai) menjadi satu baris
+ * "Menelusuri kode" agar timeline tidak penuh oleh puluhan baris baca berkas.
+ */
+export function groupSteps(steps: TrajectoryStep[], min = 3): StepItem[] {
+  const items: StepItem[] = [];
+  let run: { step: TrajectoryStep; index: number }[] = [];
+  const keyOf = (s: TrajectoryStep, i: number) => s.toolId ?? `${s.type}-${i}`;
+  const flush = () => {
+    if (run.length >= min) items.push({ kind: 'group', steps: run.map((r) => r.step), key: `grp-${keyOf(run[0].step, run[0].index)}` });
+    else run.forEach((r) => items.push({ kind: 'step', step: r.step, key: keyOf(r.step, r.index) }));
+    run = [];
+  };
+  steps.forEach((step, index) => {
+    if (EXPLORE_TYPES.includes(step.type) && step.status !== 'running') {
+      run.push({ step, index });
+      return;
+    }
+    flush();
+    items.push({ kind: 'step', step, key: keyOf(step, index) });
+  });
+  flush();
+  return items;
+}
+
+/** Kalimat ringkas untuk grup baca/cari, mis. "5 berkas dibaca · 2 pencarian". */
+export function groupSummary(steps: TrajectoryStep[]): string {
+  const reads = new Set(steps.filter((s) => s.type === 'analyzed').map((s) => norm(s.label || s.file))).size;
+  const searches = steps.filter((s) => s.type === 'explored').length;
+  return [reads ? `${reads} berkas dibaca` : '', searches ? `${searches} pencarian` : ''].filter(Boolean).join(' · ');
+}
+
+/**
+ * Bar statistik diff ala GitHub: `total` kotak dibagi proporsional tambah/hapus (minimal 1 kotak
+ * untuk sisi yang tidak nol), sisanya netral.
+ */
+export function diffBlocks(additions: number, deletions: number, total = 5): Array<'add' | 'del' | 'none'> {
+  const sum = additions + deletions;
+  if (sum <= 0) return Array(total).fill('none');
+  const filled = Math.min(total, Math.max(1, Math.ceil(Math.log10(sum + 1) * 2)));
+  let add = Math.round((additions / sum) * filled);
+  if (additions > 0 && add === 0) add = 1;
+  if (deletions > 0 && add === filled) add = filled - 1;
+  const del = filled - add;
+  return [...Array(add).fill('add'), ...Array(del).fill('del'), ...Array(total - filled).fill('none')];
+}
+
+/** Memecah path menjadi folder & nama berkas (untuk tampilan "src/components/ App.tsx"). */
+export function splitPath(p = ''): { dir: string; name: string } {
+  const clean = p.replace(/\\/g, '/');
+  const i = clean.lastIndexOf('/');
+  return i < 0 ? { dir: '', name: clean } : { dir: clean.slice(0, i + 1), name: clean.slice(i + 1) };
 }
 
 export function formatDuration(ms: number): string {
@@ -74,7 +161,7 @@ export function baseName(p = ''): string {
 /** Kalimat aktivitas live untuk header saat agen bekerja. */
 export function activityLabel(steps: TrajectoryStep[], hasText: boolean): string {
   const running = [...steps].reverse().find((s) => s.status === 'running');
-  if (!running) return hasText ? 'Menyusun jawaban…' : 'Memulai agen…';
+  if (!running) return hasText ? 'Menyusun jawaban…' : steps.length ? 'Melanjutkan…' : 'Memulai agen…';
   switch (running.type) {
     case 'thought':
       return 'Berpikir…';
@@ -82,6 +169,10 @@ export function activityLabel(steps: TrajectoryStep[], hasText: boolean): string
       return `Membaca ${baseName(running.file || running.label)}…`;
     case 'explored':
       return `Mencari ${running.label}…`;
+    case 'web':
+      return `Menjelajah web: ${running.label.slice(0, 60)}…`;
+    case 'plan':
+      return 'Menyusun rencana kerja…';
     case 'command':
       return `Menjalankan ${(running.command || running.label).slice(0, 60)}…`;
     case 'edited':
@@ -91,11 +182,12 @@ export function activityLabel(steps: TrajectoryStep[], hasText: boolean): string
   }
 }
 
-/** Ringkasan pendek setelah selesai, mis. "Membaca 4 berkas · 2 perintah · Mengubah 3 berkas". */
+/** Ringkasan pendek setelah selesai, mis. "4 berkas dibaca · 2 perintah · 3 berkas diubah". */
 export function summaryParts(c: StepCounts): string[] {
   const parts: string[] = [];
   if (c.reads) parts.push(`${c.reads} berkas dibaca`);
   if (c.searches) parts.push(`${c.searches} pencarian`);
+  if (c.web) parts.push(`${c.web} akses web`);
   if (c.commands) parts.push(`${c.commands} perintah`);
   if (c.tools) parts.push(`${c.tools} tool`);
   if (c.edits) parts.push(`${c.edits} berkas diubah`);
@@ -115,4 +207,24 @@ export function stepDuration(s: TrajectoryStep, now: number): string | undefined
   if (!end) return undefined;
   const ms = end - s.startedAt;
   return ms >= 1000 ? formatDuration(ms) : undefined;
+}
+
+/** Diff berkas sebuah langkah "edited": dari daftar perubahan pesan, atau diff lama yang tersimpan di langkah. */
+export function diffForStep(step: TrajectoryStep, codeEdits?: CodeEditChunk[]): CodeEditChunk | undefined {
+  const file = step.file || step.diff?.file;
+  const found = file ? codeEdits?.find((e) => samePath(e.file, file) || samePath(e.relativePath, file)) : undefined;
+  return found ?? step.diff;
+}
+
+/** Cuplikan diff ringkas: baris berubah + 1 baris konteks di sekitarnya, maksimal `limit` baris. */
+export function diffPreview(chunk: CodeEditChunk, limit = 14): { lines: CodeEditChunk['diffLines']; hidden: number } {
+  const lines = chunk.diffLines;
+  const keep = new Set<number>();
+  lines.forEach((l, i) => {
+    if (l.type === 'added' || l.type === 'deleted') [i - 1, i, i + 1].forEach((j) => j >= 0 && j < lines.length && keep.add(j));
+  });
+  const picked = [...keep].sort((a, b) => a - b).map((i) => lines[i]).filter((l) => l.type !== 'collapsed');
+  const changed = lines.filter((l) => l.type === 'added' || l.type === 'deleted').length;
+  const shownChanged = picked.slice(0, limit).filter((l) => l.type === 'added' || l.type === 'deleted').length;
+  return { lines: picked.slice(0, limit), hidden: changed - shownChanged };
 }

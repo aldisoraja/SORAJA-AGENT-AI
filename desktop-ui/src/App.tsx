@@ -303,14 +303,8 @@ export default function App() {
                   ws.setPickedFolderPath('');
                   ws.setIsNewProjectModalOpen(true);
                 }}
-                onOpenDiffReview={(files, idx = 0) => {
-                  const lastUserMsg = [...ws.messages].reverse().find((m) => m.sender === 'user');
-                  ws.setActiveDiffReview({
-                    isOpen: true,
-                    files,
-                    activeFileIndex: idx,
-                    turnPrompt: lastUserMsg?.content || 'Perubahan kode otonom',
-                  });
+                onOpenDiffReview={(files, idx = 0, turnPrompt) => {
+                  ws.setActiveDiffReview({ isOpen: true, files, activeFileIndex: idx, turnPrompt });
                 }}
               />
 

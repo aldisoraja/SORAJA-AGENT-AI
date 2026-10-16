@@ -16,8 +16,12 @@ export type UiAgentEvent =
       input: Record<string, unknown>;
       status: 'running' | 'done' | 'error';
       output?: string;
+      /** Jenis tool dari CLI bila tersedia (ACP Kiro: read/edit/search/execute/fetch/…). */
+      category?: string;
     }
   | { kind: 'file_change'; path: string }
+  /** Aksi ditolak kebijakan izin: per id tool (Claude) atau per jenis aksi (Antigravity: `command`). */
+  | { kind: 'denied'; toolId?: string; action?: string }
   | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number; credits?: number }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
@@ -45,25 +49,32 @@ function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-/** Claude Code: `claude -p --output-format stream-json --verbose`. */
+/**
+ * Claude Code: `claude -p --output-format stream-json --verbose`.
+ * Tiap blok `text` adalah paragraf utuh (dipisah baris kosong). Pesan sub-agen (`parent_tool_use_id`)
+ * hanya menyumbang langkah tool, bukan teks jawaban. `file_change` dikirim setelah tool edit berhasil.
+ */
 function createClaudeParser(): StreamParser {
   const toolNames = new Map<string, string>();
+  const editPaths = new Map<string, string>();
+  let textCount = 0;
   return (line) => {
     const o = JSON.parse(line) as Json;
     const out: UiAgentEvent[] = [];
+    const nested = !!o.parent_tool_use_id;
     if (o.type === 'system' && o.subtype === 'init' && o.session_id) {
       out.push({ kind: 'session', cliSessionId: o.session_id, model: o.model });
     } else if (o.type === 'assistant') {
       for (const block of o.message?.content ?? []) {
-        if (block.type === 'text' && block.text) out.push({ kind: 'text', delta: block.text });
-        else if (block.type === 'thinking' && block.thinking) out.push({ kind: 'thinking', delta: block.thinking });
-        else if (block.type === 'tool_use') {
+        if (block.type === 'text' && block.text && !nested) {
+          out.push({ kind: 'text', delta: (textCount++ > 0 ? '\n\n' : '') + block.text });
+        } else if (block.type === 'thinking' && block.thinking && !nested) {
+          out.push({ kind: 'thinking', delta: block.thinking });
+        } else if (block.type === 'tool_use') {
           toolNames.set(block.id, block.name);
           out.push({ kind: 'tool', id: block.id, name: block.name, input: block.input ?? {}, status: 'running' });
-          if (FILE_TOOLS.claude.includes(block.name)) {
-            const path = block.input?.file_path ?? block.input?.notebook_path;
-            if (path) out.push({ kind: 'file_change', path });
-          }
+          const path = block.input?.file_path ?? block.input?.notebook_path;
+          if (FILE_TOOLS.claude.includes(block.name) && path) editPaths.set(block.id, path);
         }
       }
     } else if (o.type === 'user') {
@@ -77,6 +88,9 @@ function createClaudeParser(): StreamParser {
           status: block.is_error ? 'error' : 'done',
           output: toText(block.content),
         });
+        const path = editPaths.get(block.tool_use_id);
+        editPaths.delete(block.tool_use_id);
+        if (path && !block.is_error) out.push({ kind: 'file_change', path });
       }
     } else if (o.type === 'result') {
       const u = o.usage ?? {};
@@ -86,6 +100,16 @@ function createClaudeParser(): StreamParser {
         outputTokens: num(u.output_tokens),
         costUsd: typeof o.total_cost_usd === 'number' ? o.total_cost_usd : undefined,
       });
+      const denials = (Array.isArray(o.permission_denials) ? o.permission_denials : []) as Json[];
+      for (const d of denials) out.push({ kind: 'denied', toolId: d.tool_use_id, action: d.tool_name });
+      if (denials.length > 0) {
+        const names = [...new Set(denials.map((d) => String(d.tool_name ?? 'tool')))].join(', ');
+        out.push({
+          kind: 'notice',
+          level: 'warn',
+          message: `Aksi ditolak di mode aman: ${names}. Buka sesi ini di Terminal untuk menyetujuinya secara interaktif.`,
+        });
+      }
       out.push({ kind: 'done', ok: !o.is_error, summary: o.is_error ? toText(o.result) : undefined });
     }
     return out;
@@ -125,6 +149,10 @@ function createCodexParser(): StreamParser {
           input: item.arguments ?? {},
           status: !completed ? 'running' : item.status === 'failed' ? 'error' : 'done',
         });
+      } else if (item.type === 'todo_list') {
+        out.push({ kind: 'tool', id: item.id, name: 'todo_list', input: { items: item.items ?? [] }, status: completed ? 'done' : 'running' });
+      } else if (item.type === 'web_search') {
+        out.push({ kind: 'tool', id: item.id, name: 'web_search', input: { query: item.query }, status: completed ? 'done' : 'running' });
       } else if (item.type === 'file_change' && completed) {
         for (const change of item.changes ?? []) {
           if (change?.path) out.push({ kind: 'file_change', path: change.path });
@@ -143,6 +171,13 @@ function createCodexParser(): StreamParser {
     }
     return out;
   };
+}
+
+/** Path berkas yang diubah tool edit OpenCode; tool `patch` memuat banyak berkas di `patchText`. */
+function opencodeEditPaths(input: Json): string[] {
+  if (typeof input.filePath === 'string' && input.filePath) return [input.filePath];
+  const patch = typeof input.patchText === 'string' ? input.patchText : '';
+  return [...patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) => m[1].trim());
 }
 
 /** OpenCode: `opencode run --format json`. */
@@ -172,9 +207,8 @@ function createOpencodeParser(): StreamParser {
         status,
         output: status === 'error' ? toText(state.error) : state.output != null ? toText(state.output) : undefined,
       });
-      const path = state.input?.filePath;
-      if (status === 'done' && path && FILE_TOOLS.opencode.includes(part.tool)) {
-        out.push({ kind: 'file_change', path });
+      if (status === 'done' && FILE_TOOLS.opencode.includes(part.tool)) {
+        for (const path of opencodeEditPaths(state.input ?? {})) out.push({ kind: 'file_change', path });
       }
     } else if (o.type === 'step_finish') {
       const t = part.tokens ?? {};
@@ -217,6 +251,7 @@ function createAntigravityParser(): StreamParser {
       const u = r.usage ?? {};
       out.push({ kind: 'usage', inputTokens: num(u.input_tokens), outputTokens: num(u.output_tokens) });
       const denied = (r.denied_actions ?? []) as Json[];
+      for (const d of denied) out.push({ kind: 'denied', action: String(d.action ?? '') });
       if (denied.length > 0) {
         const names = denied.map((d) => d.display_name ?? d.action).join(', ');
         out.push({
@@ -241,6 +276,7 @@ function createKiroParser(): StreamParser {
   let emittedText = false;
   const toolNames = new Map<string, string>();
   const toolInputs = new Map<string, Record<string, unknown>>();
+  const toolKinds = new Map<string, string>();
   const toolStatus = (s: unknown): 'running' | 'done' | 'error' =>
     s === 'completed' ? 'done' : s === 'failed' ? 'error' : 'running';
   return (line) => {
@@ -268,11 +304,16 @@ function createKiroParser(): StreamParser {
         out.push({ kind: 'text', delta: u.content.text });
       } else if (kind === 'agent_thought_chunk' && u.content?.text) {
         out.push({ kind: 'thinking', delta: u.content.text });
+      } else if (kind === 'plan' && Array.isArray(u.entries)) {
+        // Rencana ACP dikirim utuh tiap kali berubah → satu langkah "plan" yang diperbarui.
+        const done = u.entries.every((e: Json) => e?.status === 'completed');
+        out.push({ kind: 'tool', id: 'kiro-plan', name: 'plan', input: { entries: u.entries }, status: done ? 'done' : 'running' });
       } else if (kind === 'tool_call' || kind === 'tool_call_update') {
         const id = String(u.toolCallId ?? `tool-${toolNames.size}`);
         // Update sering tanpa `title`: nama dari `tool_call` awal dipertahankan, `kind` hanya cadangan.
         if (u.title) toolNames.set(id, String(u.title));
         else if (u.kind && !toolNames.has(id)) toolNames.set(id, String(u.kind));
+        if (u.kind) toolKinds.set(id, String(u.kind));
         if (u.rawInput && typeof u.rawInput === 'object') toolInputs.set(id, u.rawInput);
         const status = toolStatus(u.status);
         const content = Array.isArray(u.content)
@@ -285,10 +326,11 @@ function createKiroParser(): StreamParser {
           input: toolInputs.get(id) ?? {},
           status,
           output: status === 'running' ? undefined : content || (u.rawOutput != null ? toText(u.rawOutput) : undefined),
+          category: toolKinds.get(id),
         });
         const input = (toolInputs.get(id) ?? {}) as Json;
         const path = u.locations?.[0]?.path ?? input.path ?? input.file_path;
-        if (status === 'done' && u.kind === 'edit' && typeof path === 'string') out.push({ kind: 'file_change', path });
+        if (status === 'done' && toolKinds.get(id) === 'edit' && typeof path === 'string') out.push({ kind: 'file_change', path });
       }
     } else if (o.type === 'runFinished') {
       if (!emittedText && d.finalText) out.push({ kind: 'text', delta: toText(d.finalText) });

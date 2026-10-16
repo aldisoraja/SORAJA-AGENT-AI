@@ -116,10 +116,24 @@ html.light ::-webkit-scrollbar-thumb:hover {
 @keyframes soraja-blink {
   to { visibility: hidden; }
 }
+/* Bilah progres tak tentu di atas panel "Proses kerja" saat agen bekerja */
+.soraja-progress {
+  background: linear-gradient(90deg, transparent 0%, #22d3ee 35%, #3b82f6 65%, transparent 100%);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: soraja-progress 1.6s ease-in-out infinite;
+}
+@keyframes soraja-progress {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
 @media (prefers-reduced-motion: reduce) {
+  .soraja-progress { animation: none; background-size: 100% 100%; opacity: 0.6; }
   .soraja-shimmer, .soraja-caret { animation: none; }
   .soraja-shimmer { -webkit-text-fill-color: currentColor; }
 }
+
+html.reduce-motion .soraja-progress { background-size: 100% 100%; background-position: 0 0; opacity: 0.6; }
 
 /* Pengaturan > Tampilan > Kurangi animasi */
 /* Spinner (.animate-spin) tetap berputar agar status "sedang memuat" tetap terlihat. */

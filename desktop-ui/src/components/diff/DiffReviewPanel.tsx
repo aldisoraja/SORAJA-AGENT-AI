@@ -1,12 +1,9 @@
-import { useState } from 'react';
-import {
-  Check,
-  X,
-  ChevronDown,
-  Sparkles,
-  Layers,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Layers, MessageSquareText, X } from 'lucide-react';
 import type { CodeEditChunk } from '../../types/database';
+import { CopyButton } from '../ui/CopyButton';
+import { DiffStat, ExtBadge, FilePath } from '../chat/work/FileVisuals';
+import { DiffCodeView } from './DiffCodeView';
 
 interface DiffReviewPanelProps {
   activeDiffReview: {
@@ -20,305 +17,173 @@ interface DiffReviewPanelProps {
   onSelectFile: (index: number) => void;
 }
 
-export function DiffReviewPanel({
-  activeDiffReview,
-  isLight = false,
-  onClose,
-  onSelectFile,
-}: DiffReviewPanelProps) {
+/** Panel samping peninjauan perubahan kode agen (perubahan sudah diterapkan ke berkas kerja). */
+export function DiffReviewPanel({ activeDiffReview, isLight = false, onClose, onSelectFile }: DiffReviewPanelProps) {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
-  const [dismissTurnPrompt, setDismissTurnPrompt] = useState(false);
-  const [expandedCollapsedSections, setExpandedCollapsedSections] = useState<Record<number, boolean>>({});
+  const { files, activeFileIndex, turnPrompt } = activeDiffReview;
+  const index = Math.min(Math.max(0, activeFileIndex), Math.max(0, files.length - 1));
+  const current = files[index];
 
-  if (!activeDiffReview.isOpen || activeDiffReview.files.length === 0) return null;
+  // Alt+←/→ berpindah berkas (diabaikan saat mengetik).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.target as HTMLElement | null)?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ArrowRight' && index < files.length - 1) onSelectFile(index + 1);
+      else if (e.key === 'ArrowLeft' && index > 0) onSelectFile(index - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [index, files.length, onSelectFile]);
 
-  const currentEdit = activeDiffReview.files[activeDiffReview.activeFileIndex] || activeDiffReview.files[0];
-  const ext = currentEdit.file.split('.').pop()?.toLowerCase() || '';
+  if (!activeDiffReview.isOpen || !current) return null;
 
-  const getLanguageIcon = (extension: string) => {
-    if (extension === 'tsx' || extension === 'jsx') {
-      return { icon: '⚛', name: 'React TSX', color: isLight ? 'text-sky-600' : 'text-cyan-400' };
-    }
-    if (extension === 'ts') {
-      return { icon: 'TS', name: 'TypeScript', color: isLight ? 'text-blue-600' : 'text-blue-400' };
-    }
-    if (extension === 'rs') {
-      return { icon: '🦀', name: 'Rust', color: isLight ? 'text-orange-600' : 'text-orange-400' };
-    }
-    if (extension === 'json') {
-      return { icon: '{ }', name: 'JSON', color: isLight ? 'text-emerald-600' : 'text-emerald-400' };
-    }
-    return { icon: '📄', name: extension.toUpperCase(), color: isLight ? 'text-slate-600' : 'text-slate-400' };
-  };
-
-  const langInfo = getLanguageIcon(ext);
-  const turnText = activeDiffReview.turnPrompt || 'Perubahan kode otonom oleh agen AI';
+  const muted = isLight ? 'text-slate-500' : 'text-slate-400';
+  const iconBtn = `p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
+    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+  }`;
+  const path = current.relativePath || current.file;
+  const totalAdd = files.reduce((n, f) => n + f.additions, 0);
+  const totalDel = files.reduce((n, f) => n + f.deletions, 0);
 
   return (
-    <div
+    <aside
       className={`w-1/2 flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-200 border-l z-20 ${
-        isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#080b13] border-slate-800/90 text-slate-200'
+        isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#080b13] border-white/[0.07] text-slate-200'
       }`}
+      aria-label="Tinjau perubahan kode"
     >
-      {/* 1. Header: Tab Review & For Turn Chip (Ref: media_1791276997336.png) */}
-      <div
-        className={`px-4 pt-3 pb-2 border-b flex flex-col gap-2 ${
-          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0b0e18] border-slate-800'
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          {/* Review Tab Item */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 pb-1 border-b-2 border-blue-500 font-semibold text-xs text-blue-600 dark:text-cyan-400">
-              <Layers className="w-3.5 h-3.5" />
-              <span>Review</span>
-            </div>
-            <span className={`text-[11px] ${isLight ? 'text-slate-400' : 'text-slate-600'}`}>
-              ({activeDiffReview.files.length} berkas)
-            </span>
-          </div>
-
-          {/* Close Panel Button */}
-          <button
-            onClick={onClose}
-            className={`p-1 rounded-lg transition cursor-pointer ${
-              isLight
-                ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200/70'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+      {/* Kepala panel */}
+      <div className={`px-4 pt-3 pb-2.5 border-b space-y-2.5 ${isLight ? 'bg-slate-50/80 border-slate-200' : 'bg-[#0b0f19] border-white/[0.06]'}`}>
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-7 h-7 rounded-lg grid place-items-center border shrink-0 ${
+              isLight ? 'soraja-grad-soft border-blue-200 text-blue-700' : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300'
             }`}
-            title="Tutup Panel Review"
           >
+            <Layers className="w-3.5 h-3.5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className={`text-[13px] font-semibold ${isLight ? 'text-slate-900' : 'text-slate-50'}`}>Tinjau Perubahan</div>
+            <div className={`flex items-center gap-2 text-[11px] ${muted}`}>
+              <span>{files.length} berkas</span>
+              <DiffStat additions={totalAdd} deletions={totalDel} bar={false} />
+            </div>
+          </div>
+          {files.length > 1 && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button type="button" className={iconBtn} disabled={index === 0} onClick={() => onSelectFile(index - 1)} title="Berkas sebelumnya (Alt+←)">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className={`text-[11px] font-mono tabular-nums px-1 ${muted}`}>
+                {index + 1}/{files.length}
+              </span>
+              <button
+                type="button"
+                className={iconBtn}
+                disabled={index === files.length - 1}
+                onClick={() => onSelectFile(index + 1)}
+                title="Berkas berikutnya (Alt+→)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <button type="button" onClick={onClose} className={iconBtn} title="Tutup panel">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Turn Prompt Context Chip */}
-        {!dismissTurnPrompt && (
+        {turnPrompt?.trim() && (
           <div
-            className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono border ${
-              isLight
-                ? 'soraja-grad-soft border-blue-200 text-blue-900'
-                : 'bg-cyan-950/30 border-cyan-800/40 text-cyan-300'
+            title={turnPrompt}
+            className={`flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-[11.5px] border ${
+              isLight ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/[0.02] border-white/[0.06] text-slate-400'
             }`}
           >
-            <div className="flex items-center gap-1.5 truncate">
-              <Sparkles className="w-3 h-3 text-cyan-400 shrink-0" />
-              <span className="font-bold shrink-0">For Turn:</span>
-              <span className="truncate opacity-90">{turnText}</span>
-            </div>
-            <button
-              onClick={() => setDismissTurnPrompt(true)}
-              className="p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer shrink-0 ml-1.5"
-              title="Tutup konteks turn"
-            >
-              <X className="w-3 h-3" />
-            </button>
+            <MessageSquareText className={`w-3.5 h-3.5 mt-px shrink-0 ${isLight ? 'text-blue-600' : 'text-cyan-400'}`} />
+            <span className="min-w-0">
+              <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>Permintaan: </span>
+              <span className="line-clamp-2 inline">{turnPrompt}</span>
+            </span>
           </div>
         )}
       </div>
 
-      {/* 2. Secondary Sub-Bar: File Switcher Dropdown & Action Buttons */}
-      <div
-        className={`px-3 py-2 border-b flex items-center justify-between gap-2 relative ${
-          isLight ? 'bg-slate-100/70 border-slate-200' : 'bg-[#0d111c] border-slate-800/80'
-        }`}
-      >
-        {/* File Dropdown Selector */}
-        <div className="relative">
+      {/* Pemilih berkas + status */}
+      <div className={`px-3 py-2 border-b flex items-center gap-2 relative ${isLight ? 'border-slate-200' : 'border-white/[0.06]'}`}>
+        <div className="relative min-w-0 flex-1">
           <button
-            onClick={() => setIsFileMenuOpen((prev) => !prev)}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-xs font-mono font-medium transition cursor-pointer ${
-              isLight
-                ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 shadow-2xs'
-                : 'bg-slate-900 hover:bg-slate-800 border-slate-700/80 text-slate-200 shadow-inner'
+            type="button"
+            onClick={() => files.length > 1 && setIsFileMenuOpen((v) => !v)}
+            aria-expanded={isFileMenuOpen}
+            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-left transition-colors ${files.length > 1 ? 'cursor-pointer' : 'cursor-default'} ${
+              isLight ? 'bg-white border-slate-200 hover:border-slate-300' : 'bg-white/[0.02] border-white/[0.08] hover:border-white/[0.14]'
             }`}
           >
-            <span className={`text-[11px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Edited</span>
-            <span className={`font-bold ${langInfo.color}`}>{langInfo.icon}</span>
-            <span className="font-semibold truncate max-w-[200px] sm:max-w-[260px]">
-              {currentEdit.relativePath || currentEdit.file}
+            <ExtBadge path={current.file} isLight={isLight} />
+            <span className="min-w-0 flex-1">
+              <FilePath path={path} isLight={isLight} />
             </span>
-            <span className="text-emerald-500 font-bold text-[10px]">+{currentEdit.additions}</span>
-            <span className="text-rose-500 font-bold text-[10px]">-{currentEdit.deletions}</span>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isFileMenuOpen ? 'rotate-180' : ''}`} />
+            <DiffStat additions={current.additions} deletions={current.deletions} />
+            {files.length > 1 && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${muted} ${isFileMenuOpen ? 'rotate-180' : ''}`} />}
           </button>
 
-          {/* File Switcher Dropdown Menu */}
-          {isFileMenuOpen && activeDiffReview.files.length > 1 && (
-            <div
-              className={`absolute top-full left-0 mt-1 w-80 rounded-xl shadow-2xl p-1.5 z-30 border ${
-                isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-slate-200'
-              }`}
-            >
-              <div className="text-[10px] font-bold px-2 py-1 uppercase tracking-wider text-slate-400">
-                Pilih Berkas yang Dimodifikasi ({activeDiffReview.files.length})
-              </div>
-              {activeDiffReview.files.map((file, idx) => {
-                const fExt = file.file.split('.').pop()?.toLowerCase() || '';
-                const fLang = getLanguageIcon(fExt);
-                const isSelected = activeDiffReview.activeFileIndex === idx;
-                return (
+          {isFileMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setIsFileMenuOpen(false)} />
+              <div
+                className={`absolute top-full left-0 right-0 mt-1 max-h-80 overflow-y-auto rounded-xl shadow-2xl p-1 z-30 border ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#0f1420] border-white/[0.08]'
+                }`}
+              >
+                {files.map((file, i) => (
                   <button
-                    key={file.file + idx}
+                    key={file.file + i}
+                    type="button"
                     onClick={() => {
-                      onSelectFile(idx);
+                      onSelectFile(i);
                       setIsFileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono transition cursor-pointer text-left ${
-                      isSelected
-                        ? isLight
-                          ? 'soraja-grad-soft text-blue-800 font-bold'
-                          : 'bg-cyan-950/60 text-cyan-300 font-bold'
-                        : isLight
-                        ? 'hover:bg-slate-100 text-slate-700'
-                        : 'hover:bg-slate-800 text-slate-300'
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
+                      i === index
+                        ? isLight ? 'soraja-grad-soft' : 'bg-cyan-500/10'
+                        : isLight ? 'hover:bg-slate-100' : 'hover:bg-white/[0.04]'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className={fLang.color}>{fLang.icon}</span>
-                      <span className="truncate">{file.file}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 text-[10px] font-bold">
-                      <span className="text-emerald-500">+{file.additions}</span>
-                      <span className="text-rose-500">-{file.deletions}</span>
-                    </div>
+                    <ExtBadge path={file.file} isLight={isLight} />
+                    <span className="min-w-0 flex-1">
+                      <FilePath path={file.relativePath || file.file} isLight={isLight} />
+                    </span>
+                    <DiffStat additions={file.additions} deletions={file.deletions} bar={false} />
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
-
-        {/* Status: perubahan sudah diterapkan otomatis ke berkas kerja */}
-        <span
-          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border shrink-0 ${
-            isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-          }`}
-          title="Perubahan ini sudah ditulis langsung ke berkas proyek"
-        >
-          <Check className="w-3.5 h-3.5" />
-          <span>Sudah diterapkan</span>
-        </span>
+        <CopyButton text={path} label="Salin path" isLight={isLight} className="shrink-0" />
       </div>
 
-      {/* 3. Code Diff Lines Area (Ref: media_1791276997336.png with Line numbers & Gutter badges) */}
-      <div className="flex-1 overflow-y-auto p-2 font-mono text-xs select-text scrollbar-thin">
-        {currentEdit.diffLines.map((line, lIdx) => {
-          if (line.type === 'collapsed') {
-            const isExpanded = expandedCollapsedSections[lIdx] ?? false;
-            return (
-              <div
-                key={lIdx}
-                onClick={() =>
-                  setExpandedCollapsedSections((prev) => ({
-                    ...prev,
-                    [lIdx]: !prev[lIdx],
-                  }))
-                }
-                className={`my-2 py-1.5 px-4 rounded-xl text-center text-[11px] flex items-center justify-center gap-2 select-none border cursor-pointer transition ${
-                  isLight
-                    ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-600'
-                    : 'bg-slate-900/60 hover:bg-slate-800 border-slate-800/80 text-slate-400'
-                }`}
-                title="Klik untuk membuka / menutup baris tersembunyi"
-              >
-                <span>...</span>
-                <span>
-                  {isExpanded ? 'Tutup baris konteks' : `+${line.collapsedCount || 591} baris konteks tersembunyi`}
-                </span>
-                <span>...</span>
-              </div>
-            );
-          }
-
-          const isDeleted = line.type === 'deleted';
-          const isAdded = line.type === 'added';
-
-          return (
-            <div
-              key={lIdx}
-              className={`flex items-center py-0.5 px-1.5 rounded-md font-mono text-[12px] leading-5 transition-colors ${
-                isDeleted
-                  ? isLight
-                    ? 'bg-rose-50/80 text-rose-900 border-l-2 border-rose-500'
-                    : 'bg-rose-950/30 text-rose-300 border-l-2 border-rose-500'
-                  : isAdded
-                  ? isLight
-                    ? 'bg-emerald-50/80 text-emerald-900 border-l-2 border-emerald-500'
-                    : 'bg-emerald-950/30 text-emerald-300 border-l-2 border-emerald-500'
-                  : isLight
-                  ? 'text-slate-600 hover:bg-slate-100/50'
-                  : 'text-slate-400 hover:bg-slate-900/40'
-              }`}
-            >
-              {/* Old Line Number */}
-              <span
-                className={`w-9 shrink-0 text-right pr-2 select-none font-mono text-[10px] ${
-                  isDeleted
-                    ? isLight
-                      ? 'text-rose-500 font-bold'
-                      : 'text-rose-400/80 font-bold'
-                    : isLight
-                    ? 'text-slate-400'
-                    : 'text-slate-600'
-                }`}
-              >
-                {line.oldLineNo ?? ''}
-              </span>
-
-              {/* New Line Number */}
-              <span
-                className={`w-9 shrink-0 text-right pr-2 select-none font-mono text-[10px] ${
-                  isAdded
-                    ? isLight
-                      ? 'text-emerald-600 font-bold'
-                      : 'text-emerald-400/80 font-bold'
-                    : isLight
-                    ? 'text-slate-400'
-                    : 'text-slate-600'
-                }`}
-              >
-                {line.newLineNo ?? ''}
-              </span>
-
-              {/* Gutter Badge: '+' or '-' indicator with rounded pill styling */}
-              <span className="w-5 shrink-0 flex items-center justify-center select-none">
-                {isAdded && (
-                  <span className="w-3.5 h-3.5 rounded bg-emerald-500/20 text-emerald-500 text-[11px] font-bold flex items-center justify-center">
-                    +
-                  </span>
-                )}
-                {isDeleted && (
-                  <span className="w-3.5 h-3.5 rounded bg-rose-500/20 text-rose-500 text-[11px] font-bold flex items-center justify-center">
-                    -
-                  </span>
-                )}
-              </span>
-
-              {/* Code Line Content */}
-              <pre className="flex-1 font-mono text-[12px] whitespace-pre-wrap break-all pl-1.5">
-                {line.text}
-              </pre>
-            </div>
-          );
-        })}
+      {/* Isi diff */}
+      <div className="flex-1 overflow-y-auto select-text scrollbar-thin">
+        <DiffCodeView chunk={current} isLight={isLight} />
       </div>
 
-      {/* 4. Footer Summary Strip */}
+      {/* Kaki panel */}
       <div
-        className={`px-4 py-2 border-t text-[11px] font-mono flex items-center justify-between ${
-          isLight ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-[#090c15] border-slate-800 text-slate-400'
+        className={`px-4 py-2 border-t text-[11px] flex items-center justify-between gap-2 ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-[#0b0f19] border-white/[0.06] text-slate-400'
         }`}
       >
-        <div className="flex items-center gap-2">
-          <span>{currentEdit.relativePath || currentEdit.file}</span>
-          <span>•</span>
-          <span className="text-emerald-500 font-bold">+{currentEdit.additions} baru</span>
-          <span>•</span>
-          <span className="text-rose-500 font-bold">-{currentEdit.deletions} dihapus</span>
-        </div>
-        <span className="text-slate-500 hidden sm:inline">Diterapkan otomatis</span>
+        <span className="font-mono tabular-nums">
+          <span className="text-emerald-500 font-semibold">+{current.additions}</span> ditambah ·{' '}
+          <span className="text-rose-500 font-semibold">−{current.deletions}</span> dihapus
+        </span>
+        <span className={`inline-flex items-center gap-1 font-medium ${isLight ? 'text-emerald-700' : 'text-emerald-400/90'}`}>
+          <Check className="w-3.5 h-3.5" />
+          Sudah diterapkan ke berkas kerja
+        </span>
       </div>
-    </div>
+    </aside>
   );
 }

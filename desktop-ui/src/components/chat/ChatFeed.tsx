@@ -16,7 +16,8 @@ interface ChatFeedProps {
   isGenerating?: boolean;
   onToggleReasoning?: (msgId: string) => void;
   onOpenNewProjectWizard: () => void;
-  onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number) => void;
+  /** `turnPrompt` = pesan pengguna yang memicu jawaban agen tersebut (bukan pesan terakhir di sesi). */
+  onOpenDiffReview: (files: CodeEditChunk[], activeIndex?: number, turnPrompt?: string) => void;
 }
 
 /** Jarak (px) dari dasar yang masih dianggap "mengikuti" percakapan untuk auto-scroll. */
@@ -99,7 +100,7 @@ export function ChatFeed({
           </div>
         ) : (
           <div className="space-y-6">
-            {messages.map((msg) => (
+            {messages.map((msg, i) => (
               <div key={msg.id} className={`flex w-full max-w-5xl mx-auto ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'user' ? (
                   <UserMessage msg={msg} isLight={isLight} onPreviewImage={(url, title) => setPreview({ url, title })} />
@@ -113,7 +114,10 @@ export function ChatFeed({
                     isLight={isLight}
                     settings={settings}
                     fallbackAgent={selectedAgent}
-                    onOpenDiffReview={onOpenDiffReview}
+                    onOpenDiffReview={(files, idx) => {
+                      const turn = messages.slice(0, i).reverse().find((m) => m.sender === 'user');
+                      onOpenDiffReview(files, idx, turn?.content);
+                    }}
                   />
                 )}
               </div>

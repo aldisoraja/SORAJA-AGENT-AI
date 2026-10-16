@@ -61,7 +61,10 @@ test('timeline: jenis tool lintas CLI', () => {
   const edit = toolStep({ kind: 'tool', id: 'c', name: 'replace_file_content', input: { TargetFile: 'D:/p/a.ts' }, status: 'running' }, 0);
   assert.equal(edit.type, 'edited');
   assert.equal(edit.file, 'D:/p/a.ts');
-  assert.equal(toolStep({ kind: 'tool', id: 'd', name: 'WebFetch', input: { url: 'https://x.dev' }, status: 'running' }, 0).type, 'tool');
+  const web = toolStep({ kind: 'tool', id: 'd', name: 'WebFetch', input: { url: 'https://x.dev' }, status: 'running' }, 0);
+  assert.equal(web.type, 'web', 'akses web punya kategori sendiri');
+  assert.equal(web.label, 'https://x.dev');
+  assert.equal(toolStep({ kind: 'tool', id: 'e', name: 'mcp__github__list', input: {}, status: 'running' }, 0).type, 'tool');
 });
 
 test('timeline: diff menempel ke langkah edit yang sama; Codex menambah langkah baru', () => {

@@ -5,14 +5,19 @@ import {
   CircleX,
   FilePen,
   FileText,
+  Globe,
+  ListChecks,
   Loader2,
   Search,
+  ShieldAlert,
   SquareTerminal,
   Wrench,
 } from 'lucide-react';
 import type { CodeEditChunk, TrajectoryStep } from '../../../types/database';
 import { MarkdownContent } from '../../ui/MarkdownContent';
-import { baseName, stepDuration } from './workSummary';
+import { DiffStat, ExtBadge, FilePath } from './FileVisuals';
+import { DiffPreview, OutputBlock, PlanList } from './StepDetails';
+import { stepDuration } from './workSummary';
 
 interface TimelineStepProps {
   step: TrajectoryStep;
@@ -20,153 +25,183 @@ interface TimelineStepProps {
   now: number;
   /** Buka blok penalaran yang sudah selesai secara default (Pengaturan → Tampilan proses berpikir). */
   verbose: boolean;
-  onOpenDiff?: (files: CodeEditChunk[], index?: number) => void;
+  /** Diff berkas untuk langkah "edited" (dari `MessageRecord.codeEdits`). */
+  diff?: CodeEditChunk;
+  onOpenDiff?: (chunk: CodeEditChunk) => void;
 }
 
-const EXT_TONE: Record<string, string> = {
-  tsx: 'text-sky-400', jsx: 'text-sky-400', ts: 'text-blue-400', js: 'text-amber-400', rs: 'text-orange-400',
-  json: 'text-emerald-400', toml: 'text-emerald-400', yaml: 'text-emerald-400', yml: 'text-emerald-400',
-  md: 'text-rose-400', css: 'text-purple-400', html: 'text-orange-300', py: 'text-yellow-400', sql: 'text-teal-400',
+type Tone = { dark: string; light: string };
+
+/** Ikon, kata kerja, dan warna tiap jenis langkah. Kelas warna ditulis utuh agar terdeteksi Tailwind. */
+const STEP_META: Record<TrajectoryStep['type'], { Icon: typeof Brain; verb: string; tone: Tone }> = {
+  thought: { Icon: Brain, verb: 'Berpikir', tone: { dark: 'text-violet-300 bg-violet-500/10 border-violet-500/20', light: 'text-violet-600 bg-violet-50 border-violet-200' } },
+  analyzed: { Icon: FileText, verb: 'Membaca', tone: { dark: 'text-sky-300 bg-sky-500/10 border-sky-500/20', light: 'text-sky-600 bg-sky-50 border-sky-200' } },
+  explored: { Icon: Search, verb: 'Mencari', tone: { dark: 'text-amber-300 bg-amber-500/10 border-amber-500/20', light: 'text-amber-600 bg-amber-50 border-amber-200' } },
+  web: { Icon: Globe, verb: 'Menjelajah', tone: { dark: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20', light: 'text-indigo-600 bg-indigo-50 border-indigo-200' } },
+  command: { Icon: SquareTerminal, verb: 'Menjalankan', tone: { dark: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20', light: 'text-emerald-600 bg-emerald-50 border-emerald-200' } },
+  edited: { Icon: FilePen, verb: 'Mengubah', tone: { dark: 'text-orange-300 bg-orange-500/10 border-orange-500/20', light: 'text-orange-600 bg-orange-50 border-orange-200' } },
+  plan: { Icon: ListChecks, verb: 'Rencana kerja', tone: { dark: 'text-blue-300 bg-blue-500/10 border-blue-500/20', light: 'text-blue-600 bg-blue-50 border-blue-200' } },
+  tool: { Icon: Wrench, verb: 'Memakai', tone: { dark: 'text-slate-300 bg-white/[0.04] border-white/[0.08]', light: 'text-slate-600 bg-slate-100 border-slate-200' } },
+  running: { Icon: Loader2, verb: 'Memproses', tone: { dark: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20', light: 'text-cyan-600 bg-cyan-50 border-cyan-200' } },
 };
 
-function FileChip({ path, isLight }: { path: string; isLight: boolean }) {
-  const name = baseName(path);
-  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+/** Node ikon di garis timeline (berputar saat berjalan, merah saat gagal, kuning saat ditolak). */
+export function StepNode({ type, status, isLight }: { type: TrajectoryStep['type']; status?: TrajectoryStep['status']; isLight: boolean }) {
+  const meta = STEP_META[type] ?? STEP_META.tool;
+  const failed = status === 'error';
+  const denied = status === 'denied';
+  const cls = failed
+    ? isLight ? 'text-rose-600 bg-rose-50 border-rose-200' : 'text-rose-300 bg-rose-500/10 border-rose-500/25'
+    : denied
+      ? isLight ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-amber-300 bg-amber-500/10 border-amber-500/25'
+      : isLight ? meta.tone.light : meta.tone.dark;
   return (
     <span
-      title={path}
-      className={`inline-flex items-center gap-1.5 min-w-0 px-1.5 py-0.5 rounded-md font-mono text-[11.5px] border ${
-        isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-white/[0.03] border-white/[0.07] text-slate-200'
+      className={`absolute left-0 top-[2px] w-6 h-6 rounded-lg grid place-items-center border ${cls} ${
+        status === 'running' ? (isLight ? 'ring-4 ring-blue-500/10' : 'ring-4 ring-cyan-400/10') : ''
       }`}
     >
-      {ext && <span className={`text-[9.5px] font-bold uppercase ${EXT_TONE[ext] ?? 'text-slate-400'}`}>{ext}</span>}
-      <span className="truncate">{name}</span>
+      {status === 'running' ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : failed ? (
+        <CircleX className="w-3.5 h-3.5" />
+      ) : denied ? (
+        <ShieldAlert className="w-3.5 h-3.5" />
+      ) : (
+        <meta.Icon className="w-3.5 h-3.5" />
+      )}
     </span>
   );
 }
 
-const ICONS = {
-  thought: { Icon: Brain, verb: 'Berpikir', tone: 'text-violet-400' },
-  analyzed: { Icon: FileText, verb: 'Membaca', tone: 'text-sky-400' },
-  explored: { Icon: Search, verb: 'Mencari', tone: 'text-amber-400' },
-  command: { Icon: SquareTerminal, verb: 'Menjalankan', tone: 'text-emerald-400' },
-  edited: { Icon: FilePen, verb: 'Mengubah', tone: 'text-orange-400' },
-  tool: { Icon: Wrench, verb: 'Tool', tone: 'text-slate-400' },
-  running: { Icon: Loader2, verb: 'Memproses', tone: 'text-cyan-400' },
-} as const;
-
-/** Satu langkah di timeline "Proses kerja": ikon node, kalimat aksi, meta, dan detail yang bisa dibuka. */
-export function TimelineStep({ step, isLight, now, verbose, onOpenDiff }: TimelineStepProps) {
+/** Satu langkah di timeline "Proses kerja": node ikon, kalimat aksi, meta, dan detail yang bisa dibuka. */
+export function TimelineStep({ step, isLight, now, verbose, diff, onOpenDiff }: TimelineStepProps) {
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   const running = step.status === 'running';
   const failed = step.status === 'error';
-  const meta = ICONS[step.type] ?? ICONS.tool;
+  const denied = step.status === 'denied';
+  const meta = STEP_META[step.type] ?? STEP_META.tool;
   const duration = stepDuration(step, now);
 
-  const detailText =
-    step.type === 'thought' ? step.thoughtContent || '' : step.type === 'command' || step.type === 'tool' ? step.output || '' : '';
-  const expandable = !!detailText.trim();
-  // Penalaran yang sedang berjalan selalu terbuka; setelah selesai mengikuti preferensi pengguna.
-  const open = manualOpen ?? (step.type === 'thought' ? running || verbose : false);
-  const canDiff = step.type === 'edited' && !!step.diff && !!onOpenDiff;
+  const isThought = step.type === 'thought';
+  const isPlan = step.type === 'plan';
+  const outputText = ['command', 'tool', 'web'].includes(step.type) || failed || denied ? step.output || '' : '';
+  const hasDiff = step.type === 'edited' && !!diff && diff.diffLines.length > 0;
+  const expandable = isThought ? !!step.thoughtContent?.trim() : hasDiff || !!outputText.trim();
+  // Penalaran berjalan selalu terbuka; setelah selesai mengikuti preferensi. Rencana selalu tampil.
+  const open = manualOpen ?? (isThought ? running || verbose : false);
 
   const muted = isLight ? 'text-slate-500' : 'text-slate-400';
   const strong = isLight ? 'text-slate-800' : 'text-slate-200';
+  const todos = step.todos || [];
+  const doneTodos = todos.filter((t) => t.status === 'done').length;
 
   let object: ReactNode = null;
-  if (step.type === 'thought') {
+  if (isThought) {
     const preview = (step.thoughtContent || '').replace(/[#*_`>]/g, '').trim().split('\n').find(Boolean) || '';
     object = !open && preview ? <span className={`truncate italic ${muted}`}>{preview}</span> : null;
   } else if (step.type === 'analyzed' || step.type === 'edited') {
+    const path = diff?.relativePath || step.label || step.file || '';
     object = (
       <>
-        <FileChip path={step.diff?.relativePath || step.label || step.file || ''} isLight={isLight} />
-        {step.lineRange && <span className={`font-mono text-[10.5px] ${muted}`}>{step.lineRange}</span>}
+        <ExtBadge path={path} isLight={isLight} />
+        <FilePath path={path} isLight={isLight} />
+        {step.lineRange && <span className={`shrink-0 font-mono text-[10.5px] ${muted}`}>{step.lineRange}</span>}
       </>
     );
   } else if (step.type === 'command') {
     object = (
-      <code className={`truncate font-mono text-[11.5px] px-1.5 py-0.5 rounded-md ${isLight ? 'bg-slate-100 text-slate-800' : 'bg-black/30 text-slate-200'}`}>
+      <code
+        title={step.command || step.label}
+        className={`truncate font-mono text-[11.5px] px-1.5 py-0.5 rounded-md border ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-black/30 border-white/[0.06] text-slate-200'
+        }`}
+      >
         {step.command || step.label}
       </code>
     );
+  } else if (isPlan) {
+    object = todos.length > 0 ? <span className={`truncate ${muted}`}>{doneTodos}/{todos.length} selesai</span> : null;
   } else if (step.type === 'tool') {
     object = (
       <>
-        <span className={`font-mono text-[11.5px] ${strong}`}>{step.toolName || step.label}</span>
+        <span className={`shrink-0 font-mono text-[11.5px] ${strong}`}>{step.toolName || step.label}</span>
         {step.detail && <span className={`truncate ${muted}`}>{step.detail}</span>}
       </>
     );
   } else {
-    object = <span className={`truncate ${strong}`}>{step.label}</span>;
+    object = <span title={step.label} className={`truncate ${strong}`}>{step.label}</span>;
   }
 
-  const onRowClick = () => {
-    if (canDiff) onOpenDiff!([step.diff!], 0);
-    else if (expandable) setManualOpen(!open);
-  };
-
   return (
-    <li className="relative pl-8">
-      <span
-        className={`absolute left-0 top-[3px] w-[22px] h-[22px] rounded-full grid place-items-center border ${
-          isLight ? 'bg-white border-slate-200' : 'bg-[#0d121c] border-white/[0.08]'
-        } ${running ? (isLight ? 'ring-2 ring-blue-200' : 'ring-2 ring-cyan-500/25') : ''}`}
-      >
-        {running ? (
-          <Loader2 className={`w-3 h-3 animate-spin ${isLight ? 'text-blue-600' : 'text-cyan-400'}`} />
-        ) : failed ? (
-          <CircleX className="w-3 h-3 text-rose-500" />
-        ) : (
-          <meta.Icon className={`w-3 h-3 ${meta.tone}`} />
-        )}
-      </span>
+    <li className="relative pl-9">
+      <StepNode type={step.type} status={step.status} isLight={isLight} />
 
       <div
-        onClick={onRowClick}
-        role={canDiff || expandable ? 'button' : undefined}
+        onClick={expandable ? () => setManualOpen(!open) : undefined}
+        role={expandable ? 'button' : undefined}
+        aria-expanded={expandable ? open : undefined}
         className={`group flex items-center gap-2 min-w-0 min-h-[28px] text-[12.5px] rounded-lg px-1.5 -mx-1.5 transition-colors ${
-          canDiff || expandable ? `cursor-pointer ${isLight ? 'hover:bg-slate-100' : 'hover:bg-white/[0.03]'}` : ''
+          expandable ? `cursor-pointer ${isLight ? 'hover:bg-slate-100/80' : 'hover:bg-white/[0.03]'}` : ''
         }`}
       >
-        <span className={`shrink-0 font-medium ${failed ? 'text-rose-500' : strong}`}>
-          {step.type === 'tool' ? 'Memakai' : meta.verb}
+        <span className={`shrink-0 font-medium ${failed ? 'text-rose-500' : denied ? (isLight ? 'text-amber-700' : 'text-amber-300') : strong}`}>
+          {meta.verb}
         </span>
         <span className="flex items-center gap-1.5 min-w-0 flex-1">{object}</span>
         <span className="flex items-center gap-1.5 shrink-0 text-[10.5px]">
-          {step.type === 'edited' && (step.additions !== undefined || step.deletions !== undefined) && (
-            <span className="font-mono font-semibold">
-              <span className="text-emerald-500">+{step.additions ?? 0}</span>{' '}
-              <span className="text-rose-500">−{step.deletions ?? 0}</span>
-            </span>
+          {step.type === 'edited' && step.additions !== undefined && (
+            <DiffStat additions={step.additions ?? 0} deletions={step.deletions ?? 0} bar={false} />
           )}
-          {canDiff && (
-            <span className={`px-1.5 py-0.5 rounded-md font-semibold opacity-70 group-hover:opacity-100 ${isLight ? 'text-blue-700 soraja-grad-soft' : 'text-cyan-300 bg-cyan-500/10'}`}>
+          {hasDiff && onOpenDiff && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDiff(diff!);
+              }}
+              className={`px-1.5 py-0.5 rounded-md font-semibold cursor-pointer opacity-70 group-hover:opacity-100 transition-opacity ${
+                isLight ? 'text-blue-700 soraja-grad-soft' : 'text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/15'
+              }`}
+            >
               Tinjau
+            </button>
+          )}
+          {failed && <span className="px-1.5 py-0.5 rounded-md font-semibold text-rose-500 bg-rose-500/10">gagal</span>}
+          {denied && (
+            <span
+              title="Ditolak kebijakan izin mode aman. Buka sesi di Terminal untuk menyetujuinya."
+              className={`px-1.5 py-0.5 rounded-md font-semibold ${isLight ? 'text-amber-700 bg-amber-50' : 'text-amber-300 bg-amber-500/10'}`}
+            >
+              ditolak
             </span>
           )}
-          {failed && <span className="text-rose-500 font-semibold">gagal</span>}
-          {duration && <span className={muted}>{duration}</span>}
-          {expandable && (
-            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${muted} ${open ? 'rotate-90' : ''}`} />
-          )}
+          {duration && <span className={`font-mono ${muted}`}>{duration}</span>}
+          {expandable && <ChevronRight className={`w-3.5 h-3.5 transition-transform ${muted} ${open ? 'rotate-90' : ''}`} />}
         </span>
       </div>
 
+      {isPlan && todos.length > 0 && (
+        <div className="mt-1 mb-1.5">
+          <PlanList todos={todos} isLight={isLight} />
+        </div>
+      )}
+
       {open && expandable && (
         <div className="mt-1 mb-1.5">
-          {step.type === 'thought' ? (
+          {isThought ? (
             <div className={`pl-3 border-l-2 ${isLight ? 'border-violet-200' : 'border-violet-500/25'}`}>
-              <MarkdownContent content={detailText} isLight={isLight} size="compact" />
+              <MarkdownContent content={step.thoughtContent || ''} isLight={isLight} size="compact" />
             </div>
+          ) : hasDiff ? (
+            <DiffPreview chunk={diff!} isLight={isLight} onOpen={onOpenDiff ? () => onOpenDiff(diff!) : undefined} />
           ) : (
-            <pre
-              className={`max-h-64 overflow-auto rounded-lg border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all ${
-                isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-black/35 border-white/[0.06] text-slate-300'
-              }`}
-            >
-              {detailText}
-            </pre>
+            <OutputBlock
+              command={step.type === 'command' ? step.command : undefined}
+              output={outputText}
+              isLight={isLight}
+              failed={failed}
+            />
           )}
         </div>
       )}

@@ -130,6 +130,7 @@ export function ChatInputBar({
         selectedModel={selectedModel}
         isGenerating={isGenerating}
         isPaused={isPaused}
+        cliInstalled={installedCliAgents?.[selectedAgent.id]?.is_installed ?? false}
       />
 
       {/* Chat Input & Toolbar Container */}

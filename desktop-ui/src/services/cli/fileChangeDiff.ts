@@ -16,6 +16,13 @@ export function relativeToProject(filePath: string, projectPath: string): string
   return file.toLowerCase().startsWith(root.toLowerCase() + '/') ? file.slice(root.length + 1) : file;
 }
 
+/** Path relatif dari CLI (mis. `src/a.ts`) diselesaikan terhadap folder proyek, bukan folder kerja aplikasi. */
+export function absoluteInProject(filePath: string, projectPath: string): string {
+  if (/^[a-zA-Z]:[\\/]/.test(filePath) || /^[\\/]/.test(filePath)) return filePath;
+  const sep = projectPath.includes('\\') ? '\\' : '/';
+  return `${projectPath.replace(/[\\/]+$/, '')}${sep}${filePath.replace(/^\.[\\/]/, '').replace(/[\\/]/g, sep)}`;
+}
+
 /** Mengurai output `git diff` (unified diff) satu berkas menjadi CodeEditChunk. */
 export function parseUnifiedDiff(diff: string, filePath: string, relativePath: string): CodeEditChunk | null {
   const diffLines: DiffLine[] = [];
@@ -66,19 +73,34 @@ export function wholeFileAdded(content: string, filePath: string, relativePath: 
   };
 }
 
-/** Mengambil diff nyata sebuah berkas yang diubah agen (butuh Tauri). */
-export async function buildFileChangeDiff(filePath: string, projectPath: string): Promise<CodeEditChunk | null> {
+/**
+ * Status `git status --porcelain` berkas yang belum punya versi sebelumnya di git:
+ * untracked (`??`), baru di-stage (`A`), atau diabaikan `.gitignore` (`!!`).
+ * Output kosong = berkas ter-track tanpa perubahan.
+ */
+export function isNewFileStatus(porcelain: string): boolean {
+  const line = porcelain.trim().split('\n')[0] ?? '';
+  return line.startsWith('??') || line.startsWith('!!') || /^A/.test(line);
+}
+
+/**
+ * Mengambil diff nyata sebuah berkas yang diubah agen (butuh Tauri).
+ * `null` = tidak ada perubahan nyata (mis. edit ditolak, atau isi ditulis ulang sama persis).
+ */
+export async function buildFileChangeDiff(reportedPath: string, projectPath: string): Promise<CodeEditChunk | null> {
   const { invoke } = await import('@tauri-apps/api/core');
+  const filePath = absoluteInProject(reportedPath, projectPath);
   const relativePath = relativeToProject(filePath, projectPath);
   const quoted = `'${filePath.replace(/'/g, "''")}'`;
+  const git = (args: string) => invoke<string>('run_workspace_terminal', { workspacePath: projectPath, command: `git ${args} -- ${quoted}` });
   try {
-    const out = await invoke<string>('run_workspace_terminal', {
-      workspacePath: projectPath,
-      command: `git diff --no-color --no-ext-diff -- ${quoted}`,
-    });
+    const out = await git('diff --no-color --no-ext-diff');
     if (!out.startsWith('Terminal Error')) {
       const parsed = parseUnifiedDiff(out, filePath, relativePath);
       if (parsed) return parsed;
+      // Diff kosong: hanya berkas baru/untracked yang ditampilkan utuh; berkas ter-track berarti tidak berubah.
+      const status = await git('status --porcelain --untracked-files=all --ignored');
+      if (!status.startsWith('Terminal Error') && !isNewFileStatus(status)) return null;
     }
   } catch {
     // bukan repo git / git tidak tersedia → fallback di bawah
