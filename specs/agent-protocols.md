@@ -175,11 +175,23 @@ Keputusan produk: **jawaban agen wajib berbahasa Indonesia** di kedua mode. Teks
 | `kiro` | Tidak ada flag system prompt yang dipakai: mode Chat menyisipkan `[Instruksi: …]` di awal prompt. Mode Terminal belum memaksa Bahasa Indonesia. | Chat |
 | `antigravity` | Tidak ada flag system prompt. IPC `prepare_agent_language_rules` menambahkan **sekali** blok bertanda `<!-- soraja:bahasa-indonesia -->` ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia; mode Chat juga menyisipkan `[Instruksi: …]` di awal prompt | Chat & Terminal |
 
+**Keputusan: jawaban asli CLI, tanpa lapisan penerjemah.** Isi jawaban dan penalaran agen tidak pernah diterjemahkan,
+"dipulihkan", atau disunting oleh Soraja (di Chat GUI maupun Terminal). Bahasa jawaban dijaga hanya oleh aturan di atas
+sebagai penjaga: CLI pada umumnya sudah mengikuti bahasa input, dan aturan ini menahan pergeseran ke Bahasa Inggris pada
+tugas panjang yang penuh keluaran tool/kode berbahasa Inggris.
+
 Selain itu, **teks UI bawaan CLI** di mode Terminal (prompt izin, "Thinking…", "esc to cancel", dll.) diterjemahkan oleh
 `utils/cliTerminalLocalizer.ts` — kecuali OpenCode, karena regex pada stream TUI-nya merusak posisi kursor.
 Stream PTY hanya **diterjemahkan** (`localizeTerminalOutput`, lebar tampilan tetap) dan **tidak diwarnai ulang**:
 pewarnaan markdown (`beautifyTerminalText`) menyisipkan `ESC[0m` yang mereset latar diff merah/hijau CLI dan
 menghapus backtick kode, sehingga dilarang dipakai pada output TUI agen.
+
+Aturan lebar terjemahan (terverifikasi dengan stream PTY nyata kelima CLI, 16 Okt 2026):
+* Terjemahan tidak boleh lebih panjang dari aslinya. Label yang bisa **disusul teks di kolom absolut** (agy merender
+  diferensial: `Thought for 6s` lalu `ESC[9;17H, 631 tokens`; kotak `Search: [ ]`) wajib **sama lebar persis**.
+* Terjemahan yang lebih pendek hanya untuk baris yang digambar utuh (dialog izin, footer pintasan); padding spasi
+  diletakkan di **akhir baris visual** (SGR/OSC dilewati), dan dilewati bila akhir baris tidak ada di chunk yang sama.
+* Kata umum yang bisa muncul di jawaban/kode agen (`Effort`, `(current)`, `Ran (`) tidak diterjemahkan.
 
 ---
 

@@ -70,16 +70,19 @@ test('Lebar tetap: terjemahan yang memanjang dilewati (bug sisa "vi1." pada redr
   assert.equal(stripAnsi(out), input);
 });
 
-test('Lebar tetap: terjemahan sama panjang diterapkan, yang lebih pendek diberi padding spasi', () => {
+test('Lebar tetap: terjemahan sama panjang diterapkan, yang lebih pendek diberi padding di akhir run teks', () => {
   assert.equal(stripAnsi(localizeTerminalOutput('esc to cancel')), 'esc: batalkan');
-  const out = localizeTerminalOutput('tab Amend|');
-  assert.equal(stripAnsi(out), 'tab Edit |');
+  const out = localizeTerminalOutput('tab Amend|\x1b[K');
+  assert.equal(out, 'tab Edit| \x1b[K', 'padding sebelum escape berikutnya, bukan di tengah teks');
   assert.equal(width(out), width('tab Amend|'));
+  // Dua terjemahan dalam satu run: padding digabung di akhir run.
+  assert.equal(localizeTerminalOutput('tab Amend · tab Amend\r\n'), 'tab Edit · tab Edit  \r\n');
 });
 
 test('Lebar tetap: penghapusan baris ganda tidak dilakukan di dalam TUI', () => {
   const input = '4. No, cancel\x1b[0m\r\n  4. No, cancel';
-  assert.equal(stripAnsi(localizeTerminalOutput(input)), stripAnsi(input));
+  // Kedua baris tetap ada; baris yang akhirnya belum terlihat di chunk ini tidak diterjemahkan (tanpa padding liar).
+  assert.equal(stripAnsi(localizeTerminalOutput(input)), '4. Batalkan  \r\n  4. No, cancel');
 });
 
 test('Lebar tetap: heading markdown tidak diganti simbol yang lebih lebar', () => {

@@ -1,8 +1,11 @@
 /**
  * cliTerminalLocalizer.ts
- * Penerjemah cerdas real-time untuk output Terminal CLI (agy, opencode, claude, codex).
- * Mengubah loading proses, ringkasan berpikir, serta prompt pilihan opsi perizinan
- * ke dalam Bahasa Indonesia yang ramah bagi pengguna pemula maupun teknis.
+ * Penerjemah teks BAWAAN CLI di Terminal (agy, opencode, claude, codex): label proses ("Thought for",
+ * "esc to cancel"), prompt izin, dan pintasan navigasi — ke Bahasa Indonesia.
+ *
+ * Isi jawaban & penalaran agen TIDAK PERNAH diubah: jawaban yang tampil adalah jawaban asli CLI.
+ * Bahasa jawaban dijaga lewat aturan bahasa bawaan tiap CLI (`LANGUAGE_RULE`, specs/agent-protocols.md §5),
+ * bukan lewat penerjemahan/perbaikan teks keluaran.
  *
  * Stream PTY langsung HANYA dilokalisasi (`localizeTerminalOutput`). Pewarnaan markdown
  * (`beautifyTerminalText`) tidak boleh dipakai pada output TUI: CLI agen sudah mewarnai sendiri,
@@ -14,78 +17,58 @@ interface ReplacementRule {
   replacement: string;
 }
 
+/**
+ * Placeholder escape sequence (lihat maskEscapes) yang boleh berada di antara kata label CLI,
+ * mis. `↑/↓ESC[90m Navigate` atau `tabESC[90m Amend`. Ditangkap `$n` agar warnanya tetap utuh.
+ */
+const E = '([\uE000-\uF8FF]*)';
+const rx = (s: TemplateStringsArray, ...v: string[]) => new RegExp(String.raw(s, ...v), 'g');
+
+/**
+ * Aturan terjemahan teks UI bawaan CLI. Diverifikasi terhadap stream PTY nyata agy 1.4, kiro-cli,
+ * Claude Code, dan Codex 0.163 (16 Okt 2026). Syarat:
+ * - Terjemahan tidak boleh lebih panjang dari aslinya (lihat applyWidthSafe).
+ * - Label yang bisa DISUSUL teks lain di kolom absolut (agy merender diferensial: "Thought for 6s" lalu
+ *   `ESC[9;17H, 631 tokens`; kotak "Search: [ ]" diisi ketikan) WAJIB sama lebar persis, tanpa padding.
+ *   Padding hanya aman untuk baris yang selalu digambar utuh (dialog izin, footer pintasan, judul menu).
+ * - Pola harus spesifik untuk label CLI: kata umum seperti "Effort", "(current)", atau "Ran (" tidak
+ *   diterjemahkan karena bisa muncul di jawaban/kode asli agen.
+ */
 const LOCALIZATION_RULES: ReplacementRule[] = [
-  // 1. Loading Proses & Reasoning Summaries
-  { pattern: /\bThought for\b/g, replacement: 'Berpikir selama' },
-  { pattern: /\bThinking\.\.\.\b/g, replacement: 'Sedang berpikir...' },
-  { pattern: /\bRan (\d+) commands?\b/g, replacement: 'Menjalankan $1 perintah' },
-  { pattern: /\bRan \(/g, replacement: 'Menjalankan (' },
-  { pattern: /\bExplored (\d+) files?\b/g, replacement: 'Mengeksplorasi $1 berkas' },
-  { pattern: /\(ctrl\+o to expand\)/g, replacement: '(ctrl+o untuk memperluas)' },
+  // 1. Loading Proses & Reasoning Summaries (sama lebar)
+  { pattern: /\bThought for (?=\d)/g, replacement: 'Waktu pikir ' },
+  { pattern: /\bThinking\.\.\./g, replacement: 'Berpikir...' },
+  { pattern: /\(ctrl\+o to expand\)/g, replacement: '(ctrl+o: buka isi)' },
   { pattern: /\besc to cancel\b/g, replacement: 'esc: batalkan' },
   { pattern: /\besc to dismiss\b/g, replacement: 'esc: tutup box' },
-  { pattern: /\bExited \/([a-zA-Z0-9_-]+) command\b/g, replacement: 'Keluar dari perintah /$1' },
+  { pattern: /\bExited \/([a-zA-Z0-9_-]+) command\b/g, replacement: 'Keluar dari /$1' },
 
-  // Pemulihan kata-kata Bahasa Indonesia yang terpotong pada ringkasan pemikiran (thought preview)
-  { pattern: /\bterlebi\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'terlebih dahulu...' },
-  { pattern: /\bterlebih dahul\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'terlebih dahulu...' },
-  { pattern: /\bsebagain\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'sebagainya...' },
-  { pattern: /\bbeberap\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'beberapa...' },
-  { pattern: /\bkebutuh\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'kebutuhan...' },
-  { pattern: /\bpembangun\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'pembangunan...' },
-  { pattern: /\bpengembang\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'pengembangan...' },
-  { pattern: /\bkonfiguras\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'konfigurasi...' },
-  { pattern: /\bpenjelas\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'penjelasan...' },
-  { pattern: /\binformas\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'informasi...' },
-  { pattern: /\bdirektor\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'direktori...' },
-  { pattern: /\bprogr\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'program...' },
-  { pattern: /\baplikas\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'aplikasi...' },
-  { pattern: /\bperangk\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'perangkat...' },
-  { pattern: /\blangkah-langk\b(?:[.\s]*\.\.\)|[.\s]*\.\.|\b)/g, replacement: 'langkah-langkah...' },
-
-  // Pembersihan elipsis yang terpotong janggal / sisa titik pecah seperti ". ..)" -> "...)"
-  { pattern: /\.\s+\.\.\)/g, replacement: '...)' },
-  { pattern: /\.\s+\.\./g, replacement: '...' },
-  { pattern: /\.\.\s*\.\)/g, replacement: '...)' },
-  // Menghilangkan sisa baris baru yang hanya memuat sisa elipsis terpisah (orphan ghost line)
-  { pattern: /\r?\n\s*(?:\.\.\)|\.\.\.|\.\.)(?=[\r\n]|$)/g, replacement: '' },
-
-  // 2. Pilihan Opsi & Dialog Izin (Antigravity CLI, Codex, OpenCode, Claude)
-  { pattern: /Requesting permission for:/g, replacement: 'Meminta izin eksekusi untuk:' },
-  { pattern: /Run this command\?/g, replacement: 'Jalankan perintah ini?' },
-  { pattern: /1\.\s+Yes, run command/g, replacement: '1. Ya, jalankan perintah' },
+  // 2. Dialog Izin (Antigravity CLI)
+  { pattern: /Requesting permission for:/g, replacement: 'Meminta izin untuk:' },
+  { pattern: /Run this command\?/g, replacement: 'Izinkan perintah?' },
+  { pattern: /1\.(\s+)Yes, run command/g, replacement: '1.$1Ya, jalankan' },
   {
-    pattern: /2\.\s+Yes, and always allow in this conversation for commands that start with/g,
-    replacement: '2. Ya, dan selalu izinkan di sesi ini untuk perintah berawalan',
+    pattern: /2\.(\s+)Yes, and always allow in this conversation for commands that start with/g,
+    replacement: '2.$1Ya, dan selalu izinkan di sesi ini untuk perintah berawalan',
   },
   {
-    pattern: /3\.\s+Yes, and always allow for commands that start with/g,
-    replacement: '3. Ya, dan selalu izinkan untuk perintah berawalan',
+    pattern: /3\.(\s+)Yes, and always allow for commands that start with/g,
+    replacement: '3.$1Ya, dan selalu izinkan untuk perintah berawalan',
   },
-  { pattern: /\(Persist to settings\.json\)/g, replacement: '(Simpan permanen ke settings.json)' },
-  { pattern: /4\.\s+No, cancel/g, replacement: '4. Tidak, batalkan' },
-  { pattern: /\bNo, cancel\b/g, replacement: 'Tidak, batalkan' },
+  { pattern: /\(Persist to settings\.json\)/g, replacement: '(Simpan ke settings.json)' },
+  { pattern: /4\.(\s+)No, cancel/g, replacement: '4.$1Batalkan' },
 
-  // Deduplikasi baris opsi batalkan jika buffer ConPTY me-redraw baris terbawah ganda
-  // (escape sequence di antaranya sudah dimasking menjadi karakter placeholder, lihat maskEscapes)
-  {
-    pattern: /(4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel))(?:\r?\n|\s|[-])*(?:\r?\n\s*)4\.\s+(?:Tidak,\s+batalkan|No,\s+cancel)/g,
-    replacement: '$1',
-  },
+  // 3. Tombol Navigasi Pintasan (tombol & labelnya dipisah escape warna)
+  { pattern: rx`↑/↓${E} Navigate\b`, replacement: '↑/↓$1 Navigasi' },
+  { pattern: rx`\btab${E} Amend\b`, replacement: 'tab$1 Edit' },
+  { pattern: rx`ctrl\+g${E} edit/expand command`, replacement: 'ctrl+g$1 edit/perluas' },
 
-  // 3. Tombol Navigasi Pintasan
-  { pattern: /↑\/↓ Navigate/g, replacement: '↑/↓ Navigasi' },
-  { pattern: /tab Amend/g, replacement: 'tab Edit' },
-  { pattern: /ctrl\+g edit\/expand command/g, replacement: 'ctrl+g edit/perluas' },
-
-  // 4. Menu Ganti Model & Kuota
-  { pattern: /\bSwitch Model\b/g, replacement: 'Ganti Model AI' },
-  { pattern: /\bSearch:\s*\[\s*\]/g, replacement: 'Cari: [ ]' },
-  { pattern: /\(current\)/g, replacement: '(model aktif)' },
-  { pattern: /\bEffort\b/g, replacement: 'Tingkat Penalaran' },
+  // 4. Menu Ganti Model
+  { pattern: /\bSwitch Model\b/g, replacement: 'Ganti Model' },
+  { pattern: /\bSearch:(?=\s*\[)/g, replacement: 'Cari:  ' },
   {
     pattern: /Deepest reasoning for complex problems\s*–\s*slower but strongest/g,
-    replacement: 'Penalaran terdalam untuk masalah kompleks – lebih teliti & terkuat',
+    replacement: 'Penalaran terdalam untuk masalah kompleks – paling teliti',
   },
 ];
 
@@ -216,35 +199,85 @@ function visibleText(s: string): string {
   return s.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(PUA_CHAR, '');
 }
 
+/** Escape yang tidak menggerakkan kursor (warna SGR, OSC judul/hyperlink): teks setelahnya tetap di baris visual yang sama. */
+const CURSOR_NEUTRAL = /^\x1b(?:\[[0-9;:]*m|\])/;
+
 /**
  * Menerapkan satu aturan TANPA mengubah lebar tampilan. CLI agen (Claude, Codex, Antigravity) adalah TUI
  * yang menggambar ulang layar dengan posisi kursor relatif; teks yang memanjang/memendek menggeser kolom
  * sehingga sisa karakter lama tertinggal (mis. "vi1.", "ng3." di kolom awal).
- * Hasil lebih pendek diberi padding spasi; hasil lebih panjang atau yang mengubah baris dibatalkan.
+ *
+ * Hasil lebih panjang atau yang mengubah baris dibatalkan. Hasil lebih pendek diberi padding spasi di AKHIR
+ * baris visualnya — sebelum baris baru atau escape yang menggerakkan kursor (SGR/OSC dilewati) — sehingga
+ * kolom kursor tetap sama tanpa celah di tengah kalimat (bug "berawalan       'Get-ChildItem…'" dan
+ * "Berpikir 6s   , 631 tokens" pada agy). Bila akhir baris tidak terlihat di chunk ini (chunk PTY terpotong
+ * di tengah baris), terjemahan yang butuh padding dilewati: lebih baik tetap teks asli daripada rusak.
  */
-function applyWidthSafe(text: string, rule: ReplacementRule): string {
-  const single = new RegExp(rule.pattern.source, rule.pattern.flags.replace('g', ''));
-  return text.replace(rule.pattern, (match: string) => {
-    const out = match.replace(single, rule.replacement);
+function applyWidthSafe(text: string, rule: ReplacementRule, sequences: string[], wholeText: boolean): string {
+  const lineEnd = (from: number): number => {
+    for (let i = from; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '\r' || ch === '\n') return i;
+      const code = ch.charCodeAt(0);
+      if (code >= PUA_START && code < PUA_START + PUA_SIZE && !CURSOR_NEUTRAL.test(sequences[code - PUA_START] ?? '')) {
+        return i;
+      }
+    }
+    return wholeText ? text.length : -1;
+  };
+  let out = '';
+  let last = 0;
+  let pad = { at: -1, count: 0 };
+  const flushPad = (upTo: number) => {
+    if (pad.count > 0 && pad.at <= upTo) {
+      out += text.slice(last, pad.at) + ' '.repeat(pad.count);
+      last = pad.at;
+      pad = { at: -1, count: 0 };
+    }
+  };
+  for (const m of text.matchAll(rule.pattern)) {
+    const match = m[0];
+    const start = m.index ?? 0;
+    const end = start + match.length;
+    // Substitusi `$n` dari match asli (bukan regex ulang pada potongan match: lookahead akan gagal).
+    const replaced = rule.replacement.replace(/\$(\d)/g, (_, n: string) => m[Number(n)] ?? '');
     const before = visibleText(match);
-    const after = visibleText(out);
-    if (after === before) return out; // hanya pewarnaan
+    const after = visibleText(replaced);
     const lines = (s: string) => s.split('\n').length;
-    if (lines(after) !== lines(before) || /[\r\n]/.test(before)) return match;
+    if (after !== before && (lines(after) !== lines(before) || /[\r\n]/.test(before))) continue;
     const diff = [...before].length - [...after].length;
-    return diff >= 0 ? out + ' '.repeat(diff) : match;
-  });
+    if (diff < 0) continue;
+    const at = diff > 0 ? lineEnd(end) : -1;
+    if (diff > 0 && at === -1) continue;
+    flushPad(start);
+    let carried = 0;
+    if (pad.count > 0) {
+      // Akhir baris padding sebelumnya ada setelah match ini (baris yang sama): padding digabung.
+      if (pad.at >= end) carried = pad.count;
+      else {
+        out += text.slice(last, start) + ' '.repeat(pad.count);
+        last = start;
+      }
+      pad = { at: -1, count: 0 };
+    }
+    out += text.slice(last, start) + replaced;
+    last = end;
+    if (diff + carried > 0) pad = { at: at === -1 ? lineEnd(end) : at, count: diff + carried };
+  }
+  flushPad(text.length);
+  return out + text.slice(last);
 }
 
-function applyRules(text: string, rules: ReplacementRule[]): string {
-  return rules.reduce((acc, rule) => applyWidthSafe(acc, rule), text);
+function applyRules(text: string, rules: ReplacementRule[], sequences: string[], wholeText: boolean): string {
+  return rules.reduce((acc, rule) => applyWidthSafe(acc, rule, sequences, wholeText), text);
 }
 
-function transform(chunk: string, rules: ReplacementRule[]): string {
+/** `wholeText`: teks utuh buatan Soraja (akhir teks = akhir baris), bukan potongan stream PTY. */
+function transform(chunk: string, rules: ReplacementRule[], wholeText = false): string {
   if (!chunk) return chunk;
   const m = maskEscapes(chunk);
   if (!m) return chunk;
-  return unmaskEscapes(applyRules(m.masked, rules), m.sequences);
+  return unmaskEscapes(applyRules(m.masked, rules, m.sequences, wholeText), m.sequences);
 }
 
 /**
@@ -260,7 +293,7 @@ export function localizeTerminalOutput(chunk: string): string {
  * Hanya untuk teks yang dihasilkan sendiri — JANGAN untuk stream TUI agen (lihat catatan di atas).
  */
 export function beautifyTerminalText(text: string): string {
-  return transform(text, BEAUTIFY_RULES);
+  return transform(text, BEAUTIFY_RULES, true);
 }
 
 /**
