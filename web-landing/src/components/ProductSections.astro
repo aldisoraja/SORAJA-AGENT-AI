@@ -23,24 +23,26 @@ const agents = [
   },
   {
     tag: 'Kiro', cls: 'kiro-tag', title: 'Kiro CLI (kiro-cli)',
-    desc: 'Agen spec-driven dari AWS. Terminal memakai login Kiro; Chat GUI berjalan headless dengan KIRO_API_KEY (paket Pro ke atas).',
+    desc: 'Agen spec-driven dari AWS. Chat GUI dan Terminal memakai login Kiro yang sama; di mode aman tetap bisa membaca & mengubah berkas.',
     pills: ['Model dari --list-models', 'Resume sesi per ID'],
   },
 ];
 
 const features = [
   { icon: '🧠', title: 'Penalaran Chat lebih dalam', body: 'Di Chat GUI, setiap agen bernalar lebih dalam daripada di Terminal. Pilih Tinggi, Sangat tinggi, atau Maksimum di Pengaturan.' },
-  { icon: '🖼️', title: 'Hingga 10 gambar per pesan', body: 'Tempel atau seret screenshot & dokumen. Lampiran disimpan sebagai berkas lokal dan dibaca langsung oleh kelima agen.' },
+  { icon: '🖼️', title: 'Hingga 10 gambar per pesan', body: 'Tempel atau seret screenshot, foto struk, atau grafik. Agen membaca teks, angka, dan detail visualnya — bahkan menemukan total invoice yang salah hitung.' },
+  { icon: '📄', title: 'PDF, Word, Excel & PowerPoint', body: 'Lampirkan dokumen kantor dan CSV. Isi Word, Excel, dan PowerPoint diekstrak otomatis menjadi teks & tabel, sehingga kelima agen bisa membacanya meski di mode aman.' },
+  { icon: '🎯', title: 'Pesan panjang, tak ada yang terlewat', body: 'Satu pesan berisi banyak permintaan dijawab satu per satu. Jawaban berlanjut dalam percakapan yang sama, jadi Anda bisa bertanya lanjutan tanpa mengulang konteks.' },
   { icon: '🧭', title: 'Proses kerja yang transparan', body: 'Timeline langsung: berpikir, membaca berkas, mencari, menjalankan perintah, dan mengubah kode — lengkap dengan durasi.' },
   { icon: '🔍', title: 'Tinjau perubahan sebelum diterima', body: 'Setiap berkas yang diubah agen tampil sebagai diff +/− dan bisa ditinjau satu per satu sebelum Anda menerimanya.' },
-  { icon: '📋', title: 'Salin dengan satu klik', body: 'Salin pesan Anda, jawaban agen, atau blok kode mana pun. Jawaban berformat rapi: heading, tabel, dan kode berlabel.' },
+  { icon: '📋', title: 'Salin dengan satu klik', body: 'Salin pesan Anda, jawaban agen, atau blok kode mana pun. Jawaban berformat rapi: heading, tabel, kode berlabel, dan rumus yang mudah dibaca.' },
   { icon: '🖥️', title: 'Chat GUI + Terminal asli', body: 'Satu percakapan bisa dilanjutkan di tab Terminal (ConPTY) dengan CLI aslinya — slash command, login, dan /model tetap utuh.' },
   { icon: '🗂️', title: 'Banyak terminal, jalan bersamaan', body: 'Buka beberapa tab Terminal sekaligus, satu tab untuk satu folder proyek. Semua agen terus bekerja di latar belakang saat Anda pindah tab atau ke Chat GUI.' },
   { icon: '🔁', title: 'Ganti agen tanpa kehilangan tempat', body: 'Ganti Claude, Codex, atau agen lain di folder yang sama lewat satu tombol. Tab Anda tetap di tempatnya, tidak meloncat ke proyek lain.' },
   { icon: '⭐', title: 'Favorit & riwayat bersih', body: 'Tandai bintang pada percakapan penting lalu temukan lagi lewat menu Favorit. Sesi Terminal otomatis diberi label dari perintah pertama Anda.' },
   { icon: '🎨', title: 'Tampilan nyaman di mata', body: 'Tema terang dengan gradasi lembut, warna terminal dan diff yang jelas di latar putih, plus pilihan ukuran tampilan dan mode kurangi animasi.' },
   { icon: '🔔', title: 'Dikabari saat AI selesai', body: 'Bunyi dan tanda di judul jendela muncul saat agen selesai menjawab, jadi Anda bisa mengerjakan hal lain sambil menunggu.' },
-  { icon: '💬', title: 'Jawaban Bahasa Indonesia', body: 'Semua agen otomatis menjawab dalam Bahasa Indonesia yang jelas, baik di Chat maupun di Terminal.' },
+  { icon: '💬', title: 'Jawaban Bahasa Indonesia', body: 'Semua agen otomatis menjawab dalam Bahasa Indonesia yang jelas — bahkan bila Anda bertanya dalam Bahasa Inggris — baik di Chat maupun di Terminal.' },
   { icon: '🔐', title: 'Akun & kredensial aman', body: 'Memakai login CLI Anda sendiri. API key opsional disimpan di Windows Credential Manager (DPAPI), bukan teks biasa.' },
 ];
 ---
