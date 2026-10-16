@@ -12,6 +12,11 @@ export interface PermissionAsk {
   requestId: string;
   toolName: string;
   input: Record<string, unknown>;
+  /**
+   * Konteks untuk permintaan yang diajukan setelah giliran CLI selesai (Antigravity): tidak terikat sesi
+   * yang sedang berjalan dan tidak dibuang saat sesi itu berakhir.
+   */
+  context?: { conversationId?: string; projectPath?: string; agentId?: string };
 }
 
 /** `respond` mengirim keputusan ke CLI yang menunggu; dipanggil tepat sekali. */

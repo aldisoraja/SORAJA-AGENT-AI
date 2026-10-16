@@ -44,6 +44,11 @@ export interface CliLaunchOptions {
    * berjalan dengan izin penuh (setara mode otonom).
    */
   grantedActions?: string[];
+  /**
+   * Khusus Antigravity headless mode aman: Soraja menangani perintah yang ditolak lewat modal HITL lalu
+   * melanjutkan sesi (aplikasi Tauri). Agen diberi tahu untuk tetap mencoba perintah, bukan menghindarinya.
+   */
+  agyHitl?: boolean;
 }
 
 export interface CliCommand {
@@ -62,7 +67,7 @@ const API_KEY_ENV: Record<CliAgentId, string[]> = {
 };
 
 /** Tool Kiro v3 yang dipercaya di mode aman Chat GUI (baca/cari/ubah berkas; tanpa shell & hapus). */
-const KIRO_SAFE_TOOLS = ['read_file', 'list_directory', 'file_search', 'grep_search', 'fs_write', 'fs_append', 'str_replace'];
+export const KIRO_SAFE_TOOLS = ['read_file', 'list_directory', 'file_search', 'grep_search', 'fs_write', 'fs_append', 'str_replace'];
 
 /** Petunjuk mode aman Antigravity headless: perintah shell selalu ditolak, tool berkas bawaan tetap jalan. */
 export const AGY_SAFE_MODE_RULE =
@@ -73,6 +78,10 @@ export const PERMISSION_PROMPT_TOOL = 'mcp__soraja__approval_prompt';
 
 /** Batas waktu tool MCP Claude (ms): pengguna boleh menimbang permintaan izin selama apa pun dalam sehari. */
 const PERMISSION_PROMPT_TIMEOUT_MS = '86400000';
+
+/** Antigravity + HITL Soraja: perintah yang ditolak dimintakan izin ke pengguna lalu sesi dilanjutkan otomatis. */
+export const AGY_HITL_RULE =
+  'Perintah terminal/shell (RunCommand) yang belum diizinkan akan dihentikan sementara untuk dimintakan persetujuan pengguna, lalu percakapan ini dilanjutkan. Bila sebuah langkah butuh perintah, jalankan satu perintah persis seperti yang dibutuhkan (jangan dirangkai dengan && atau ;) dan jangan mencari jalan lain.';
 
 /** Agen tanpa flag system prompt: aturan bahasa & Chat GUI disisipkan di awal prompt headless. */
 const PROMPT_PREFIX_AGENTS: CliAgentId[] = ['antigravity', 'kiro'];
@@ -174,7 +183,9 @@ function headlessPrompt(agentId: CliAgentId, o: CliLaunchOptions): string {
     prefixes.push(`[Instruksi sistem]\n${CHAT_REASONING_RULE}`);
   }
   // agy headless mengakhiri SELURUH giliran tanpa jawaban begitu satu perintah shell ditolak (`denied_actions`).
-  if (agentId === 'antigravity' && o.permissionMode !== 'autonomous' && !o.grantedActions?.length) prefixes.push(`[Mode aman] ${AGY_SAFE_MODE_RULE}`);
+  if (agentId === 'antigravity' && o.permissionMode !== 'autonomous' && !o.grantedActions?.length) {
+    prefixes.push(`[Mode aman] ${o.agyHitl ? AGY_HITL_RULE : AGY_SAFE_MODE_RULE}`);
+  }
   const full = prefixes.length > 0 ? `${prefixes.join('\n\n')}\n\n${prompt}` : prompt;
   // Prompt berawalan "-" akan dibaca CLI sebagai flag; spasi di depan menjadikannya argumen posisi.
   return full.startsWith('-') ? ` ${full}` : full;
@@ -260,20 +271,20 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
 }
 
 /** Agen yang punya protokol JSON-RPC stdio dengan permintaan izin (HITL Chat GUI mode aman). */
-export const RPC_HITL_AGENTS: CliAgentId[] = ['codex', 'opencode'];
+export const RPC_HITL_AGENTS: CliAgentId[] = ['codex', 'opencode', 'kiro'];
 
 export interface RpcCommand extends CliCommand {
   /** Prompt akhir (dengan prefiks aturan untuk agen tanpa system prompt). */
   prompt: string;
   /** Aturan bahasa + Chat GUI untuk agen yang menerimanya lewat protokol (Codex `developerInstructions`). */
   instructions?: string;
-  /** Model yang dikirim lewat protokol; kosong = bawaan CLI. */
+  /** Model yang dikirim lewat protokol (`session/set_model` / `thread/start`); kosong = bawaan CLI. */
   modelId?: string;
 }
 
 /**
- * Mode Chat GUI aman dengan HITL: `codex app-server` / `opencode acp` (JSON-RPC lewat stdin/stdout).
- * Model, effort, dan prompt dikirim lewat protokol oleh driver (`codexAppServer.ts`, `opencodeAcp.ts`).
+ * Mode Chat GUI aman dengan HITL: `codex app-server` / `opencode acp` / `kiro-cli acp` (JSON-RPC lewat stdin/stdout).
+ * Prompt dan model dikirim lewat protokol oleh driver (`codexAppServer.ts`, `acpDriver.ts`).
  */
 export function buildRpcCommand(o: CliLaunchOptions): RpcCommand {
   const agentId = normalizeAgentId(o.agentId);
@@ -282,6 +293,11 @@ export function buildRpcCommand(o: CliLaunchOptions): RpcCommand {
   const modelId = hasModel(o.modelId, agentId) ? o.modelId : undefined;
   if (agentId === 'codex') {
     return { executable: o.executable, args: ['app-server'], envs, prompt: o.prompt ?? '', instructions: systemRules(o) || undefined, modelId };
+  }
+  if (agentId === 'kiro') {
+    // Engine v3 menolak `--trust-tools` & `--model`: tool aman diizinkan otomatis oleh driver (KIRO_SAFE_TOOLS),
+    // model dipilih lewat `session/set_model`.
+    return { executable: o.executable, args: ['acp', '--agent-engine', 'v3'], envs, prompt: headlessPrompt(agentId, o).trimStart(), modelId };
   }
   // OpenCode: perintah shell selalu ditanyakan (mode aman Soraja); aturan bahasa tetap lewat `instructions`.
   const config = JSON.parse(envs.OPENCODE_CONFIG_CONTENT ?? '{}') as Record<string, unknown>;

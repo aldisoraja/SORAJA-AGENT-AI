@@ -21,8 +21,10 @@ export interface HitlRequest extends PermissionSummary {
   agentName: string;
   conversationId?: string;
   projectPath?: string;
-  /** Kanal jawaban milik sumber permintaan (IPC Claude atau stdin Codex/OpenCode). */
+  /** Kanal jawaban milik sumber permintaan (IPC Claude, stdin Codex/OpenCode/Kiro, atau alur Antigravity). */
   respond: (approved: boolean) => Promise<void>;
+  /** Diajukan setelah giliran CLI selesai (Antigravity): tetap ditampilkan walau sesinya sudah berakhir. */
+  afterTurn?: boolean;
 }
 
 /** Opsi modal: 1 sekali, 2 percakapan, 3 proyek, 4 global, 5 tolak. */
@@ -70,9 +72,10 @@ export function useHitlPermissions(deps: HitlDeps) {
 
     const onRequest = async (p: PermissionAsk, respond: (approved: boolean) => Promise<void>) => {
       const d = depsRef.current;
-      const gen = d.activeGenRef.current;
-      // Sesi yang sudah dihentikan/diganti tidak boleh menjalankan apa pun.
-      if (!gen || gen.agentMsgId !== p.sessionId) {
+      const active = d.activeGenRef.current;
+      // Sesi yang sudah dihentikan/diganti tidak boleh menjalankan apa pun (kecuali permintaan setelah giliran).
+      const gen = p.context ?? (active?.agentMsgId === p.sessionId ? active : null);
+      if (!gen) {
         respond(false).catch(() => {});
         return;
       }
@@ -85,6 +88,7 @@ export function useHitlPermissions(deps: HitlDeps) {
         conversationId: gen.conversationId,
         projectPath: gen.projectPath,
         respond,
+        afterTurn: !!p.context,
       };
       if (await isPreApproved(req)) {
         respond(true).catch(() => {});
@@ -105,8 +109,9 @@ export function useHitlPermissions(deps: HitlDeps) {
       // Sesi selesai/dihentikan: permintaan miliknya tidak berarti lagi (dijawab "tolak"), modalnya ditutup.
       listen<{ sessionId: string }>('agent:session_end', (e) => {
         const sid = e.payload.sessionId;
-        for (const r of queueRef.current) if (r.sessionId === sid) r.respond(false).catch(() => {});
-        setQueue((q) => q.filter((r) => r.sessionId !== sid));
+        const dropped = (r: HitlRequest) => r.sessionId === sid && !r.afterTurn;
+        for (const r of queueRef.current) if (dropped(r)) r.respond(false).catch(() => {});
+        setQueue((q) => q.filter((r) => !dropped(r)));
         setHitlSelectedOption(1);
       }),
     ]).then((fns) => {

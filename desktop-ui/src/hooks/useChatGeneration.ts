@@ -25,6 +25,7 @@ import type { AgentProvider, ModelItem } from '../types/agent';
 import { hasHeadlessBridge, isTauriRuntime as isTauri } from '../services/headlessTransport';
 import { useAgentStreamBridge, type ActiveGeneration } from './useAgentStreamBridge';
 import { useHitlPermissions } from './useHitlPermissions';
+import { useAntigravityApprovals } from './useAntigravityApprovals';
 import { persistChatAttachments } from '../services/chatAttachmentStore';
 import { buildChatPrompt } from '../services/cli/chatPrompt';
 import {
@@ -50,6 +51,8 @@ interface PendingRequest {
 interface SendOptions {
   /** Aksi yang tadi ditolak dan kini diizinkan pengguna untuk giliran ini ("Izinkan & ulangi"). */
   grantedActions?: string[];
+  /** Perintah persis Antigravity yang diizinkan sementara untuk giliran lanjutan (HITL setelah giliran). */
+  agyGrantedCommands?: string[];
 }
 
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -82,9 +85,19 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     agentName: (agentId) => (agentId === d.selectedAgent.id || !agentId ? d.selectedAgent.name : agentId),
     showDbToast: d.showDbToast,
   });
+  /** Diisi dengan `handleSendMessage` terbaru (lanjutan otomatis Antigravity setelah izin diberikan). */
+  const sendRef = useRef<(prompt: string, options: SendOptions) => Promise<void>>(async () => {});
+  const agy = useAntigravityApprovals({
+    activeGenRef,
+    currentConversationId: () => d.activeConversation?.id,
+    continueWith: (prompt, commands) => sendRef.current(prompt, { agyGrantedCommands: commands }),
+    showDbToast: d.showDbToast,
+  });
 
   useAgentStreamBridge({
     enabled: canRunCli,
+    onAgentEvent: agy.onAgentEvent,
+    onSessionClosed: agy.onSessionClosed,
     onCliFailure: (sessionId, summary) => {
       const pending = pendingRef.current;
       pendingRef.current = null;
@@ -279,6 +292,8 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     );
 
     const agentMsgId = `agt-${Date.now()}`;
+    // Aturan sementara Antigravity dicabut saat sesi ini berakhir (atau segera bila CLI tidak jadi dijalankan).
+    agy.registerGrants(agentMsgId, options.agyGrantedCommands ?? []);
     const fallbackReason = !canRunCli
       ? 'tidak tersedia di browser ini (buka lewat Vite dev server atau aplikasi desktop)'
       : !activeProject
@@ -322,6 +337,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
 
     if (!useRealCli || !activeProject) {
       // Mode cadangan (specs/agent-protocols.md §8): hanya bila CLI belum terpasang / tanpa transport.
+      agy.onSessionClosed(agentMsgId);
       await runDemoFallback(prompt, attachments, agentMsgId, activeConversation.id, fallbackReason);
       return;
     }
@@ -346,6 +362,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     } catch (err) {
       console.warn('Spawn Headless Error:', err);
       pendingRef.current = null;
+      agy.onSessionClosed(agentMsgId);
       await runDemoFallback(prompt, attachments, agentMsgId, activeConversation.id, `gagal dijalankan (${String(err)})`);
     }
   };
@@ -364,6 +381,8 @@ export function useChatGeneration(d: ChatGenerationDeps) {
     const prompt = `Saya mengizinkan aksi yang tadi ditolak (${actions.join(', ')}). Ulangi langkah tersebut, lalu lanjutkan sampai tugasnya selesai.`;
     await handleSendMessage(prompt, [], { grantedActions: actions });
   };
+
+  sendRef.current = (prompt, options) => handleSendMessage(prompt, [], options);
 
   return {
     isGenerating,

@@ -147,6 +147,8 @@ export interface MessageRecord {
   logs?: string[];
   /** Aksi yang ditolak kebijakan izin CLI (bukan oleh pengguna) → tombol "Izinkan & ulangi". */
   deniedActions?: string[];
+  /** Perintah persis yang ditolak Antigravity headless → modal HITL lalu sesi dilanjutkan. */
+  deniedCommands?: string[];
 }
 
 /** Kedalaman penalaran agen di Chat GUI (dikirim sebagai flag effort CLI). */

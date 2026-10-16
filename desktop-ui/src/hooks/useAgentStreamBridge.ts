@@ -33,6 +33,10 @@ interface BridgeDeps {
   onCliSession: (conversationId: string, cliSessionId: string, agentId?: string) => void;
   /** CLI gagal (exit ≠ 0) tanpa satu pun teks jawaban — pemanggil boleh menjalankan fallback cerdas. */
   onCliFailure?: (sessionId: string, summary: string) => void;
+  /** Setiap event UI sesi (sebelum diterapkan ke pesan). */
+  onAgentEvent?: (sessionId: string, ev: UiAgentEvent) => void;
+  /** Proses CLI sesi berakhir (selesai, gagal, atau dihentikan). */
+  onSessionClosed?: (sessionId: string, exitCode: number) => void;
 }
 
 export function useAgentStreamBridge(deps: BridgeDeps) {
@@ -78,6 +82,7 @@ export function useAgentStreamBridge(deps: BridgeDeps) {
         }
         return;
       }
+      depsRef.current.onAgentEvent?.(sessionId, ev);
       if (ev.kind === 'text' && ev.delta.trim()) gotText.current.add(sessionId);
       const now = Date.now();
       update(sessionId, (m) => applyAgentEvent(m, ev, now));
@@ -98,6 +103,7 @@ export function useAgentStreamBridge(deps: BridgeDeps) {
       onEvent: handle,
       onSessionEnd: (payload) => {
         const d = depsRef.current;
+        d.onSessionClosed?.(payload.sessionId, payload.exitCode);
         const gen = d.activeGenRef.current;
         const hadText = gotText.current.delete(payload.sessionId);
         if (payload.exitCode !== 0 && !hadText && gen?.agentMsgId === payload.sessionId && d.onCliFailure) {

@@ -82,11 +82,11 @@ Diatur oleh **Pengaturan → Preset Keamanan** (`AppSettings.securityPreset`): `
 
 | Agen | Mode aman (default) | Mode otonom (`Permissive`) | Perilaku mode aman yang terverifikasi |
 | :--- | :--- | :--- | :--- |
-| `antigravity` | `--mode accept-edits` + prefiks `[Mode aman] …` (`AGY_SAFE_MODE_RULE`) | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) dan agy lalu mengakhiri seluruh giliran tanpa jawaban — karena itu prompt memberi tahu agen agar memakai tool berkas bawaan. `--mode auto` juga menolak semua perintah (diuji 16 Okt 2026). |
+| `antigravity` | `--mode accept-edits` + prefiks `[Mode aman] …` (Tauri: `AGY_HITL_RULE` + HITL setelah giliran, §7; tanpa Tauri: `AGY_SAFE_MODE_RULE`) | `--dangerously-skip-permissions` | Edit berkas jalan; perintah shell **ditolak otomatis** (`result.denied_actions`) dan agy lalu mengakhiri seluruh giliran tanpa jawaban ("headless mode cannot prompt for"). `--mode auto` juga menolak semua perintah (diuji 16 Okt 2026). |
 | `claude` | `--permission-mode acceptEdits` + jembatan izin (`--mcp-config`, `--permission-prompt-tool`, §7) | `--permission-mode bypassPermissions` | Edit berkas jalan; shell di luar allow-list pengguna **ditanyakan** lewat Modal HITL (tanpa jembatan: ditolak oleh CLI). |
 | `codex` | `codex app-server` (HITL, §7); tanpa Tauri: `--approve-for-me` | `--dangerously-bypass-approvals-and-sandbox` | Perintah shell **ditanyakan** lewat Modal HITL; baca/cari & edit berkas otomatis. *Catatan: `--sandbox workspace-write` di Windows memblokir bahkan `Set-Content` sehingga tidak dipakai.* |
 | `opencode` | `opencode acp` + `permission.bash = "ask"` (HITL, §7); tanpa Tauri: `opencode run` tanpa `--auto` | `--auto` | Perintah shell **ditanyakan** lewat Modal HITL (`opencode run` selalu menolak permintaan izin otomatis — "auto-rejecting", diuji 16 Okt 2026). |
-| `kiro` | `--trust-tools=read_file,list_directory,file_search,grep_search,fs_write,fs_append,str_replace` | `--trust-all-tools` | ID tool engine v3 (KAS, kiro-cli 2.31). Tanpa trust, *semua* edit berkas ditolak di mode non-interaktif (diuji 16 Okt 2026); kini setara agen lain: baca/ubah berkas jalan, shell & `delete_file` ditolak. Chat GUI berjalan dengan login Kiro biasa (tanpa `KIRO_API_KEY`). |
+| `kiro` | `kiro-cli acp --agent-engine v3` (HITL, §7); tanpa Tauri: `--trust-tools=read_file,list_directory,file_search,grep_search,fs_write,fs_append,str_replace` | `--trust-all-tools` | ID tool engine v3 (KAS, kiro-cli 2.31). Tanpa trust, *semua* edit berkas ditolak di mode non-interaktif (diuji 16 Okt 2026); kini setara agen lain: baca/ubah berkas jalan, shell & `delete_file` ditolak. Chat GUI berjalan dengan login Kiro biasa (tanpa `KIRO_API_KEY`). |
 
 ---
 
@@ -237,7 +237,7 @@ Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-sc
      `{"behavior":"deny","message":"Ditolak oleh pengguna di Soraja."}`. Penolakan oleh pengguna tampil sebagai langkah "ditolak"
      dengan notice info, tanpa tombol ulangi.
   4. Jembatan gagal disiapkan → Claude berjalan seperti sebelumnya (aksi berisiko ditolak otomatis).
-* **Mode Chat GUI — Codex & OpenCode (protokol JSON-RPC stdio):** di mode aman (aplikasi Tauri, bukan giliran "Izinkan & ulangi"),
+* **Mode Chat GUI — Codex, OpenCode & Kiro (protokol JSON-RPC stdio):** di mode aman (aplikasi Tauri, bukan giliran "Izinkan & ulangi"),
   `cliAdapters.ts` → `rpcHeadless.ts` menjalankan `buildRpcCommand` dengan `spawn_headless_agent(stdin_pipe = true)`. Driver
   (`services/cli/codexAppServer.ts`, `services/cli/opencodeAcp.ts`, di atas `jsonRpcPeer.ts`) menggantikan parser NDJSON sesi itu
   (`registerSessionAgent(…, parser)`), menulis ke stdin lewat `write_headless_agent_stdin`, dan menutup stdin saat giliran selesai.
@@ -255,8 +255,25 @@ Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-sc
     `resource_link` lampiran). `session/request_permission` dijawab `allow_once` / `reject_once` (aturan "selalu" dikelola Soraja).
     `session/update` dipetakan dengan parser ACP Kiro; potongan penalaran digabung satu blok. ACP tidak punya opsi *variant*,
     jadi "Ketelitian AI" tidak dikirim untuk OpenCode di mode ini (model memakai variant bawaannya).
-  * Tanpa Tauri (jembatan Vite) atau saat "Izinkan & ulangi", Codex & OpenCode tetap memakai `codex exec` / `opencode run` (§2).
-* **Mode Chat GUI — semua agen ("Izinkan & ulangi"):** aksi yang ditolak kebijakan izin CLI dicatat di `MessageRecord.deniedActions`
+  * **Kiro `acp --agent-engine v3`** (kiro-cli 2.31): driver ACP yang sama (`acpDriver.ts`, profil `kiro`). Engine v3 menolak
+    `--trust-tools` dan `--model`, jadi: tool di `KIRO_SAFE_TOOLS` (baca/cari/ubah berkas) dijawab `allow_once` otomatis, sisanya
+    (`run_command`, `delete_file`, …) ditanyakan. Detail izin Kiro ada di `_meta.kiro` (`toolId`, `command`, `consent.resource`).
+    Model: `session/set_model` gagal → `session/set_config_option {configId: "model", value}`. Respons `session/prompt` tanpa `usage`
+    (kredit tetap dari `_meta.kiro.promptTurnSummaries`). Kiro v3 tidak keluar setelah stdin ditutup → dimatikan Rust (exit 0).
+  * Tanpa Tauri (jembatan Vite) atau saat "Izinkan & ulangi", Codex, OpenCode & Kiro tetap memakai `codex exec` / `opencode run` /
+    `kiro-cli chat --no-interactive` (§2).
+* **Mode Chat GUI — Antigravity (HITL setelah giliran):** `agy -p` tidak bisa bertanya izin dan `--input-format stream-json` hanya
+  menerima pesan pengguna (`{"event":"user","message":{…}}`), jadi:
+  1. Prompt memakai `AGY_HITL_RULE`: agen tetap menjalankan perintah persis yang dibutuhkan (tanpa `&&`/`;`).
+  2. Parser menangkap langkah `run_command` berstatus `ERROR` dengan pesan `permission check failed` → event `denied` dengan
+     `target` = `CommandLine` persis → `MessageRecord.deniedCommands`.
+  3. Saat sesi berakhir, `hooks/useAntigravityApprovals.ts` menanyakan tiap perintah lewat Modal HITL (`hitlBus`, `context` = permintaan
+     setelah giliran; aturan "selalu izinkan" Soraja ikut berlaku). Ditolak → toast, tidak dilanjutkan.
+  4. Diizinkan (dan percakapan asal masih terbuka) → `set_antigravity_command_grant(cmd, true)` lalu giliran lanjutan otomatis di sesi
+     yang sama (`--conversation`) dengan prompt "Perintah `<cmd>` sudah saya izinkan…". Aturan dicabut saat sesi lanjutan berakhir.
+  5. Hanya aturan persis `command(<perintah>)` yang dipatuhi agy 1.4 (`command(node)` / `command(node -e)` tetap ditolak) dan hanya
+     dari `settings.json` global (`<workspace>/.agents/settings.json` diabaikan) — diuji 16 Okt 2026.
+* **Mode Chat GUI — cadangan semua agen ("Izinkan & ulangi"):** aksi yang ditolak kebijakan izin CLI dicatat di `MessageRecord.deniedActions`
   (dari `permission_denials`/`denied_actions` atau keluaran tool yang diblokir). Di jawaban terakhir muncul tombol **Izinkan & ulangi**
   (dan **Buka di Terminal** bila sesi CLI tersimpan). Tombol ini mengirim giliran baru di sesi CLI yang sama dengan
   `grantedActions`: Claude mendapat `--allowedTools <aksi>` persis; Antigravity, Codex, OpenCode, dan Kiro tidak punya allow-list

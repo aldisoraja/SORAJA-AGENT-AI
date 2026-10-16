@@ -103,3 +103,24 @@ test('Aturan izin: perintah shell per program, rangkaian & perintah berbahaya se
   assert.equal(summarizePermissionRequest('Bash', { command: 'git status' }).destructive, false);
   assert.equal(summarizePermissionRequest('Write', { file_path: 'D:/p/a.ts', content: 'x' }).preview, 'D:/p/a.ts');
 });
+
+test('Antigravity: perintah yang ditolak headless ditangkap persis (deniedCommands) untuk modal HITL', () => {
+  // Output nyata agy 1.4 (`agy -p --output-format stream-json --mode accept-edits`, 16 Okt 2026).
+  const msg = replay('antigravity', [
+    json({ event: 'init', conversation_id: 'conv-1' }),
+    json({ event: 'step_update', step_update: { step_index: 2, state: 'ERROR', step_type: 'tool', tool_name: 'run_command', tool_info: { name: 'run_command', parameters: { CommandLine: 'node -e "console.log(40+2)"' }, error: { type: 'TOOL_ERROR', message: 'permission check failed for command "node -e \\"console.log(40+2)\\"": user denied permission to run command' } } } }),
+    json({ event: 'result', result: { conversation_id: 'conv-1', status: 'SUCCESS', response: '', usage: {}, denied_actions: [{ action: 'command', display_name: 'RunCommand' }] } }),
+  ]);
+  assert.deepEqual(msg.deniedCommands, ['node -e "console.log(40+2)"']);
+  assert.equal(msg.trajectory.find((s) => s.type === 'command').status, 'denied');
+  assert.deepEqual(msg.deniedActions, ['command'], '"Izinkan & ulangi" tetap tersedia sebagai cadangan');
+});
+
+test('Antigravity HITL: prompt meminta agen tetap mencoba perintah (bukan menghindarinya)', () => {
+  const hitl = buildHeadlessCommand({ ...base, agentId: 'antigravity', executable: 'agy', agyHitl: true });
+  const prompt = hitl.args[hitl.args.indexOf('-p') + 1];
+  assert.match(prompt, /^\[Mode aman\] Perintah terminal\/shell \(RunCommand\) yang belum diizinkan akan dihentikan sementara/);
+  assert.ok(hitl.args.includes('accept-edits'));
+  const plain = buildHeadlessCommand({ ...base, agentId: 'antigravity', executable: 'agy' });
+  assert.match(plain.args[plain.args.indexOf('-p') + 1], /otomatis ditolak/);
+});

@@ -5,7 +5,7 @@
 
 mod commands;
 
-use commands::{attachments, catalog, headless, language_rules, permission_bridge, pty, workspace};
+use commands::{antigravity_grants, attachments, catalog, headless, language_rules, permission_bridge, pty, workspace};
 
 fn main() {
     tauri::Builder::default()
@@ -31,6 +31,7 @@ fn main() {
             headless::resume_agent_session,
             permission_bridge::prepare_permission_bridge,
             permission_bridge::approve_human_in_the_loop,
+            antigravity_grants::set_antigravity_command_grant,
             // Katalog, kredensial, HITL, skills
             catalog::get_available_cli_agents,
             catalog::get_agent_providers,

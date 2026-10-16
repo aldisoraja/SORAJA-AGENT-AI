@@ -6,9 +6,18 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncWriteExt;
 use tokio::process::ChildStdin;
 
-/// stdin proses headless yang dibuka untuk protokol JSON-RPC (Codex app-server, OpenCode ACP), per sesi.
+/// Batas tunggu CLI keluar sendiri setelah stdin ditutup (Kiro v3 ACP tidak keluar) sebelum dimatikan.
+const CLOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(8);
+
+/// stdin proses headless yang dibuka untuk protokol JSON-RPC (Codex app-server, OpenCode/Kiro ACP), per sesi.
 #[derive(Default)]
-pub struct HeadlessStdins(tokio::sync::Mutex<HashMap<String, ChildStdin>>);
+pub struct HeadlessStdins {
+    stdins: tokio::sync::Mutex<HashMap<String, ChildStdin>>,
+    /// pid proses ber-stdin yang masih berjalan, per sesi.
+    running: std::sync::Mutex<HashMap<String, u32>>,
+    /// Sesi yang dimatikan Soraja setelah stdin ditutup: giliran sudah selesai, jadi dilaporkan exit 0.
+    reaped: std::sync::Mutex<std::collections::HashSet<String>>,
+}
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -63,7 +72,9 @@ pub async fn spawn_headless_agent(
         .map_err(|e| format!("Gagal spawn {}: {}", agent_executable, e))?;
     let pid = child.id().unwrap_or(0);
     if let Some(stdin) = child.stdin.take().filter(|_| stdin_pipe) {
-        app.state::<HeadlessStdins>().0.lock().await.insert(session_id.clone(), stdin);
+        let state = app.state::<HeadlessStdins>();
+        state.stdins.lock().await.insert(session_id.clone(), stdin);
+        let _ = state.running.lock().map(|mut running| running.insert(session_id.clone(), pid));
     }
 
     let _ = app.emit(
@@ -102,9 +113,18 @@ pub async fn spawn_headless_agent(
             .await
             .map(|s| s.code().unwrap_or(0))
             .unwrap_or(-1);
+        let reaped = app
+            .state::<HeadlessStdins>()
+            .reaped
+            .lock()
+            .map(|mut r| r.remove(&sid_end))
+            .unwrap_or(false);
+        let exit_code = if reaped { 0 } else { exit_code };
         // Permintaan izin yang belum dijawab tidak lagi berarti: modal ditutup UI, CLI sudah selesai.
         crate::commands::permission_bridge::cancel_session(&app, &sid_end);
-        app.state::<HeadlessStdins>().0.lock().await.remove(&sid_end);
+        let state = app.state::<HeadlessStdins>();
+        state.stdins.lock().await.remove(&sid_end);
+        let _ = state.running.lock().map(|mut running| running.remove(&sid_end));
         let _ = app.emit(
             "agent:session_end",
             serde_json::json!({
@@ -119,15 +139,17 @@ pub async fn spawn_headless_agent(
 }
 
 /// Menulis ke stdin CLI headless yang dibuka dengan `stdin_pipe` (satu pesan JSON-RPC per baris).
-/// `close = true` menutup stdin setelah menulis: CLI menganggapnya akhir sesi lalu keluar.
+/// `close = true` menutup stdin setelah menulis: CLI menganggapnya akhir sesi lalu keluar
+/// (yang tidak keluar dalam `CLOSE_GRACE` dimatikan).
 #[tauri::command]
 pub async fn write_headless_agent_stdin(
+    app: AppHandle,
     stdins: State<'_, HeadlessStdins>,
     session_id: String,
     data: String,
     close: bool,
 ) -> Result<(), String> {
-    let mut map = stdins.0.lock().await;
+    let mut map = stdins.stdins.lock().await;
     let stdin = map
         .get_mut(&session_id)
         .ok_or_else(|| format!("stdin sesi {session_id} tidak tersedia (sesi sudah berakhir)."))?;
@@ -137,6 +159,23 @@ pub async fn write_headless_agent_stdin(
     }
     if close {
         map.remove(&session_id);
+        let pid = stdins.running.lock().ok().and_then(|r| r.get(&session_id).copied());
+        if let Some(pid) = pid {
+            tokio::spawn(async move {
+                tokio::time::sleep(CLOSE_GRACE).await;
+                let still_running = app
+                    .state::<HeadlessStdins>()
+                    .running
+                    .lock()
+                    .map(|r| r.get(&session_id) == Some(&pid))
+                    .unwrap_or(false);
+                if still_running {
+                    let state = app.state::<HeadlessStdins>();
+                    let _ = state.reaped.lock().map(|mut r| r.insert(session_id.clone()));
+                    let _ = stop_agent_session(pid);
+                }
+            });
+        }
     }
     Ok(())
 }

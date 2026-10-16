@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRpcCommand, LANGUAGE_RULE } from '../src/services/cli/agentCommands.ts';
 import { codexDisplayCommand, createCodexAppServerDriver } from '../src/services/cli/codexAppServer.ts';
-import { createOpencodeAcpDriver } from '../src/services/cli/opencodeAcp.ts';
+import { createAcpDriver } from '../src/services/cli/acpDriver.ts';
 import { applyAgentEvent } from '../src/services/cli/messageReducer.ts';
 
 const flush = () => new Promise((r) => setImmediate(r));
@@ -132,7 +132,7 @@ test('Codex: handshake gagal → done gagal + stdin ditutup', async () => {
 
 test('OpenCode ACP: riwayat session/load diabaikan, izin dijawab per opsi, penalaran digabung', async () => {
   const io = fakeIo([true, false]);
-  const d = createOpencodeAcpDriver({ cwd: 'D:/p', prompt: 'tes', modelId: 'opencode/big-pickle', sessionId: 'ses_1', filePaths: ['D:\\p\\gambar.png'] }, io);
+  const d = createAcpDriver('opencode', { cwd: 'D:/p', prompt: 'tes', modelId: 'opencode/big-pickle', sessionId: 'ses_1', filePaths: ['D:\\p\\gambar.png'] }, io);
   const started = d.start();
   await flush();
   assert.equal(io.sent[0].method, 'initialize');
@@ -184,4 +184,46 @@ test('OpenCode ACP: riwayat session/load diabaikan, izin dijawab per opsi, penal
   assert.equal(rejected.output, 'Ditolak oleh pengguna di Soraja.');
   assert.equal(msg.deniedActions, undefined);
   assert.deepEqual([msg.usage.inputTokens, msg.usage.outputTokens], [7, 3]);
+});
+
+test('buildRpcCommand: Kiro ACP engine v3 tanpa --trust-tools/--model (keduanya ditolak v3)', () => {
+  const cmd = buildRpcCommand({ agentId: 'kiro', executable: 'kiro-cli', cwd: 'D:/p', prompt: 'halo', modelId: 'claude-haiku-4.5' });
+  assert.deepEqual(cmd.args, ['acp', '--agent-engine', 'v3']);
+  assert.equal(cmd.modelId, 'claude-haiku-4.5', 'model dipilih lewat protokol');
+  assert.match(cmd.prompt, /^\[Instruksi: Selalu jawab[\s\S]*halo$/, 'Kiro tanpa system prompt: aturan di awal prompt');
+});
+
+test('Kiro ACP: tool aman otomatis, run_command ditanyakan dari _meta.kiro, model lewat set_config_option', async () => {
+  const io = fakeIo([true]);
+  const d = createAcpDriver('kiro', { cwd: 'D:/p', prompt: 'tes', modelId: 'claude-haiku-4.5' }, io);
+  const started = d.start();
+  await flush();
+  answerLast(io, d, { protocolVersion: 1 });
+  await flush();
+  answerLast(io, d, { sessionId: 'sess_1' });
+  await flush();
+  // Kiro v3 tidak mengenal session/set_model → fallback ke opsi konfigurasi sesi.
+  assert.equal(io.sent.at(-1).method, 'session/set_model');
+  d.parse(line({ jsonrpc: '2.0', id: io.sent.at(-1).id, error: { code: -32601, message: 'Method not found' } }));
+  await flush();
+  assert.deepEqual(io.sent.at(-1).params, { sessionId: 'sess_1', configId: 'model', value: 'claude-haiku-4.5' });
+  answerLast(io, d, {});
+  await flush();
+  assert.equal(io.sent.at(-1).method, 'session/prompt');
+
+  const options = [
+    { optionId: 'accept', name: 'Allow', kind: 'allow_once' },
+    { optionId: 'always-accept', name: 'Always allow', kind: 'allow_always' },
+    { optionId: 'reject', name: 'Deny', kind: 'reject_once' },
+  ];
+  d.parse(line({ jsonrpc: '2.0', id: 1, method: 'session/request_permission', params: { toolCall: { toolCallId: 'w1', title: 'Write File' }, options, _meta: { kiro: { toolId: 'fs_write', consent: { capability: 'fs_write', resource: 'kr.txt' } } } } }));
+  d.parse(line({ jsonrpc: '2.0', id: 2, method: 'session/request_permission', params: { toolCall: { toolCallId: 'run_1', title: 'node -e "1"' }, options, _meta: { kiro: { toolId: 'run_command', command: 'node -e "1"', consent: { capability: 'shell', resource: 'node -e "1"' } } } } }));
+  await flush();
+  assert.deepEqual(io.sent.filter((m) => m.result?.outcome).map((m) => [m.id, m.result.outcome.optionId]), [[1, 'accept'], [2, 'accept']]);
+  assert.deepEqual(io.asks, [{ requestId: 'acp-run_1', toolName: 'run_command', input: { command: 'node -e "1"' } }], 'fs_write tidak ditanyakan');
+  answerLast(io, d, { stopReason: 'end_turn' });
+  await started;
+  assert.deepEqual(io.events.at(-1), { kind: 'done', ok: true, summary: undefined });
+  assert.ok(!io.events.some((e) => e.kind === 'usage'), 'Kiro tidak melaporkan usage di respons prompt');
+  assert.ok(!io.events.some((e) => e.kind === 'notice'), 'model berhasil dipilih');
 });

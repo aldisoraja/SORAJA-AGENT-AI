@@ -94,6 +94,8 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
     filePaths: o.filePaths,
     permissionPromptUrl,
     grantedActions: o.grantedActions,
+    // Antigravity: perintah yang ditolak dimintakan izin lewat modal lalu sesi dilanjutkan (butuh IPC Tauri).
+    agyHitl: isTauriRuntime,
   };
   // Codex & OpenCode mode aman: protokol JSON-RPC agar perintah shell bisa ditanyakan ke pengguna (HITL).
   // "Izinkan & ulangi" dan mode otonom tetap memakai mode exec/run biasa.

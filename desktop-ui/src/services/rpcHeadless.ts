@@ -1,6 +1,6 @@
 /**
  * rpcHeadless.ts
- * Menjalankan CLI agen dalam mode protokol JSON-RPC (Codex app-server, OpenCode ACP) untuk Chat GUI mode aman:
+ * Menjalankan CLI agen dalam mode protokol JSON-RPC (Codex app-server, OpenCode/Kiro ACP) untuk Chat GUI mode aman:
  * proses dispawn dengan stdin terbuka, driver menulis lewat IPC `write_headless_agent_stdin`, dan permintaan
  * izin diteruskan ke modal HITL lewat `hitlBus`. Spesifikasi: specs/agent-protocols.md §7, specs/ipc-contracts.md §2.
  */
@@ -9,7 +9,7 @@ import { emitSessionEvents, registerSessionAgent } from './agentStreamParser';
 import { askPermission } from './hitlBus';
 import { buildRpcCommand, type CliLaunchOptions } from './cli/agentCommands';
 import { createCodexAppServerDriver } from './cli/codexAppServer';
-import { createOpencodeAcpDriver } from './cli/opencodeAcp';
+import { createAcpDriver } from './cli/acpDriver';
 import type { RpcDriverIo } from './cli/jsonRpcPeer';
 
 /** Penulis stdin berurutan: IPC async bisa tiba tidak berurutan bila tidak dirantai. */
@@ -49,7 +49,8 @@ export async function spawnRpcAgentSession(o: RpcSpawnOptions): Promise<void> {
           },
           io
         )
-      : createOpencodeAcpDriver(
+      : createAcpDriver(
+          o.agentId === 'kiro' ? 'kiro' : 'opencode',
           {
             cwd: o.cwd,
             prompt: command.prompt,

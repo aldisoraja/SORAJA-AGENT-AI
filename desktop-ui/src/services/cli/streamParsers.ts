@@ -20,8 +20,11 @@ export type UiAgentEvent =
       category?: string;
     }
   | { kind: 'file_change'; path: string }
-  /** Aksi ditolak kebijakan izin: per id tool (Claude) atau per jenis aksi (Antigravity: `command`). */
-  | { kind: 'denied'; toolId?: string; action?: string }
+  /**
+   * Aksi ditolak kebijakan izin: per id tool (Claude) atau per jenis aksi (Antigravity: `command`).
+   * `target` = perintah persis yang ditolak (Antigravity) untuk dimintakan izin lewat modal HITL.
+   */
+  | { kind: 'denied'; toolId?: string; action?: string; target?: string }
   | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number; credits?: number }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
@@ -252,6 +255,10 @@ function createAntigravityParser(): StreamParser {
         const params = (s.tool_info?.parameters ?? {}) as Json;
         const status = s.state === 'DONE' ? 'done' : s.state === 'ACTIVE' ? 'running' : 'error';
         out.push({ kind: 'tool', id: `step-${s.step_index}`, name, input: params, status });
+        const error = String(s.tool_info?.error?.message ?? '');
+        if (status === 'error' && typeof params.CommandLine === 'string' && /permission check failed/i.test(error)) {
+          out.push({ kind: 'denied', toolId: `step-${s.step_index}`, action: name, target: params.CommandLine });
+        }
         if (status === 'done' && params.TargetFile && FILE_TOOLS.antigravity.includes(name)) {
           out.push({ kind: 'file_change', path: params.TargetFile });
         }

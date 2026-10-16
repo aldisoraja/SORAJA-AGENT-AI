@@ -56,6 +56,10 @@ export function applyAgentEvent(m: MessageRecord, ev: UiAgentEvent, now: number)
       // Aksi yang ditolak pengguna lewat modal HITL tidak perlu tombol "Izinkan & ulangi".
       const step = ev.toolId ? m.trajectory?.find((s) => s.toolId === ev.toolId) : undefined;
       const next = { ...m, trajectory: markDenied(m.trajectory, ev) };
+      // Perintah persis (Antigravity) ditangani modal HITL setelah giliran selesai, bukan tombol ulangi.
+      if (ev.target) {
+        return next.deniedCommands?.includes(ev.target) ? next : { ...next, deniedCommands: [...(next.deniedCommands ?? []), ev.target] };
+      }
       return isUserRejection(step?.output) ? next : addDenied(next, ev.action);
     }
     case 'usage':

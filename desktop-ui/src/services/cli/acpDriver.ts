@@ -1,22 +1,26 @@
 /**
- * opencodeAcp.ts
- * Driver Chat GUI untuk `opencode acp` (Agent Client Protocol, JSON-RPC stdio) di mode aman: permintaan
- * `session/request_permission` dijawab lewat modal HITL (`opencode run` selalu menolaknya otomatis).
- * Update `session/update` memakai pemetaan ACP yang sama dengan Kiro (`createStreamParser('kiro')`).
- * Protokol diverifikasi dari opencode 1.19 (16 Okt 2026). Spesifikasi: specs/agent-protocols.md §7.
+ * acpDriver.ts
+ * Driver Chat GUI untuk agen Agent Client Protocol (JSON-RPC stdio) di mode aman: `opencode acp` dan
+ * `kiro-cli acp --agent-engine v3`. Permintaan `session/request_permission` dijawab lewat modal HITL
+ * (`opencode run` / `kiro-cli chat --no-interactive` selalu menolaknya otomatis).
+ * Update `session/update` memakai pemetaan ACP Kiro (`createStreamParser('kiro')`).
+ * Protokol diverifikasi dari opencode 1.19 & kiro-cli 2.31 (16 Okt 2026). Spesifikasi: specs/agent-protocols.md §7.
  */
+import { KIRO_SAFE_TOOLS } from './agentCommands.ts';
 import { fileUri, JsonRpcPeer, type RpcDriver, type RpcDriverIo } from './jsonRpcPeer.ts';
 import { USER_REJECTION_MESSAGE } from './permissionRules.ts';
 import { createStreamParser, type UiAgentEvent } from './streamParsers.ts';
 
 type Json = Record<string, any>;
 
-export interface OpencodeAcpOptions {
+export type AcpAgentId = 'opencode' | 'kiro';
+
+export interface AcpOptions {
   cwd: string;
   prompt: string;
-  /** `provider/model`; kosong = model bawaan OpenCode. */
+  /** Dipilih lewat `session/set_model`; kosong = model bawaan / flag `--model` CLI. */
   modelId?: string;
-  /** Sesi OpenCode yang dilanjutkan (`session/load`). */
+  /** Sesi yang dilanjutkan (`session/load`). */
   sessionId?: string;
   /** Lampiran (gambar & dokumen) sebagai `resource_link`. */
   filePaths?: string[];
@@ -25,11 +29,32 @@ export interface OpencodeAcpOptions {
 /** Jenis tool ACP → nama tool untuk modal & aturan "selalu izinkan". */
 const KIND_TOOL: Record<string, string> = { execute: 'bash', edit: 'edit', delete: 'edit', move: 'edit', fetch: 'webfetch' };
 
+interface PermissionInfo {
+  /** Diizinkan tanpa bertanya (setara mode aman agen tersebut). */
+  auto: boolean;
+  toolName: string;
+  input: Record<string, unknown>;
+}
+
+/** Kiro meletakkan detail izin di `_meta.kiro` (`toolId`, `command`, `consent.resource`), bukan di `toolCall`. */
+function describePermission(agentId: AcpAgentId, params: Json): PermissionInfo {
+  const call = (params.toolCall ?? {}) as Json;
+  const rawInput = call.rawInput && typeof call.rawInput === 'object' ? (call.rawInput as Record<string, unknown>) : undefined;
+  if (agentId === 'kiro') {
+    const meta = (params._meta?.kiro ?? {}) as Json;
+    const toolId = String(meta.toolId ?? call.kind ?? call.title ?? 'tool');
+    const resource = meta.consent?.resource ?? call.title;
+    const input = rawInput ?? (meta.command ? { command: meta.command } : { path: resource });
+    return { auto: KIRO_SAFE_TOOLS.includes(toolId), toolName: toolId, input };
+  }
+  return { auto: false, toolName: KIND_TOOL[call.kind] ?? String(call.title ?? call.kind ?? 'tool'), input: rawInput ?? { title: call.title } };
+}
+
 function num(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo): RpcDriver {
+export function createAcpDriver(agentId: AcpAgentId, o: AcpOptions, io: RpcDriverIo): RpcDriver {
   const peer = new JsonRpcPeer(io.write);
   const acpUpdates = createStreamParser('kiro');
   /** Tool yang ditolak pengguna: keluarannya diganti pesan penolakan Soraja (bukan "gagal"). */
@@ -38,6 +63,7 @@ export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo):
   let ready = false;
   let finished = false;
   let thought = '';
+  const label = agentId === 'kiro' ? 'Kiro ACP' : 'OpenCode ACP';
 
   const flushThought = (): UiAgentEvent[] => {
     if (!thought.trim()) return [];
@@ -54,7 +80,7 @@ export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo):
   };
 
   const onUpdate = (update: Json): UiAgentEvent[] => {
-    // Potongan penalaran digabung menjadi satu blok (reducer memisah tiap event OpenCode dengan baris kosong).
+    // Potongan penalaran digabung menjadi satu blok (reducer memisah tiap event dengan baris kosong).
     if (update.sessionUpdate === 'agent_thought_chunk') {
       thought += update.content?.text ?? '';
       return [];
@@ -66,14 +92,12 @@ export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo):
   };
 
   const onPermission = async (id: number | string, params: Json) => {
-    const call = (params.toolCall ?? {}) as Json;
     const options = (params.options ?? []) as Json[];
-    const toolId = String(call.toolCallId ?? id);
-    const toolName = KIND_TOOL[call.kind] ?? String(call.title ?? call.kind ?? 'tool');
-    const input = call.rawInput && typeof call.rawInput === 'object' ? call.rawInput : { title: call.title };
-    const approved = await io.ask({ requestId: `acp-${toolId}`, toolName, input });
+    const toolId = String(params.toolCall?.toolCallId ?? id);
+    const info = describePermission(agentId, params);
+    const approved = info.auto || (await io.ask({ requestId: `acp-${toolId}`, toolName: info.toolName, input: info.input }));
     if (!approved) rejected.add(toolId);
-    // Aturan "selalu" dikelola Soraja; ke OpenCode selalu dijawab "sekali".
+    // Aturan "selalu" dikelola Soraja; ke CLI selalu dijawab "sekali".
     const option = options.find((opt) => opt.kind === (approved ? 'allow_once' : 'reject_once'));
     peer.reply(id, { outcome: option ? { outcome: 'selected', optionId: option.optionId } : { outcome: 'cancelled' } });
   };
@@ -90,8 +114,12 @@ export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo):
       ready = true;
       io.emit([{ kind: 'session', cliSessionId: sessionId }]);
       if (o.modelId) {
-        await peer.request('session/set_model', { sessionId, modelId: o.modelId }).catch(() =>
-          io.emit([{ kind: 'notice', level: 'warn', message: `Model ${o.modelId} tidak bisa dipilih lewat ACP; memakai model bawaan OpenCode.` }])
+        // OpenCode: `session/set_model`; Kiro v3 hanya mengenal opsi konfigurasi sesi `model`.
+        await peer
+          .request('session/set_model', { sessionId, modelId: o.modelId })
+          .catch(() => peer.request('session/set_config_option', { sessionId, configId: 'model', value: o.modelId }))
+          .catch(() =>
+          io.emit([{ kind: 'notice', level: 'warn', message: `Model ${o.modelId} tidak bisa dipilih lewat ACP; memakai model bawaan.` }])
         );
       }
       const links = (o.filePaths ?? []).map((path) => ({
@@ -101,12 +129,12 @@ export function createOpencodeAcpDriver(o: OpencodeAcpOptions, io: RpcDriverIo):
       }));
       const res = await peer.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: o.prompt }, ...links] });
       const ok = res.stopReason !== 'refusal' && res.stopReason !== 'cancelled';
-      finish([
-        { kind: 'usage', inputTokens: num(res.usage?.inputTokens), outputTokens: num(res.usage?.outputTokens) },
-        { kind: 'done', ok, summary: ok ? undefined : `OpenCode berhenti (${res.stopReason}).` },
-      ]);
+      const usage: UiAgentEvent[] = res.usage
+        ? [{ kind: 'usage', inputTokens: num(res.usage.inputTokens), outputTokens: num(res.usage.outputTokens) }]
+        : [];
+      finish([...usage, { kind: 'done', ok, summary: ok ? undefined : `${label} berhenti (${res.stopReason}).` }]);
     } catch (err) {
-      finish([{ kind: 'done', ok: false, summary: `OpenCode ACP: ${err instanceof Error ? err.message : String(err)}` }]);
+      finish([{ kind: 'done', ok: false, summary: `${label}: ${err instanceof Error ? err.message : String(err)}` }]);
     }
   };
 

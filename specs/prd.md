@@ -51,10 +51,11 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
      4. *Always allow globally* (Selalu izinkan secara global)
      5. *Reject / Do not allow* (Tolak eksekusi perintah)
      Dilengkapi tombol *Skip* dan *Submit* dengan notifikasi toast eksekusi.
-   - **HITL nyata di Chat GUI (Okt 2026):** Claude, Codex, dan OpenCode di mode aman menanyakan izin lewat modal ini sebelum
-     menjalankan perintah shell (judul "<Agen> meminta izin · <tool>", pratinjau perintah, peringatan perintah berbahaya); baca/cari
-     dan edit berkas tetap berjalan otomatis. Antigravity & Kiro memakai tombol **Izinkan & ulangi** di bawah jawaban yang aksinya
-     ditolak. Detail: [`agent-protocols.md`](./agent-protocols.md) §7.
+   - **HITL nyata di Chat GUI (Okt 2026):** kelima agen di mode aman menanyakan izin lewat modal ini sebelum menjalankan perintah
+     shell (judul "<Agen> meminta izin · <tool>", pratinjau perintah, peringatan perintah berbahaya); baca/cari dan edit berkas tetap
+     berjalan otomatis. Claude, Codex, OpenCode, dan Kiro bertanya di tengah giliran; Antigravity (headless tidak bisa bertanya)
+     bertanya setelah perintahnya ditolak lalu melanjutkan sesi otomatis bila diizinkan. Tombol **Izinkan & ulangi** tetap ada
+     sebagai cadangan. Detail: [`agent-protocols.md`](./agent-protocols.md) §7.
 
 18. **Interactive Code Review & Docked Split-Pane Diff Viewer:**  
    - **Single Edit Pill:** Pill individual dalam trajectory chat: `Edited 🌐 <file> +X -Y` yang dapat diklik langsung untuk membuka tinjauan diff berkas tersebut.
