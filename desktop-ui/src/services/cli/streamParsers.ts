@@ -344,7 +344,7 @@ function createKiroParser(): StreamParser {
           category: toolKinds.get(id),
         });
         const input = (toolInputs.get(id) ?? {}) as Json;
-        const path = u.locations?.[0]?.path ?? input.path ?? input.file_path;
+        const path = u.locations?.[0]?.path ?? input.path ?? input.file_path ?? input.filePath;
         if (status === 'done' && toolKinds.get(id) === 'edit' && typeof path === 'string') out.push({ kind: 'file_change', path });
       }
     } else if (o.type === 'runFinished') {

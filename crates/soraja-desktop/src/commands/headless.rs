@@ -2,9 +2,16 @@
 //! Kontrak: specs/ipc-contracts.md §2, format stream: specs/agent-protocols.md §3.
 
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::io::AsyncWriteExt;
+use tokio::process::ChildStdin;
+
+/// stdin proses headless yang dibuka untuk protokol JSON-RPC (Codex app-server, OpenCode ACP), per sesi.
+#[derive(Default)]
+pub struct HeadlessStdins(tokio::sync::Mutex<HashMap<String, ChildStdin>>);
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_headless_agent(
     app: AppHandle,
     session_id: String,
@@ -13,6 +20,7 @@ pub async fn spawn_headless_agent(
     agent_args: Vec<String>,
     cwd: String,
     envs: HashMap<String, String>,
+    stdin_pipe: Option<bool>,
 ) -> Result<(), String> {
     use std::process::Stdio;
     use tokio::io::{AsyncBufReadExt, BufReader};
@@ -39,9 +47,10 @@ pub async fn spawn_headless_agent(
             c
         }
     };
+    let stdin_pipe = stdin_pipe.unwrap_or(false);
     cmd.current_dir(&cwd)
         .envs(&envs)
-        .stdin(Stdio::null())
+        .stdin(if stdin_pipe { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -53,6 +62,9 @@ pub async fn spawn_headless_agent(
         .spawn()
         .map_err(|e| format!("Gagal spawn {}: {}", agent_executable, e))?;
     let pid = child.id().unwrap_or(0);
+    if let Some(stdin) = child.stdin.take().filter(|_| stdin_pipe) {
+        app.state::<HeadlessStdins>().0.lock().await.insert(session_id.clone(), stdin);
+    }
 
     let _ = app.emit(
         "agent:session_start",
@@ -92,6 +104,7 @@ pub async fn spawn_headless_agent(
             .unwrap_or(-1);
         // Permintaan izin yang belum dijawab tidak lagi berarti: modal ditutup UI, CLI sudah selesai.
         crate::commands::permission_bridge::cancel_session(&app, &sid_end);
+        app.state::<HeadlessStdins>().0.lock().await.remove(&sid_end);
         let _ = app.emit(
             "agent:session_end",
             serde_json::json!({
@@ -102,6 +115,29 @@ pub async fn spawn_headless_agent(
         );
     });
 
+    Ok(())
+}
+
+/// Menulis ke stdin CLI headless yang dibuka dengan `stdin_pipe` (satu pesan JSON-RPC per baris).
+/// `close = true` menutup stdin setelah menulis: CLI menganggapnya akhir sesi lalu keluar.
+#[tauri::command]
+pub async fn write_headless_agent_stdin(
+    stdins: State<'_, HeadlessStdins>,
+    session_id: String,
+    data: String,
+    close: bool,
+) -> Result<(), String> {
+    let mut map = stdins.0.lock().await;
+    let stdin = map
+        .get_mut(&session_id)
+        .ok_or_else(|| format!("stdin sesi {session_id} tidak tersedia (sesi sudah berakhir)."))?;
+    if !data.is_empty() {
+        stdin.write_all(data.as_bytes()).await.map_err(|e| format!("Gagal menulis ke CLI: {e}"))?;
+        stdin.flush().await.map_err(|e| format!("Gagal menulis ke CLI: {e}"))?;
+    }
+    if close {
+        map.remove(&session_id);
+    }
     Ok(())
 }
 

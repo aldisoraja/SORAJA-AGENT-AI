@@ -17,11 +17,23 @@ const sessionAgents = new Map<string, string>();
 const sessionParsers = new Map<string, StreamParser>();
 const sessionBuffers = new Map<string, string>();
 
-/** Didaftarkan sebelum spawn agar baris pertama sudah tahu format agennya. */
-export function registerSessionAgent(sessionId: string, agentId: string): void {
+/** Penerima event aktif (dipasang `setupAgentStreamListeners`) untuk event yang tidak datang dari stdout. */
+const eventSinks = new Set<(sessionId: string, event: UiAgentEvent) => void>();
+
+/**
+ * Didaftarkan sebelum spawn agar baris pertama sudah tahu format agennya.
+ * `parser` mengganti parser NDJSON bawaan (driver JSON-RPC Codex app-server / OpenCode ACP).
+ */
+export function registerSessionAgent(sessionId: string, agentId: string, parser?: StreamParser): void {
   sessionAgents.set(sessionId, agentId);
-  sessionParsers.delete(sessionId);
   sessionBuffers.delete(sessionId);
+  if (parser) sessionParsers.set(sessionId, parser);
+  else sessionParsers.delete(sessionId);
+}
+
+/** Event UI dari driver JSON-RPC yang lahir di luar baris stdout (id sesi, kegagalan handshake). */
+export function emitSessionEvents(sessionId: string, events: UiAgentEvent[]): void {
+  for (const ev of events) for (const sink of eventSinks) sink(sessionId, ev);
 }
 
 function parserFor(sessionId: string): StreamParser {
@@ -40,6 +52,8 @@ function forget(sessionId: string): void {
 }
 
 export async function setupAgentStreamListeners(callbacks: AgentStreamCallbacks): Promise<() => void> {
+  const sink = callbacks.onEvent;
+  eventSinks.add(sink);
   const onStart = (payload: { sessionId: string; agent?: string; pid: number }) => {
     const { sessionId, agent } = payload;
     if (agent && !sessionAgents.has(sessionId)) sessionAgents.set(sessionId, agent);
@@ -68,7 +82,13 @@ export async function setupAgentStreamListeners(callbacks: AgentStreamCallbacks)
   };
 
   // Browser dev: event datang dari jembatan Vite (headlessBridge.ts), bukan dari Tauri.
-  if (!isTauriRuntime) return subscribeBridge({ onStart, onChunk, onEnd });
+  if (!isTauriRuntime) {
+    const unsubscribe = subscribeBridge({ onStart, onChunk, onEnd });
+    return () => {
+      eventSinks.delete(sink);
+      unsubscribe();
+    };
+  }
 
   const unlistenStart = await listen<{ sessionId: string; agent?: string; pid: number }>(
     'agent:session_start',
@@ -83,6 +103,7 @@ export async function setupAgentStreamListeners(callbacks: AgentStreamCallbacks)
   );
 
   return () => {
+    eventSinks.delete(sink);
     unlistenStart();
     unlistenStream();
     unlistenEnd();

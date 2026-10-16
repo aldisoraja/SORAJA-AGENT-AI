@@ -56,10 +56,17 @@ Menghapus sesi dari state dan `kill()` proses anak.
 ## 2. Mode Chat GUI — CLI Headless (stream JSON)
 
 ### `spawn_headless_agent`
-Menjalankan CLI agen non-interaktif (stdin `null`, `CREATE_NO_WINDOW`). Argumen disusun `buildHeadlessCommand` (`desktop-ui/src/services/cli/agentCommands.ts`) sesuai [`agent-protocols.md`](./agent-protocols.md) §2. Setiap baris stdout/stderr di-emit sebagai `agent:token_stream`.
-* **Input:** `session_id: String, agent: String, agent_executable: String, agent_args: Vec<String>, cwd: String, envs: HashMap<String, String>`
+Menjalankan CLI agen non-interaktif (`CREATE_NO_WINDOW`). Argumen disusun `buildHeadlessCommand` (`desktop-ui/src/services/cli/agentCommands.ts`) sesuai [`agent-protocols.md`](./agent-protocols.md) §2. Setiap baris stdout/stderr di-emit sebagai `agent:token_stream`.
+stdin `null`, kecuali `stdin_pipe = true`: stdin dibiarkan terbuka untuk protokol JSON-RPC (`codex app-server`, `opencode acp`; argumen dari `buildRpcCommand`) dan ditulisi lewat `write_headless_agent_stdin`.
+* **Input:** `session_id: String, agent: String, agent_executable: String, agent_args: Vec<String>, cwd: String, envs: HashMap<String, String>, stdin_pipe: Option<bool>` (opsional, bawaan `false`)
 * **Output:** `Result<(), String>`
 * **Event dipicu:** `agent:session_start`, `agent:token_stream`, `agent:session_end`
+
+### `write_headless_agent_stdin`
+Menulis ke stdin CLI headless yang dispawn dengan `stdin_pipe = true` (satu pesan JSON-RPC per baris, berurutan per sesi).
+`close = true` menutup stdin setelah menulis: Codex app-server / OpenCode ACP lalu keluar sehingga `agent:session_end` terpicu.
+* **Input:** `session_id: String, data: String, close: bool`
+* **Output:** `Result<(), String>` — error bila sesi sudah berakhir atau stdin sudah ditutup
 
 ### `stop_agent_session`
 Hard abort: `taskkill /F /T /PID` (Windows) — membunuh seluruh pohon proses.
@@ -226,6 +233,6 @@ Tidak ada event Tauri lain. Nama lama `agent:thinking_step`, `agent:tool_invoked
 ## 7. Utang Teknis yang Diketahui
 1. `stop/pause/resume_agent_session` memakai `pid`, bukan `session_id` → backend belum menyimpan peta `session_id → Child` untuk mode headless.
 2. Proses headless belum diikat ke **Windows Job Object** (target SDD §7C); kill masih via `taskkill /T`.
-3. `get_workspaces` masih stub. HITL Chat GUI baru tersedia untuk Claude (agen lain: "Izinkan & ulangi", lihat agent-protocols §7).
+3. `get_workspaces` masih stub. HITL Chat GUI tersedia untuk Claude, Codex, dan OpenCode; Antigravity & Kiro memakai "Izinkan & ulangi" (agent-protocols §7).
 4. `toggle_skill` membuat `SkillRegistry` baru setiap panggilan (state tidak persisten).
 5. `crates/soraja-core/src/db.rs` (pool SQLite + migrasi dari `database-schema.sql`) belum dipanggil aplikasi; data UI masih disimpan `desktop-ui/src/services/db.ts`.

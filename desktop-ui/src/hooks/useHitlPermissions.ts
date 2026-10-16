@@ -1,14 +1,16 @@
 /**
  * useHitlPermissions.ts
- * HITL Chat GUI: menerima event `agent:permission_request` dari jembatan izin (permission_bridge.rs),
- * menjawab otomatis bila ada aturan "selalu izinkan", selain itu mengantrekan modal 5 opsi untuk pengguna.
- * Jawaban dikirim lewat IPC `approve_human_in_the_loop`. Spesifikasi: specs/agent-protocols.md §7.
+ * HITL Chat GUI: menerima permintaan izin dari `hitlBus` — jembatan MCP Claude (event `agent:permission_request`,
+ * dijawab lewat IPC `approve_human_in_the_loop`) dan driver Codex app-server / OpenCode ACP (dijawab lewat stdin).
+ * Menjawab otomatis bila ada aturan "selalu izinkan", selain itu mengantrekan modal 5 opsi untuk pengguna.
+ * Spesifikasi: specs/agent-protocols.md §7.
  */
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { sorajaDb } from '../services/db';
 import { isTauriRuntime } from '../services/headlessTransport';
+import { dispatchPermission, setPermissionHandler, type PermissionAsk } from '../services/hitlBus';
 import { ruleLabel, summarizePermissionRequest, type PermissionSummary } from '../services/cli/permissionRules';
 import type { ActiveGeneration } from './useAgentStreamBridge';
 
@@ -19,17 +21,12 @@ export interface HitlRequest extends PermissionSummary {
   agentName: string;
   conversationId?: string;
   projectPath?: string;
+  /** Kanal jawaban milik sumber permintaan (IPC Claude atau stdin Codex/OpenCode). */
+  respond: (approved: boolean) => Promise<void>;
 }
 
 /** Opsi modal: 1 sekali, 2 percakapan, 3 proyek, 4 global, 5 tolak. */
 export type HitlOption = 1 | 2 | 3 | 4 | 5;
-
-interface PermissionRequestPayload {
-  sessionId: string;
-  requestId: string;
-  toolName: string;
-  input: Record<string, unknown>;
-}
 
 interface HitlDeps {
   activeGenRef: MutableRefObject<ActiveGeneration | null>;
@@ -37,8 +34,10 @@ interface HitlDeps {
   showDbToast: (msg: string) => void;
 }
 
-function answer(req: Pick<HitlRequest, 'sessionId' | 'requestId'>, approved: boolean) {
-  return invoke('approve_human_in_the_loop', { sessionId: req.sessionId, toolCallId: req.requestId, approved });
+/** Jawaban untuk permintaan dari jembatan MCP Claude (`permission_bridge.rs`). */
+function answerClaude(ask: PermissionAsk) {
+  return (approved: boolean) =>
+    invoke<void>('approve_human_in_the_loop', { sessionId: ask.sessionId, toolCallId: ask.requestId, approved });
 }
 
 /** Kedipkan ikon taskbar bila jendela sedang tidak aktif: agen menunggu jawaban pengguna. */
@@ -53,12 +52,13 @@ export function useHitlPermissions(deps: HitlDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
   const [queue, setQueue] = useState<HitlRequest[]>([]);
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
   const [hitlSelectedOption, setHitlSelectedOption] = useState<HitlOption>(1);
   /** Aturan "selalu izinkan di percakapan ini" (hanya selama aplikasi terbuka). */
   const conversationRules = useRef(new Map<string, Set<string>>());
 
   useEffect(() => {
-    if (!isTauriRuntime) return;
     const isPreApproved = async (req: HitlRequest) => {
       const key = req.ruleKey;
       if (!key || req.destructive) return false;
@@ -68,12 +68,12 @@ export function useHitlPermissions(deps: HitlDeps) {
       return !!req.projectPath && !!settings.hitlAllowProjects?.[req.projectPath]?.includes(key);
     };
 
-    const onRequest = async (p: PermissionRequestPayload) => {
+    const onRequest = async (p: PermissionAsk, respond: (approved: boolean) => Promise<void>) => {
       const d = depsRef.current;
       const gen = d.activeGenRef.current;
       // Sesi yang sudah dihentikan/diganti tidak boleh menjalankan apa pun.
       if (!gen || gen.agentMsgId !== p.sessionId) {
-        answer(p, false).catch(() => {});
+        respond(false).catch(() => {});
         return;
       }
       const req: HitlRequest = {
@@ -84,9 +84,10 @@ export function useHitlPermissions(deps: HitlDeps) {
         agentName: d.agentName(gen.agentId),
         conversationId: gen.conversationId,
         projectPath: gen.projectPath,
+        respond,
       };
       if (await isPreApproved(req)) {
-        answer(req, true).catch(() => {});
+        respond(true).catch(() => {});
         d.showDbToast(`Diizinkan otomatis: ${ruleLabel(req.ruleKey!)}.`);
         return;
       }
@@ -94,13 +95,18 @@ export function useHitlPermissions(deps: HitlDeps) {
       requestAttention();
     };
 
+    const releaseHandler = setPermissionHandler((ask, respond) => void onRequest(ask, respond));
+    if (!isTauriRuntime) return releaseHandler;
+
     let disposed = false;
-    const unlisteners: (() => void)[] = [];
+    const unlisteners: (() => void)[] = [releaseHandler];
     Promise.all([
-      listen<PermissionRequestPayload>('agent:permission_request', (e) => void onRequest(e.payload)),
-      // Sesi selesai/dihentikan: permintaan miliknya sudah dibatalkan backend, modalnya ditutup.
+      listen<PermissionAsk>('agent:permission_request', (e) => dispatchPermission(e.payload, answerClaude(e.payload))),
+      // Sesi selesai/dihentikan: permintaan miliknya tidak berarti lagi (dijawab "tolak"), modalnya ditutup.
       listen<{ sessionId: string }>('agent:session_end', (e) => {
-        setQueue((q) => q.filter((r) => r.sessionId !== e.payload.sessionId));
+        const sid = e.payload.sessionId;
+        for (const r of queueRef.current) if (r.sessionId === sid) r.respond(false).catch(() => {});
+        setQueue((q) => q.filter((r) => r.sessionId !== sid));
         setHitlSelectedOption(1);
       }),
     ]).then((fns) => {
@@ -138,7 +144,7 @@ export function useHitlPermissions(deps: HitlDeps) {
     const approved = option !== 5;
     if (approved && option > 1) await saveRule(req, option as HitlOption).catch(() => {});
     try {
-      await answer(req, approved);
+      await req.respond(approved);
       if (!approved) depsRef.current.showDbToast(`Aksi ${req.toolName} ditolak.`);
       else if (option > 1 && req.ruleKey && !req.destructive) {
         const scope = option === 2 ? 'percakapan ini' : option === 3 ? 'proyek ini' : 'semua proyek';

@@ -15,6 +15,7 @@ fn main() {
         .manage(pty::PtyState::default())
         // Jembatan izin HITL Chat GUI (MCP lokal untuk `--permission-prompt-tool` Claude)
         .manage(permission_bridge::PermissionBridge::default())
+        .manage(headless::HeadlessStdins::default())
         .invoke_handler(tauri::generate_handler![
             // Mode Terminal (PTY interaktif)
             pty::start_interactive_pty,
@@ -24,6 +25,7 @@ fn main() {
             pty::close_interactive_pty,
             // Mode Chat GUI (CLI headless)
             headless::spawn_headless_agent,
+            headless::write_headless_agent_stdin,
             headless::stop_agent_session,
             headless::pause_agent_session,
             headless::resume_agent_session,

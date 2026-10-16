@@ -6,6 +6,9 @@
 
 const SHELL_TOOLS = /^(bash|powershell|shell|run_command|exec_command)$/i;
 
+/** Keluaran tool yang ditolak pengguna lewat modal HITL (dikenali `isUserRejection` di trajectoryBuilder). */
+export const USER_REJECTION_MESSAGE = 'Ditolak oleh pengguna di Soraja.';
+
 /**
  * Pola perintah berbahaya: tidak pernah diizinkan otomatis dan hanya bisa diizinkan sekali.
  * Cerminan `TerminalExecutor::is_destructive_command` (soraja-core) ditambah perintah Git yang menghapus riwayat.

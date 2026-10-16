@@ -259,6 +259,36 @@ export function buildHeadlessCommand(o: CliLaunchOptions): CliCommand {
   return { executable: o.executable, args, envs };
 }
 
+/** Agen yang punya protokol JSON-RPC stdio dengan permintaan izin (HITL Chat GUI mode aman). */
+export const RPC_HITL_AGENTS: CliAgentId[] = ['codex', 'opencode'];
+
+export interface RpcCommand extends CliCommand {
+  /** Prompt akhir (dengan prefiks aturan untuk agen tanpa system prompt). */
+  prompt: string;
+  /** Aturan bahasa + Chat GUI untuk agen yang menerimanya lewat protokol (Codex `developerInstructions`). */
+  instructions?: string;
+  /** Model yang dikirim lewat protokol; kosong = bawaan CLI. */
+  modelId?: string;
+}
+
+/**
+ * Mode Chat GUI aman dengan HITL: `codex app-server` / `opencode acp` (JSON-RPC lewat stdin/stdout).
+ * Model, effort, dan prompt dikirim lewat protokol oleh driver (`codexAppServer.ts`, `opencodeAcp.ts`).
+ */
+export function buildRpcCommand(o: CliLaunchOptions): RpcCommand {
+  const agentId = normalizeAgentId(o.agentId);
+  if (!agentId || !RPC_HITL_AGENTS.includes(agentId)) throw new Error(`Agen tanpa protokol izin: ${o.agentId}`);
+  const envs = baseEnvs(agentId, o);
+  const modelId = hasModel(o.modelId, agentId) ? o.modelId : undefined;
+  if (agentId === 'codex') {
+    return { executable: o.executable, args: ['app-server'], envs, prompt: o.prompt ?? '', instructions: systemRules(o) || undefined, modelId };
+  }
+  // OpenCode: perintah shell selalu ditanyakan (mode aman Soraja); aturan bahasa tetap lewat `instructions`.
+  const config = JSON.parse(envs.OPENCODE_CONFIG_CONTENT ?? '{}') as Record<string, unknown>;
+  envs.OPENCODE_CONFIG_CONTENT = JSON.stringify({ ...config, permission: { bash: 'ask' } });
+  return { executable: o.executable, args: ['acp'], envs, prompt: headlessPrompt(agentId, o).trimStart(), modelId };
+}
+
 /** Mode Terminal: CLI interaktif (TUI asli) di dalam PTY. */
 export function buildInteractiveCommand(o: CliLaunchOptions): CliCommand {
   const agentId = normalizeAgentId(o.agentId);

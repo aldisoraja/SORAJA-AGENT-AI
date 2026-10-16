@@ -6,8 +6,11 @@ import { registerSessionAgent } from './agentStreamParser';
 import { bridgeSpawn, bridgeStop, hasHeadlessBridge, isTauriRuntime } from './headlessTransport';
 import {
   buildHeadlessCommand,
+  RPC_HITL_AGENTS,
+  type CliAgentId,
   type PermissionMode,
 } from './cli/agentCommands';
+import { spawnRpcAgentSession } from './rpcHeadless';
 import type { ChatEffort } from './cli/chatPrompt';
 
 export interface HeadlessSpawnOptions {
@@ -75,7 +78,7 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
     isTauriRuntime && agentId === 'claude' && o.permissionMode !== 'autonomous'
       ? await preparePermissionBridge(o.sessionId)
       : undefined;
-  const command = buildHeadlessCommand({
+  const launch = {
     agentId,
     executable: o.agent.binaryPath || o.agent.executable || (agentId === 'antigravity' ? 'agy' : agentId),
     cwd: o.projectPath,
@@ -91,7 +94,19 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
     filePaths: o.filePaths,
     permissionPromptUrl,
     grantedActions: o.grantedActions,
-  });
+  };
+  // Codex & OpenCode mode aman: protokol JSON-RPC agar perintah shell bisa ditanyakan ke pengguna (HITL).
+  // "Izinkan & ulangi" dan mode otonom tetap memakai mode exec/run biasa.
+  const rpcHitl =
+    isTauriRuntime &&
+    o.permissionMode !== 'autonomous' &&
+    !o.grantedActions?.length &&
+    RPC_HITL_AGENTS.includes(agentId as CliAgentId);
+  if (rpcHitl) {
+    await spawnRpcAgentSession({ ...launch, sessionId: o.sessionId });
+    return;
+  }
+  const command = buildHeadlessCommand(launch);
 
   registerSessionAgent(o.sessionId, agentId);
   if (!isTauriRuntime) {
