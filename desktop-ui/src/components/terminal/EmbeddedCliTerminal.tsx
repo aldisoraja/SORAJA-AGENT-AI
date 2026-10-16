@@ -3,7 +3,7 @@
  * Panel Terminal CLI multi-tab: setiap tab menjalankan CLI agen native (agy/claude/codex/opencode)
  * di ConPTY, identik dengan CLI aslinya. Spesifikasi: specs/prd.md §2.10, specs/sdd-speckit.md §11.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, Maximize2, Minimize2, RotateCw, Terminal as TerminalIcon, X } from 'lucide-react';
 import type { AgentProvider } from '../../types/agent';
 import type { CredentialRecord, ProjectRecord } from '../../types/database';
@@ -143,7 +143,13 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
     clearMapRef.current[tabId] = fn;
   }, []);
 
-  const focusActiveTerminal = useCallback(() => focusMapRef.current[activeTabId]?.(), [activeTabId]);
+  // Dibaca lewat ref: fokus sering dijadwalkan dengan setTimeout tepat saat tab berganti; closure
+  // `activeTabId` lama akan memfokuskan terminal tab SEBELUMNYA (tersembunyi) sehingga ketikan masuk ke CLI lain.
+  const activeTabIdRef = useRef(activeTabId);
+  useLayoutEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+  const focusActiveTerminal = useCallback(() => focusMapRef.current[activeTabIdRef.current]?.(), []);
   const clearActiveTerminal = useCallback(() => {
     try {
       clearMapRef.current[activeTabId]?.();
