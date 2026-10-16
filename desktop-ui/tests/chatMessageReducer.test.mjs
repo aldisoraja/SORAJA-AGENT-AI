@@ -185,6 +185,15 @@ test('Kiro: kategori ACP dipakai (edit/execute), update tanpa kind tetap memicu 
   assert.deepEqual(events.filter((e) => e.kind === 'file_change').map((e) => e.path), ['D:/p/a.ts']);
 });
 
+test('Kiro: tool yang ditolak di mode non-interaktif tampil "ditolak", bukan "gagal" (output nyata kiro-cli)', () => {
+  const upd = (update) => json({ type: 'sessionUpdate', data: { sessionId: 'k', update } });
+  const { msg } = replay('kiro', [
+    upd({ sessionUpdate: 'tool_call', toolCallId: 'x1', title: 'Jalankan hitung.js', kind: 'execute', status: 'pending', rawInput: { command: 'node hitung.js' } }),
+    upd({ sessionUpdate: 'tool_call_update', toolCallId: 'x1', status: 'failed', content: [{ type: 'content', content: { type: 'text', text: 'Output:\nThe user rejected this tool call.\n\nExit Code: -1' } }] }),
+  ]);
+  assert.equal(byType(msg, 'command')[0].status, 'denied');
+});
+
 test('applyFileDiff: diff nyata ditempel; berkas tanpa perubahan nyata dibersihkan', () => {
   const { msg } = replay('claude', fixture('claude'));
   const chunk = { file: 'C:\\work\\demo\\hello.txt', relativePath: 'hello.txt', additions: 1, deletions: 0, diffLines: [{ type: 'added', newLineNo: 1, text: 'halo' }] };

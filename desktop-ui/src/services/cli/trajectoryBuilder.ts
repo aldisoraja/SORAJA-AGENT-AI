@@ -27,7 +27,7 @@ const CATEGORY_TYPE: Record<string, StepType> = {
 };
 /** Keluaran tool yang menandakan aksi ditolak kebijakan izin (bukan gagal dijalankan). */
 const DENIED_OUTPUT =
-  /requested permissions? to use|haven't granted|BLOCKED by|permission (?:was )?denied by|rejected by (?:the )?user|requires approval/i;
+  /requested permissions? to use|haven't granted|BLOCKED by|permission (?:was )?denied by|rejected by (?:the )?user|user rejected this tool|requires approval/i;
 /** Batas cuplikan keluaran tool yang disimpan (riwayat tetap ringan). */
 const MAX_OUTPUT_CHARS = 4000;
 const MAX_LOG_LINES = 200;
