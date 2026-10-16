@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
-import { Folder, FolderPlus, Terminal as TerminalIcon } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, Info, Terminal as TerminalIcon } from 'lucide-react';
 import type { AgentProvider } from '../../types/agent';
 import type { ProjectRecord } from '../../types/database';
 import { findTabByPath, type TerminalTab } from '../../hooks/useTerminalManager';
 import { getAgentIcon } from '../AgentIcons';
+import { WorkspacePicker } from './WorkspacePicker';
 
-const AGENT_BADGE: Record<string, string> = {
-  antigravity: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
-  claude: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  opencode: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-  codex: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-  kiro: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+const AGENT_BADGE: Record<string, { dark: string; light: string }> = {
+  antigravity: { dark: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30', light: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  claude: { dark: 'bg-amber-500/10 text-amber-300 border-amber-500/30', light: 'bg-amber-50 text-amber-700 border-amber-200' },
+  opencode: { dark: 'bg-purple-500/10 text-purple-300 border-purple-500/30', light: 'bg-purple-50 text-purple-700 border-purple-200' },
+  codex: { dark: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', light: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  kiro: { dark: 'bg-violet-500/10 text-violet-300 border-violet-500/30', light: 'bg-violet-50 text-violet-700 border-violet-200' },
 };
 
 interface AgentLauncherDropdownProps {
@@ -39,7 +40,6 @@ export const AgentLauncherDropdown: React.FC<AgentLauncherDropdownProps> = ({
   onOpenAgent,
   onDismiss,
 }) => {
-  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   // 1 tab = 1 direktori: bila direktori terpilih sudah punya tab, memilih agen hanya memfokuskan tab itu.
   const dirTab = findTabByPath(tabs, selectedDirectory);
 
@@ -48,146 +48,144 @@ export const AgentLauncherDropdown: React.FC<AgentLauncherDropdownProps> = ({
       <div className="fixed inset-0 z-[998] bg-black/20 backdrop-blur-[0.5px]" onClick={onDismiss} />
       <div
         style={{ position: 'fixed', top: `${anchor.top}px`, left: `${anchor.left}px` }}
-        className={`w-80 sm:w-96 rounded-2xl shadow-2xl border p-2 z-[999] backdrop-blur-xl animate-in fade-in zoom-in-95 max-h-[82vh] overflow-y-auto ${
+        className={`w-80 sm:w-96 rounded-2xl shadow-2xl border z-[999] backdrop-blur-xl animate-in fade-in zoom-in-95 max-h-[82vh] overflow-y-auto ${
           isLight
             ? 'bg-white/98 border-slate-200 text-slate-800 shadow-slate-400/40'
-            : 'bg-[#101626]/98 border-slate-700 text-slate-200 shadow-black/90'
+            : 'bg-[#0e1422]/98 border-slate-700/80 text-slate-200 shadow-black/90'
         }`}
       >
-        <div className="px-3 py-2 border-b border-slate-200/60 dark:border-slate-800/80 mb-2">
-          <div className="flex items-center justify-between text-[11px] font-bold tracking-wider text-cyan-400 uppercase">
-            <div className="flex items-center gap-1.5">
-              <TerminalIcon className="w-3.5 h-3.5" />
-              <span>PILIH MESIN & DIREKTORI</span>
-            </div>
-            <span className="text-[9px] font-mono text-slate-400">Multi-Repo</span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Pilih asisten AI yang ingin dibuka di sesi terminal:</p>
-
-          <div className="mt-2 p-2 rounded-xl bg-slate-900/60 border border-slate-700/60">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300">
-                <Folder className="w-3 h-3 text-amber-400 shrink-0" />
-                <span>Direktori Kerja:</span>
-              </div>
-              {projects.length > 1 && (
-                <button
-                  onClick={() => setIsFolderPickerOpen((prev) => !prev)}
-                  className="text-[10px] text-cyan-400 hover:underline cursor-pointer lowercase"
-                >
-                  {isFolderPickerOpen ? 'tutup opsi' : 'ganti repo ▼'}
-                </button>
-              )}
-            </div>
-            <div
-              className="font-mono text-[10px] text-slate-200 truncate bg-black/40 px-2 py-1 rounded border border-slate-800"
-              title={selectedDirectory}
-            >
-              {selectedDirectory}
-            </div>
-
-            {isFolderPickerOpen && projects.length > 0 && (
-              <div className="mt-2 space-y-1 max-h-36 overflow-y-auto border-t border-slate-700/60 pt-1.5">
-                <div className="text-[9px] text-slate-400 uppercase font-semibold">Pilih Ruang Kerja Lain:</div>
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      onSelectDirectory(p.path);
-                      setIsFolderPickerOpen(false);
-                    }}
-                    className={`w-full text-left p-1.5 rounded-lg text-xs flex items-center justify-between cursor-pointer transition ${
-                      selectedDirectory === p.path
-                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30'
-                        : 'hover:bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <span className="truncate">{p.name}</span>
-                    <span className="text-[9px] font-mono text-slate-400 truncate max-w-[120px]">{p.path}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {onPickNewDirectory && (
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  const picked = await onPickNewDirectory();
-                  if (picked && picked.path) {
-                    onSelectDirectory(picked.path);
-                    setIsFolderPickerOpen(false);
-                  }
-                }}
-                className="mt-1.5 w-full text-left p-1.5 rounded-lg text-[11px] flex items-center gap-1.5 text-cyan-400 hover:bg-cyan-950/40 font-medium cursor-pointer border border-cyan-800/40 transition"
-              >
-                <FolderPlus className="w-3 h-3 text-cyan-400" />
-                <span>+ Buka Folder / Repo Komputer Lain...</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {dirTab && (
-          <div className="mx-1 mt-1 px-2.5 py-1.5 rounded-lg text-[10px] leading-relaxed bg-amber-500/10 text-amber-300 border border-amber-500/30">
-            Direktori ini sudah aktif di tab <b>{dirTab.agent.name}</b>. Tab tidak akan digandakan; untuk berganti mesin AI gunakan
-            tombol <b>Ganti Agen</b> di toolbar terminal.
-          </div>
-        )}
-
-        <div className="space-y-1 mt-1.5">
-          {agentProviders.map((agent) => {
-            const isTabOpen = dirTab?.agent.id === agent.id;
-            const notInstalled = agent.isInstalled === false;
-            return (
-              <button
-                key={agent.id}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onOpenAgent(agent, selectedDirectory)}
-                className={`w-full flex items-start justify-between p-2.5 rounded-xl text-left transition cursor-pointer border ${
-                  isTabOpen
-                    ? isLight
-                      ? 'soraja-grad-soft border-blue-200 hover:bg-blue-100/80'
-                      : 'bg-cyan-950/40 border-cyan-700/50 hover:bg-cyan-900/50'
-                    : isLight
-                    ? 'bg-slate-50 border-transparent hover:bg-slate-100 hover:border-slate-200'
-                    : 'bg-slate-900/60 border-transparent hover:bg-slate-800/80 hover:border-slate-700'
+        {/* Header */}
+        <div className={`px-4 pt-4 pb-3.5 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/80'}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  isLight ? 'soraja-grad-primary text-white' : 'bg-gradient-to-br from-cyan-500/25 to-blue-600/20 border border-cyan-500/30 text-cyan-300'
                 }`}
               >
-                <div className="flex items-start gap-2.5 truncate">
-                  <div className="w-7 h-7 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0 border border-slate-700/60 mt-0.5">
-                    {getAgentIcon(agent.id, 'w-4 h-4')}
+                <TerminalIcon className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={`text-[13px] font-semibold leading-tight ${isLight ? 'text-slate-900' : 'text-slate-50'}`}>
+                  Pilih Mesin & Direktori
+                </h3>
+                <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Asisten AI untuk sesi terminal baru
+                </p>
+              </div>
+            </div>
+            <span
+              className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0 ${
+                isLight ? 'text-slate-500 border-slate-200 bg-slate-50' : 'text-slate-400 border-slate-700 bg-slate-800/50'
+              }`}
+            >
+              Multi-Repo
+            </span>
+          </div>
+
+          <WorkspacePicker
+            isLight={isLight}
+            projects={projects}
+            selectedDirectory={selectedDirectory}
+            onSelectDirectory={onSelectDirectory}
+            onPickNewDirectory={onPickNewDirectory}
+          />
+        </div>
+
+        <div className="p-2">
+          {dirTab && (
+            <div
+              className={`flex gap-2 mx-0.5 mb-2 px-3 py-2 rounded-xl text-[10.5px] leading-relaxed border ${
+                isLight ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-amber-500/[0.07] text-amber-200/90 border-amber-500/25'
+              }`}
+            >
+              <Info className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isLight ? 'text-amber-500' : 'text-amber-400'}`} />
+              <span>
+                Direktori ini sudah aktif di tab <b>{dirTab.agent.name}</b>. Untuk berganti mesin AI, gunakan tombol{' '}
+                <b>Ganti Agen</b> di toolbar terminal.
+              </span>
+            </div>
+          )}
+
+          <div className={`px-2 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500`}>
+            Mesin AI
+          </div>
+
+          <div className="space-y-1">
+            {agentProviders.map((agent) => {
+              const isTabOpen = dirTab?.agent.id === agent.id;
+              const notInstalled = agent.isInstalled === false;
+              const badge = AGENT_BADGE[agent.id] ?? AGENT_BADGE.codex;
+              return (
+                <button
+                  key={agent.id}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onOpenAgent(agent, selectedDirectory)}
+                  title={`${agent.name} · ${agent.vendor}`}
+                  className={`group w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition cursor-pointer border ${
+                    isTabOpen
+                      ? isLight
+                        ? 'soraja-grad-soft border-blue-200 hover:bg-blue-100/80'
+                        : 'bg-cyan-500/[0.07] border-cyan-500/30 hover:bg-cyan-500/10'
+                      : isLight
+                      ? 'border-transparent hover:bg-slate-50 hover:border-slate-200'
+                      : 'border-transparent hover:bg-slate-800/50 hover:border-slate-700/70'
+                  } ${notInstalled ? 'opacity-60' : ''}`}
+                >
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition ${
+                      isLight
+                        ? 'bg-white border-slate-200 shadow-sm'
+                        : 'bg-slate-800/70 border-slate-700/60 group-hover:border-slate-600'
+                    }`}
+                  >
+                    {getAgentIcon(agent.id, 'w-[18px] h-[18px]')}
                   </div>
-                  <div className="truncate">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs truncate">{agent.name}</span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`font-semibold text-[12.5px] truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+                        {agent.name}
+                      </span>
                       <span
-                        className={`text-[9px] font-mono px-1.5 py-0.2 rounded border font-semibold ${
-                          AGENT_BADGE[agent.id] ?? AGENT_BADGE.codex
-                        }`}
+                        className={`text-[9px] font-mono px-1.5 py-px rounded-md border shrink-0 ${isLight ? badge.light : badge.dark}`}
                       >
-                        {agent.executable || agent.id} · {agent.vendor}
+                        {agent.executable || agent.id}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                    <p className={`text-[10.5px] mt-0.5 truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       {notInstalled ? 'CLI belum terpasang di komputer ini' : agent.description || agent.vendor}
                     </p>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                      isTabOpen
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-slate-700/60 text-slate-300 border border-slate-600/50'
-                    }`}
-                  >
-                    {isTabOpen ? 'Tab Aktif' : dirTab ? 'Direktori terpakai' : 'Buka ➔'}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+
+                  <div className="shrink-0">
+                    {isTabOpen ? (
+                      <span
+                        className={`flex items-center gap-1 text-[9.5px] font-semibold px-2 py-0.5 rounded-full border ${
+                          isLight
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Aktif
+                      </span>
+                    ) : dirTab ? (
+                      <span className={`text-[9.5px] font-medium ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>Terpakai</span>
+                    ) : (
+                      <span
+                        className={`flex items-center gap-1 text-[10px] font-medium opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition ${
+                          isLight ? 'text-blue-600' : 'text-cyan-300'
+                        }`}
+                      >
+                        Buka <ArrowRight className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </>
