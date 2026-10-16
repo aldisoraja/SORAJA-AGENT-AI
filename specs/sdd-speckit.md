@@ -272,6 +272,10 @@ odejs`), lalu shim npm `.cmd` di-unwrap menjadi `node <target.js>` (`resolve_npm
 * Identitas tab adalah path direktori ternormalisasi (`findTabByPath`), bukan pasangan agen + path. Membuka direktori yang sudah punya tab hanya memfokuskan tab itu (UI menampilkan "Direktori ini sudah aktif di Tab <nama>").
 * Ganti mesin AI di direktori yang sama lewat **Ganti Agen** (`switchAgent`): PTY lama dimatikan beserta proses anaknya, `tab.agent` diperbarui, `sessionId` baru memicu xterm baru dan spawn agen baru. `cliSessionId` lama dibuang karena milik agen sebelumnya.
 * Dev server Vite menegakkan aturan yang sama di sisi server: spawn PTY baru di cwd yang sudah dipakai sesi lain mematikan sesi lama; `pty-close` memakai `taskkill /T /F` agar tidak ada proses zombie.
+* **Lebar karakter xterm = lebar TUI CLI:** setiap xterm memuat `@xterm/addon-unicode-graphemes` (`components/terminal/unicodeWidth.ts`,
+  butuh `allowProposedApi: true`) sehingga emoji (✅ ❌ 🚀 ⚠️ ℹ️, grafem ZWJ/skin tone) selebar 2 kolom seperti hitungan CLI agen
+  (string-width di Claude Code). Bawaan xterm (Unicode 6) menghitungnya 1 kolom: renderer diferensial CLI lalu memindah kursor ke
+  kolom yang salah dan tabel/kotak berisi emoji rusak (teks bertumpuk, garis tepi bergeser). Regresi: `tests/terminalEmojiWidth.test.mjs`.
 
 ### B. Protokol Schema Event (Tauri Backend ➔ Frontend UI)
 Daftar resmi dan payload lengkap ada di [`ipc-contracts.md`](./ipc-contracts.md) §6. Ringkasan:

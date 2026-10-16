@@ -11,6 +11,7 @@ import { fontSizeForZoom, minimumContrastFor, xtermTheme } from './xtermThemes';
 import { adaptOutputForLightTheme } from './lightTerminalColors';
 import { isTauri, ptyRelease, ptyResize, ptyRetain, ptySpawn, ptyWrite, subscribePty } from './ptyTransport';
 import { createKeyHandler } from './terminalInput';
+import { enableEmojiWidths } from './unicodeWidth';
 
 export interface SingleTerminalViewProps {
   isLight: boolean;
@@ -183,7 +184,10 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
       scrollback: isOpencode ? 2000 : 5000,
       theme: xtermTheme(isLight),
       minimumContrastRatio: minimumContrastFor(isLight),
+      allowProposedApi: true, // dibutuhkan addon lebar emoji (term.unicode)
     });
+    // Lebar emoji = 2 kolom seperti di TUI CLI agen; tanpa ini tabel berisi ✅/⚠️ rusak.
+    enableEmojiWidths(term);
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(containerEl);
