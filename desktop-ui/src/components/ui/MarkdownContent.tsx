@@ -3,6 +3,7 @@ import { Marked, type Tokens } from 'marked';
 import { invoke } from '@tauri-apps/api/core';
 import { copyText } from '../../utils/clipboard';
 import { isTauriRuntime } from '../../services/headlessTransport';
+import { normalizeLatexMath } from '../../utils/mathText';
 import './markdown.css';
 
 interface MarkdownContentProps {
@@ -71,7 +72,8 @@ export function MarkdownContent({ content, isLight = false, size = 'normal' }: M
   const html = React.useMemo(() => {
     if (!content) return '';
     try {
-      return (md.parse(content) as string)
+      // Tanpa renderer math: rumus LaTeX diubah ke teks Unicode agar tidak tampil mentah.
+      return (md.parse(normalizeLatexMath(content)) as string)
         .replace(/<table>/g, '<div class="md-table-wrap"><table>')
         .replace(/<\/table>/g, '</table></div>');
     } catch (e) {
