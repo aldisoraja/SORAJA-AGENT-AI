@@ -38,13 +38,16 @@ pub fn resolve_windows_command(cmd: &str) -> Option<PathBuf> {
     let pathext_var = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
     let extensions: Vec<&str> = pathext_var.split(';').collect();
 
+    // Nama tanpa ekstensi (mis. `npm\codex`, skrip sh) tidak bisa dijalankan di Windows ("not a valid
+    // Win32 application"), jadi hanya dicocokkan apa adanya bila sudah berekstensi; selain itu pakai PATHEXT.
+    let has_ext = Path::new(cmd).extension().is_some();
     let paths = std::env::split_paths(&path_var);
     for dir in paths {
         let full_path = dir.join(cmd);
-        if full_path.is_file() {
+        if has_ext && full_path.is_file() {
             return Some(full_path);
         }
-        for ext in &extensions {
+        for ext in extensions.iter().filter(|e| !e.is_empty()) {
             let with_ext = dir.join(format!("{}{}", cmd, ext));
             if with_ext.is_file() {
                 return Some(with_ext);
@@ -62,25 +65,27 @@ pub fn resolve_npm_shim_target(shim_path: &Path) -> Option<PathBuf> {
     let content = std::fs::read_to_string(shim_path).ok()?;
     // Target shim npm: skrip Node (`codex.js`) atau biner native (`claude.exe`, `opencode.exe`).
     let re = regex::Regex::new(r#""%(?:~)?dp0%?[\\/]([^"]+\.(?:js|exe))""#).ok()?;
-    
-    if let Some(captures) = re.captures(&content) {
-        if let Some(m) = captures.get(1) {
-            let relative_path = m.as_str().replace("\\", "/");
-            let parent = shim_path.parent()?;
-            let resolved = parent.join(relative_path);
+    let parent = shim_path.parent()?;
+    // Shim npm skrip Node diawali `IF EXIST "%dp0%\node.exe"` (interpreter, bukan target), jadi
+    // kecocokan pertama belum tentu target: ambil kecocokan pertama yang ada dan bukan `node.exe`.
+    let target = re
+        .captures_iter(&content)
+        .filter_map(|c| c.get(1))
+        .map(|m| m.as_str().replace('\\', "/"))
+        .filter(|rel| !rel.eq_ignore_ascii_case("node.exe"))
+        .find_map(|rel| {
+            let resolved = parent.join(rel);
             if let Ok(canonical) = std::fs::canonicalize(&resolved) {
-                // Return path without UNC prefix if possible, or just as is
+                // Buang prefiks UNC `\\?\` bila ada.
                 let p_str = canonical.to_string_lossy();
-                if p_str.starts_with(r"\\?\") {
-                    return Some(PathBuf::from(p_str[4..].to_string()));
+                if let Some(stripped) = p_str.strip_prefix(r"\\?\") {
+                    return Some(PathBuf::from(stripped));
                 }
                 return Some(canonical);
-            } else if resolved.exists() {
-                return Some(resolved);
             }
-        }
-    }
-    None
+            resolved.exists().then_some(resolved)
+        });
+    target
 }
 
 /// Menyusun (biner, argumen) yang dijalankan langsung tanpa `cmd.exe`.
@@ -362,9 +367,11 @@ mod tests {
 
     #[test]
     fn shim_js_dijalankan_lewat_node() {
+        // Isi shim npm asli: baris `IF EXIST "%dp0%\node.exe"` muncul lebih dulu daripada target.
         let shim = fake_shim(
             "codex",
-            r#"endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_modules\@openai\codex\bin\codex.js" %*"#,
+            "IF EXIST \"%dp0%\\node.exe\" (\r\n  SET \"_prog=%dp0%\\node.exe\"\r\n) ELSE (\r\n  SET \"_prog=node\"\r\n)\r\n\
+             endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js\" %*",
             "node_modules/@openai/codex/bin/codex.js",
         );
         let (_bin, args) = resolve_cli_launch(&shim.to_string_lossy(), vec!["exec".into()]).unwrap();
