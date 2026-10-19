@@ -8,6 +8,7 @@ import {
   Globe,
   ListChecks,
   Loader2,
+  MessageSquareText,
   Search,
   ShieldAlert,
   SquareTerminal,
@@ -42,6 +43,7 @@ const STEP_META: Record<TrajectoryStep['type'], { Icon: typeof Brain; verb: stri
   edited: { Icon: FilePen, verb: 'Mengubah', tone: { dark: 'text-orange-300 bg-orange-500/10 border-orange-500/20', light: 'text-orange-600 bg-orange-50 border-orange-200' } },
   plan: { Icon: ListChecks, verb: 'Rencana kerja', tone: { dark: 'text-blue-300 bg-blue-500/10 border-blue-500/20', light: 'text-blue-600 bg-blue-50 border-blue-200' } },
   tool: { Icon: Wrench, verb: 'Memakai', tone: { dark: 'text-slate-300 bg-white/[0.04] border-white/[0.08]', light: 'text-slate-600 bg-slate-100 border-slate-200' } },
+  text: { Icon: MessageSquareText, verb: 'Menjelaskan', tone: { dark: 'text-slate-300 bg-white/[0.04] border-white/[0.08]', light: 'text-slate-600 bg-slate-100 border-slate-200' } },
   running: { Icon: Loader2, verb: 'Memproses', tone: { dark: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20', light: 'text-cyan-600 bg-cyan-50 border-cyan-200' } },
 };
 

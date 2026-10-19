@@ -6,9 +6,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createStreamParser } from '../src/services/cli/streamParsers.ts';
-import { applyAgentEvent, applyFileDiff } from '../src/services/cli/messageReducer.ts';
+import { appendAnswerLine, applyAgentEvent, applyFileDiff } from '../src/services/cli/messageReducer.ts';
 import { finalizeMessage, markDenied } from '../src/services/cli/trajectoryBuilder.ts';
-import { countSteps } from '../src/components/chat/work/workSummary.ts';
+import { countSteps, messageFlow } from '../src/components/chat/work/workSummary.ts';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}.ndjson`, import.meta.url), 'utf8').split('\n');
 
@@ -122,7 +122,8 @@ test('Codex: file_change langsung memberi langkah edit (urutan kronologis), todo
     json({ type: 'item.completed', item: { id: 'm', type: 'agent_message', text: 'Selesai.' } }),
     json({ type: 'turn.completed', usage: {} }),
   ]);
-  assert.deepEqual(msg.trajectory.map((s) => s.type), ['plan', 'web', 'edited']);
+  assert.deepEqual(msg.trajectory.map((s) => s.type), ['plan', 'web', 'edited', 'text'], 'jawaban sesudah langkah tool, kronologis');
+  assert.equal(byType(msg, 'text')[0].text, 'Selesai.');
   assert.equal(byType(msg, 'web')[0].label, 'tauri v2 event');
   assert.equal(byType(msg, 'plan')[0].todos[0].status, 'done');
   assert.equal(byType(msg, 'edited')[0].file, 'D:/p/README.md');
@@ -130,8 +131,9 @@ test('Codex: file_change langsung memberi langkah edit (urutan kronologis), todo
 
 test('Codex (blocked): hanya jawaban teks, tanpa langkah palsu', () => {
   const { msg } = replay('codex', fixture('codex-blocked'));
-  assert.equal(msg.trajectory.length, 0);
+  assert.deepEqual(msg.trajectory.map((s) => s.type), ['text'], 'tanpa langkah tool palsu');
   assert.ok(msg.content.includes('Perintah ditolak kebijakan lingkungan'));
+  assert.equal(byType(msg, 'text')[0].text, msg.content, 'segmen teks = isi jawaban');
 });
 
 test('OpenCode (fixture): tulis diblokir = ditolak, tulis ulang berhasil; berkas unik dihitung sekali', () => {
@@ -254,4 +256,39 @@ test('notice yang sama tidak ditulis dua kali; notice pertama tanpa baris kosong
   const ev = { kind: 'notice', level: 'warn', message: 'Aksi ditolak.' };
   m = applyAgentEvent(applyAgentEvent(m, ev, 1), ev, 2);
   assert.equal(m.content, '> ⚠️ Aksi ditolak.');
+});
+
+test('Alur kronologis: penjelasan agen diselipkan di antara langkah tool; jawaban akhir terpisah setelah selesai', () => {
+  const evs = [
+    { kind: 'text', delta: 'Saya cek dulu berkasnya.' },
+    { kind: 'tool', id: 'r1', name: 'Read', input: { file_path: 'src/a.ts' }, status: 'running' },
+    { kind: 'tool', id: 'r1', name: 'Read', input: {}, status: 'done' },
+    { kind: 'text', delta: '\n\nSudah ketemu' },
+    { kind: 'text', delta: ', saya perbaiki.' },
+    { kind: 'notice', level: 'warn', message: 'Kuota hampir habis' },
+  ];
+  let msg = { id: 'm', content: '', agentId: 'claude', status: 'running' };
+  evs.forEach((ev, i) => (msg = applyAgentEvent(msg, ev, i)));
+  assert.deepEqual(msg.trajectory.map((s) => s.type), ['text', 'analyzed', 'text']);
+  assert.equal(msg.trajectory[0].text, 'Saya cek dulu berkasnya.');
+  assert.equal(msg.trajectory[2].text, 'Sudah ketemu, saya perbaiki.\n\n> ⚠️ Kuota hampir habis', 'notice menempel ke segmen terakhir');
+  assert.ok(msg.content.startsWith('Saya cek dulu berkasnya.\n\nSudah ketemu'), 'content tetap utuh (salin/riwayat)');
+
+  const live = messageFlow(msg);
+  assert.equal(live.process.length, 3, 'saat berjalan semua teks tampil di dalam alur');
+  assert.equal(live.answer, '');
+
+  const done = messageFlow(finalizeMessage(msg, 0, 99));
+  assert.deepEqual(done.process.map((s) => s.type), ['text', 'analyzed']);
+  assert.equal(done.answer, msg.trajectory[2].text);
+});
+
+test('messageFlow: pesan lama tanpa langkah text → jawaban = content; baris status tanpa teks sebelumnya', () => {
+  const legacy = { id: 'm', content: 'Jawaban lama', status: 'done', trajectory: [{ type: 'analyzed', label: 'a.ts', status: 'done' }] };
+  assert.deepEqual(messageFlow(legacy), { process: legacy.trajectory, answer: 'Jawaban lama' });
+
+  const stopped = appendAnswerLine({ id: 'm', content: '', status: 'running', trajectory: [{ type: 'command', label: 'npm test', status: 'error' }] }, '> ⏹️ Dihentikan', 5);
+  assert.equal(stopped.content, '> ⏹️ Dihentikan');
+  assert.deepEqual(stopped.trajectory.map((s) => s.type), ['command', 'text']);
+  assert.equal(stopped.trajectory[1].text, '> ⏹️ Dihentikan', 'tanpa baris kosong di awal segmen');
 });

@@ -66,8 +66,10 @@ export interface PlanItem {
 }
 
 export interface TrajectoryStep {
-  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool' | 'plan' | 'web';
+  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool' | 'plan' | 'web' | 'text';
   label: string;
+  /** Segmen teks jawaban agen (langkah `text`), disisipkan kronologis di antara langkah tool. */
+  text?: string;
   count?: number;
   file?: string;
   fileType?: string;

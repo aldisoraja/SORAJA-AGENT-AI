@@ -204,6 +204,7 @@ Begitu pengguna memilih folder dan memberikan izin explorer:
 
 ### A. Trajectory Berpikir Otonom (`chat/work/AgentWorkTimeline.tsx` + `TimelineStep.tsx`)
 > Diperbarui 13 Okt 2026: timeline kronologis (Berpikir → Membaca → Mencari → Menjalankan → Mengubah) dengan status live, durasi per langkah, keluaran perintah, chip info eksekusi (workspace, izin, effort, lampiran, token), dan log CLI terpisah. Data dibangun oleh `services/cli/trajectoryBuilder.ts`.
+> Diperbarui 19 Okt 2026: proses kerja tampil **tanpa card** sebagai satu alur kronologis. Event `text` juga dicatat sebagai langkah `text` (`appendText`), sehingga penjelasan agen muncul tepat di bawah langkah yang mendahuluinya. Selama agen bekerja alur terbuka; setelah selesai proses **dilipat otomatis** menjadi satu baris status (durasi + statistik, bisa dibuka ulang) dan segmen teks terakhir tampil sebagai jawaban akhir (`messageFlow` di `work/workSummary.ts`). Edit berulang pada berkas yang sama digabung jadi satu baris (`mergeFileEdits`). Pesan lama tanpa langkah `text` tetap memakai `content` sebagai jawaban.
 * Menampilkan langkah eksekusi real-time:
   * **Explored Files:** Card indikator berkas yang dipindai agen (`Explored 11 files >`).
   * **Edited Files:** Card interaktif dengan logo teknologi resmi (`⚛ React TSX`, `TS TypeScript`, `🦀 Rust`, `{ } JSON`, `MD Docs`), nama berkas, badge selisih baris (`+11` emerald, `-120` rose), serta tombol hover `Review ↗` yang langsung membuka split-pane review.

@@ -156,6 +156,18 @@ export function appendThinking(steps: TrajectoryStep[], delta: string, streaming
 }
 
 /**
+ * Potongan jawaban agen sebagai langkah `text` kronologis: disambung ke segmen teks terakhir,
+ * atau membuka segmen baru bila sebelumnya ada tool/penalaran (penjelasan tampil tepat di bawah prosesnya).
+ */
+export function appendText(steps: TrajectoryStep[] = [], delta: string, now: number): TrajectoryStep[] {
+  const last = steps[steps.length - 1];
+  if (last?.type === 'text') return [...steps.slice(0, -1), { ...last, text: `${last.text || ''}${delta}` }];
+  const text = delta.replace(/^\n+/, '');
+  if (!text) return steps;
+  return [...closeThoughts(steps, now), { type: 'text', label: '', text, startedAt: now }];
+}
+
+/**
  * Menyisipkan langkah tool baru atau memperbarui langkah dengan `toolId` yang sama (running → done/error).
  * Rencana kerja hanya punya satu langkah yang isinya diganti tiap kali agen memperbaruinya.
  */

@@ -9,6 +9,7 @@ import { DENIED_NOTICE_PREFIX, type UiAgentEvent } from './streamParsers.ts';
 import {
   addUsage,
   appendLog,
+  appendText,
   appendThinking,
   applyFileChange,
   applyToolEvent,
@@ -30,10 +31,16 @@ function addDenied(m: MessageRecord, action?: string): MessageRecord {
   return { ...m, deniedActions: [...(m.deniedActions ?? []), action] };
 }
 
+/** Baris status (notice, galat, dihentikan) ditambahkan ke jawaban sekaligus ke alur kronologis. */
+export function appendAnswerLine(m: MessageRecord, line: string, now: number): MessageRecord {
+  const sep = m.content.trim() ? '\n\n' : '';
+  return { ...m, content: `${m.content}${sep}${line}`, trajectory: appendText(m.trajectory, `${sep}${line}`, now) };
+}
+
 export function applyAgentEvent(m: MessageRecord, ev: UiAgentEvent, now: number): MessageRecord {
   switch (ev.kind) {
     case 'text':
-      return { ...m, content: m.content + ev.delta };
+      return { ...m, content: m.content + ev.delta, trajectory: appendText(m.trajectory, ev.delta, now) };
     case 'thinking': {
       const streaming = STREAMING_THINKING_AGENTS.includes(m.agentId ?? '');
       return {
@@ -68,14 +75,12 @@ export function applyAgentEvent(m: MessageRecord, ev: UiAgentEvent, now: number)
       const byUserOnly = ev.message.startsWith(DENIED_NOTICE_PREFIX) && !m.deniedActions?.length;
       const line = byUserOnly ? `> ${NOTICE_ICON.info} Aksi yang Anda tolak tidak dijalankan.` : `> ${NOTICE_ICON[ev.level]} ${ev.message}`;
       // Notice yang sama (mis. dikirim ulang CLI) tidak ditulis dua kali.
-      return m.content.includes(line) ? m : { ...m, content: `${m.content}${m.content.trim() ? '\n\n' : ''}${line}` };
+      return m.content.includes(line) ? m : appendAnswerLine(m, line, now);
     }
-    case 'done':
-      return {
-        ...m,
-        status: ev.ok ? m.status : 'error',
-        content: !ev.ok && ev.summary ? `${m.content}${m.content.trim() ? '\n\n' : ''}> ❌ ${ev.summary}` : m.content,
-      };
+    case 'done': {
+      const next = !ev.ok && ev.summary ? appendAnswerLine(m, `> ❌ ${ev.summary}`, now) : m;
+      return { ...next, status: ev.ok ? m.status : 'error' };
+    }
     default:
       return m;
   }

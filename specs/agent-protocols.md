@@ -98,7 +98,7 @@ menjadi event `log` dan disimpan di `MessageRecord.logs` (tombol "Log CLI" di pa
 ```ts
 type UiAgentEvent =
   | { kind: 'session'; cliSessionId: string; model?: string }      // → ConversationRecord.cliSessionId
-  | { kind: 'text'; delta: string }                                 // → isi bubble jawaban
+  | { kind: 'text'; delta: string }                                 // → content + langkah trajectory 'text' (kronologis di antara tool)
   | { kind: 'thinking'; delta: string }                             // → langkah timeline 'thought' (+ reasoning)
   | { kind: 'tool'; id: string; name: string; input: object; status: 'running' | 'done' | 'error'; output?: string; category?: string } // → trajectory (category = jenis tool ACP Kiro)
   | { kind: 'file_change'; path: string }                           // → git diff → pill "Edited" + DiffReviewPanel (hanya setelah tool edit BERHASIL)

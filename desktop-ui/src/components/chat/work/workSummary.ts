@@ -69,7 +69,27 @@ export function displaySteps(msg: MessageRecord): TrajectoryStep[] {
   return [{ type: 'thought', label: 'Penalaran', thoughtContent: reasoning, status: 'done' }, ...steps];
 }
 
-const isMergeableEdit = (s: TrajectoryStep) => s.type === 'edited' && s.status !== 'denied' && s.status !== 'error' && !!(s.file || s.diff?.file);
+export interface MessageFlow {
+  /** Langkah proses kronologis (termasuk segmen penjelasan perantara). */
+  process: TrajectoryStep[];
+  /** Jawaban akhir yang tetap tampil saat proses dilipat. */
+  answer: string;
+}
+
+/**
+ * Membagi pesan agen menjadi alur proses + jawaban akhir. Saat berjalan semua teks tampil di dalam alur;
+ * setelah selesai segmen teks terakhir menjadi jawaban di bawah proses yang dilipat.
+ * Pesan lama tanpa langkah `text`: jawaban = `content`.
+ */
+export function messageFlow(msg: MessageRecord): MessageFlow {
+  const steps = displaySteps(msg);
+  const last = steps.findLastIndex((s) => s.type === 'text');
+  if (last < 0) return { process: steps, answer: msg.content };
+  if (msg.status === 'running') return { process: steps, answer: '' };
+  return { process: steps.filter((_, i) => i !== last), answer: steps[last].text || '' };
+}
+
+const isMergeableEdit =(s: TrajectoryStep) => s.type === 'edited' && s.status !== 'denied' && s.status !== 'error' && !!(s.file || s.diff?.file);
 const editKey = (s: TrajectoryStep) => norm(s.file || s.diff?.file);
 
 /**
@@ -104,9 +124,11 @@ const EXPLORE_TYPES: TrajectoryStep['type'][] = ['analyzed', 'explored'];
 export function groupSteps(steps: TrajectoryStep[], min = 3): StepItem[] {
   const items: StepItem[] = [];
   let run: { step: TrajectoryStep; index: number }[] = [];
+  let texts = 0;
   // Baris edit gabungan berpindah toolId tiap ada edit baru → kunci per berkas agar state buka/tutup tidak hilang.
+  // Segmen teks tidak pernah dihapus → nomor urutnya stabil walau indeks bergeser karena penggabungan edit.
   const keyOf = (s: TrajectoryStep, i: number) =>
-    isMergeableEdit(s) ? `edit-${editKey(s)}` : s.toolId ?? `${s.type}-${i}`;
+    s.type === 'text' ? `text-${texts++}` : isMergeableEdit(s) ? `edit-${editKey(s)}` : s.toolId ?? `${s.type}-${i}`;
   const flush = () => {
     if (run.length >= min) items.push({ kind: 'group', steps: run.map((r) => r.step), key: `grp-${keyOf(run[0].step, run[0].index)}` });
     else run.forEach((r) => items.push({ kind: 'step', step: r.step, key: keyOf(r.step, r.index) }));

@@ -28,6 +28,7 @@ import { useHitlPermissions } from './useHitlPermissions';
 import { useAntigravityApprovals } from './useAntigravityApprovals';
 import { persistChatAttachments } from '../services/chatAttachmentStore';
 import { buildChatPrompt } from '../services/cli/chatPrompt';
+import { appendAnswerLine } from '../services/cli/messageReducer';
 import {
   NEW_CHAT_TITLE,
   isCliConversation,
@@ -146,12 +147,12 @@ export function useChatGeneration(d: ChatGenerationDeps) {
       d.setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== gen.agentMsgId) return m;
+          const now = Date.now();
+          const closed = { ...m, trajectory: (m.trajectory || []).map((s) => (s.status === 'running' ? { ...s, status: 'error' as const } : s)) };
           const stopped: MessageRecord = {
-            ...m,
+            ...appendAnswerLine(closed, '> ⏹️ **Dihentikan oleh pengguna.** Jawaban di atas mungkin belum lengkap.', now),
             status: 'stopped',
-            finishedAt: Date.now(),
-            trajectory: (m.trajectory || []).map((s) => (s.status === 'running' ? { ...s, status: 'error' } : s)),
-            content: `${m.content}${m.content.trim() ? '\n\n' : ''}> ⏹️ **Dihentikan oleh pengguna.** Jawaban di atas mungkin belum lengkap.`,
+            finishedAt: now,
           };
           sorajaDb.addMessage(stopped).catch(() => {});
           return stopped;

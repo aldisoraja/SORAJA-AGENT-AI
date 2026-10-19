@@ -8,7 +8,7 @@ import { CopyButton } from '../ui/CopyButton';
 import { AgentWorkTimeline } from './work/AgentWorkTimeline';
 import { CodeEditsCard } from './CodeEditsCard';
 import { DeniedActionsBar } from './DeniedActionsBar';
-import { formatDuration } from './work/workSummary';
+import { formatDuration, messageFlow } from './work/workSummary';
 
 interface AgentMessageProps {
   msg: MessageRecord;
@@ -35,7 +35,10 @@ function useTicker(active: boolean): number {
   return now;
 }
 
-/** Jawaban agen: identitas agen, panel proses kerja, jawaban Markdown, perubahan kode, dan bilah aksi (salin). */
+/**
+ * Jawaban agen: identitas agen, alur proses kerja (penjelasan diselipkan di antara langkah, dilipat setelah selesai),
+ * jawaban akhir Markdown, perubahan kode, dan bilah aksi (salin).
+ */
 export function AgentMessage({
   msg,
   isLight,
@@ -51,6 +54,7 @@ export function AgentMessage({
   const agentName = msg.agentName || fallbackAgent.name;
   const duration = msg.startedAt && msg.finishedAt ? formatDuration(msg.finishedAt - msg.startedAt) : '';
   const muted = isLight ? 'text-slate-500' : 'text-slate-400';
+  const flow = messageFlow(msg);
 
   return (
     <div className={`group w-full ${WIDTH[settings?.conversationWidth ?? 'default']} space-y-3`}>
@@ -64,15 +68,16 @@ export function AgentMessage({
 
       <AgentWorkTimeline
         msg={msg}
+        steps={flow.process}
         isLight={isLight}
         now={now}
         verbose={settings?.verboseAgentChat ?? false}
         onOpenDiff={onOpenDiffReview}
       />
 
-      {msg.content && (
+      {flow.answer && (
         <div className="px-0.5">
-          <MarkdownContent content={msg.content} isLight={isLight} />
+          <MarkdownContent content={flow.answer} isLight={isLight} />
           {running && <span className={`soraja-caret ${isLight ? 'bg-blue-600' : 'bg-cyan-400'}`} aria-hidden />}
         </div>
       )}
@@ -102,7 +107,7 @@ export function AgentMessage({
 
       {!running && msg.content.trim() && (
         <div className="flex items-center gap-1 -ml-2 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-          <CopyButton text={() => msg.content} label="Salin jawaban" isLight={isLight} />
+          <CopyButton text={() => flow.answer || msg.content} label="Salin jawaban" isLight={isLight} />
           <span className={`text-[10.5px] font-mono px-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
             {msg.timestamp}
             {duration && ` · ${duration}`}
