@@ -140,7 +140,8 @@ export function useChatGeneration(d: ChatGenerationDeps) {
       gen.timers?.forEach((t) => clearTimeout(t));
       // Hentikan dulu pelacakan agar event akhir dari proses yang dimatikan tidak menimpa status.
       activeGenRef.current = null;
-      if (gen.pid) await stopHeadlessAgentSession(gen.pid, gen.agentMsgId);
+      // Berbasis sessionId: tetap berlaku walau `agent:session_start` (pid) belum diterima UI.
+      await stopHeadlessAgentSession(gen.agentMsgId).catch((err) => console.warn('Gagal menghentikan agen:', err));
       // Jawaban & jejak kerja parsial dipertahankan; hanya status yang diubah.
       d.setMessages((prev) =>
         prev.map((m) => {
@@ -163,17 +164,15 @@ export function useChatGeneration(d: ChatGenerationDeps) {
   };
 
   const handleTogglePauseGeneration = async () => {
-    const pid = activeGenRef.current?.pid;
-    if (!pid || !isTauri) return;
+    const gen = activeGenRef.current;
+    // `pid` terisi saat `agent:session_start` → proses CLI sudah berjalan.
+    if (!gen?.pid || !isTauri) return;
+    const sessionId = gen.agentMsgId;
     setIsPaused((prev) => {
       const next = !prev;
-      if (next) {
-        pauseHeadlessAgentSession(pid);
-        d.showDbToast('Sesi agen dijeda sementara (Pause).');
-      } else {
-        resumeHeadlessAgentSession(pid);
-        d.showDbToast('Sesi agen dilanjutkan (Resume).');
-      }
+      const toggle = next ? pauseHeadlessAgentSession : resumeHeadlessAgentSession;
+      toggle(sessionId).catch((err) => d.showDbToast(`Gagal ${next ? 'menjeda' : 'melanjutkan'} agen: ${String(err)}`));
+      d.showDbToast(next ? 'Sesi agen dijeda sementara (Pause).' : 'Sesi agen dilanjutkan (Resume).');
       return next;
     });
   };

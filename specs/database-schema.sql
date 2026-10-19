@@ -8,7 +8,7 @@
 --   "Pesan"               = execution_logs   (UI: MessageRecord)
 --   "Tab Terminal CLI"    = pty_sessions
 --
--- Nilai agent_id yang SAH (4 agen CLI native, lihat specs/agent-protocols.md):
+-- Nilai agent_id yang SAH (5 agen CLI native, lihat specs/agent-protocols.md):
 --   'antigravity' | 'claude' | 'codex' | 'opencode' | 'kiro'
 
 PRAGMA journal_mode = WAL;

@@ -71,6 +71,28 @@ pub struct PtySession {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     scrollback: Arc<Mutex<Scrollback>>,
+    /// Job Object pohon proses CLI (`process_job.rs`): ditutup → seluruh anak proses ikut mati.
+    #[cfg(windows)]
+    job: Option<super::process_job::ProcessJob>,
+}
+
+impl PtySession {
+    /// Mematikan CLI beserta seluruh anak prosesnya (fallback: kill proses induk saja).
+    fn kill(mut self) {
+        #[cfg(windows)]
+        if self.job.as_ref().is_some_and(|job| job.terminate().is_ok()) {
+            return;
+        }
+        let _ = self.killer.kill();
+    }
+
+    /// CLI keluar sendiri: lepas job tanpa mematikan proses latar yang ditinggalnya.
+    fn release(self) {
+        #[cfg(windows)]
+        if let Some(job) = self.job {
+            job.release();
+        }
+    }
 }
 
 type SessionMap = Arc<Mutex<HashMap<String, PtySession>>>;
@@ -175,6 +197,12 @@ pub async fn start_interactive_pty(
     drop(pair.slave);
 
     let killer = child.clone_killer();
+    #[cfg(windows)]
+    let job = child.as_raw_handle().and_then(|handle| {
+        super::process_job::ProcessJob::attach(handle)
+            .map_err(|e| eprintln!("[soraja] Job Object terminal {session_id} gagal dibuat: {e}"))
+            .ok()
+    });
     let mut reader = pair
         .master
         .try_clone_reader()
@@ -188,22 +216,22 @@ pub async fn start_interactive_pty(
     let scrollback = Arc::new(Mutex::new(Scrollback::default()));
     {
         let mut map = state.sessions.lock().map_err(|e| e.to_string())?;
+        let session = PtySession {
+            generation,
+            master: Arc::new(Mutex::new(pair.master)),
+            writer: Arc::new(Mutex::new(writer)),
+            killer,
+            scrollback: Arc::clone(&scrollback),
+            #[cfg(windows)]
+            job,
+        };
         if map.contains_key(&session_id) {
             // Kalah balapan dengan spawn lain untuk sesi yang sama → hentikan proses ini.
-            let mut k = killer;
-            let _ = k.kill();
+            drop(map);
+            session.kill();
             return Ok(());
         }
-        map.insert(
-            session_id.clone(),
-            PtySession {
-                generation,
-                master: Arc::new(Mutex::new(pair.master)),
-                writer: Arc::new(Mutex::new(writer)),
-                killer,
-                scrollback: Arc::clone(&scrollback),
-            },
-        );
+        map.insert(session_id.clone(), session);
     }
 
     let sid_out = session_id.clone();
@@ -234,17 +262,12 @@ pub async fn start_interactive_pty(
     std::thread::spawn(move || {
         // `child` dimiliki penuh thread ini: tidak ada mutex yang tertahan selama menunggu.
         let exit_code = child.wait().map(|s| s.exit_code() as i64).unwrap_or(-1);
-        let still_owner = match sessions.lock() {
-            Ok(mut map) => {
-                let owned = map.get(&session_id).map(|s| s.generation == generation).unwrap_or(false);
-                if owned {
-                    map.remove(&session_id);
-                }
-                owned
-            }
-            Err(_) => false,
+        let owned_session = match sessions.lock() {
+            Ok(mut map) if map.get(&session_id).is_some_and(|s| s.generation == generation) => map.remove(&session_id),
+            _ => None,
         };
-        if still_owner {
+        if let Some(session) = owned_session {
+            session.release();
             let _ = app.emit("pty:exit", serde_json::json!({ "sessionId": session_id, "exitCode": exit_code }));
         }
     });
@@ -306,8 +329,8 @@ pub async fn resize_interactive_pty(
 pub async fn close_interactive_pty(state: State<'_, PtyState>, session_id: String) -> Result<(), String> {
     // Lepas kunci peta dulu, baru kill → tidak ada deadlock dengan thread wait/write.
     let session = state.sessions.lock().map_err(|e| e.to_string())?.remove(&session_id);
-    if let Some(mut s) = session {
-        let _ = s.killer.kill();
+    if let Some(s) = session {
+        s.kill();
     }
     Ok(())
 }

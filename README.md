@@ -1,7 +1,12 @@
-# 🚀 Agent Soraja AI (Desktop Command Center & Web Portal)
+# 🚀 Agent Soraja AI (SORAJA ENGINE — Desktop Command Center & Web Portal)
 
-> **Master Architecture, System Specification, and AI Directives**  
-> Repositori ini berisi cetak biru pembangunan aplikasi desktop *Agentic Command Center* (setara Google Antigravity Desktop 2.0), *Terminal CLI*, serta web portal download installer.
+> Aplikasi desktop Windows (*Agentic Command Center*) yang menjalankan **5 agen coding CLI resmi** — Antigravity (`agy`),
+> Claude Code (`claude`), Codex (`codex`), OpenCode (`opencode`), dan Kiro (`kiro-cli`) — dalam dua mode: **Chat GUI**
+> (CLI headless + stream JSON) dan **Terminal CLI** (ConPTY + xterm.js), ditambah web portal unduhan (Astro).
+> Soraja **tidak membuat agen sendiri dan tidak memanggil API LLM secara langsung**.
+
+> **Sumber kebenaran:** folder [`specs/`](./specs/README.md). Bila README ini berbeda dengan `specs/`, yang berlaku adalah `specs/`.
+> Bagian 13–15 di bawah adalah **arsip riwayat** dan bisa memuat rencana yang tidak (lagi) diimplementasikan.
 
 ---
 
@@ -13,217 +18,123 @@ Jika Anda adalah model AI (Google Gemini, Anthropic Claude, OpenAI, DeepSeek, at
 * **Gunakan Gemini 3.1 Pro (High) / Claude 3.7 Sonnet untuk:**
   * Perancangan arsitektur, SpecKit (`specs/`), dan review sistemik.
   * Logika inti backend Rust & sistem IPC Tauri v2 (`crates/soraja-core` & `crates/soraja-desktop`).
-  * Concurrency/multithreading background agent & Git Worktrees isolation.
+  * Concurrency proses CLI agen (PTY, headless, Job Object) & jembatan izin HITL.
   * Skema database SQLite lokal, migrasi data, & host Model Context Protocol (MCP).
   * *Aturan untuk AI:* **WAJIB mengingatkan pengguna** untuk beralih ke **Gemini 3.1 Pro** saat memasuki tugas-tugas di atas.
 * **Gunakan Gemini 3.8 Flash (High) / Claude 3.5 Haiku untuk:**
-  * Pembuatan antarmuka visual (UI/UX React 19, Shadcn, Tailwind CSS v4).
+  * Pembuatan antarmuka visual (UI/UX React 19, Tailwind CSS v4).
   * Pembuatan dan styling web download portal (Astro).
   * Komponen terminal Xterm.js & layouting CSS.
   * Pembuatan unit tests, dummy data, dan skrip otomatisasi cepat.
   * *Aturan untuk AI:* **WAJIB mengingatkan/memperingatkan pengguna** untuk beralih ke **Gemini 3.8 Flash** saat pengerjaan UI agar proses instan dan hemat token.
 
-### 2. Prinsip Arsitektur Baku (Rock-Solid Production Standard)
-* **Ringan & Cepat:** Gunakan Tauri v2 + Rust untuk desktop backend (RAM idle < 60 MB), React 19 + Tailwind v4 untuk frontend, dan SQLite lokal (WAL Mode).
-* **Isolasi Agen (Git Worktrees):** Semua agen latar belakang wajib beroperasi di branch terisolasi menggunakan **Git Worktrees** agar tidak merusak kode di branch utama pengguna.
-* **Type-Safe IPC (`tauri-specta`):** Seluruh komunikasi antara Rust dan TypeScript wajib menggunakan generator kontrak otomatis (`tauri-specta`) untuk mencegah error *type mismatch* saat runtime.
-* **Keamanan Kredensial:** API Key dan token OAuth wajib disimpan di **Windows Credential Manager** via library OS keyring DPAPI (bukan plain-text).
-* **Proteksi Zombie Process (Windows Job Objects):** Setiap sub-proses terminal virtual PTY wajib dibungkus dalam *Windows Job Object* dengan flag `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` agar seluruh anak proses mati tuntas saat task dihentikan.
-* **Pengendalian Pembatalan (Cancellation Tokens):** Setiap sesi agen menggunakan `tokio_util::sync::CancellationToken` agar tombol Stop pengguna membatalkan request HTTP stream dan membunuh proses terminal secara instan.
-* **Performa Rendering (RAF Batching & WAL Mode):** SQLite wajib menggunakan mode WAL (`PRAGMA journal_mode = WAL;`) untuk multi-agent concurrency, dan streaming teks frontend di-batching per 16ms (60 FPS) untuk mencegah UI lagging.
-* **Guardrails Keamanan:** Perintah terminal yang destruktif (seperti penghapusan direktori root, format partisi, atau kill process sistem) wajib memerlukan konfirmasi persetujuan (*Human-in-the-Loop Confirmation*).
-* **Spec-Driven:** Patuhi kontrak spesifikasi API, IPC schema, dan struktur data yang tertulis dalam folder `specs/`.
+### 2. Prinsip Arsitektur Baku (sesuai kode saat ini)
+* **Ringan & Cepat:** Tauri v2 + Rust untuk backend desktop, React 19 + Tailwind v4 (Vite) untuk frontend.
+* **Agen = CLI resmi:** Soraja menjalankan biner CLI yang sudah terpasang & login di mesin pengguna; baca/tulis berkas dan eksekusi shell dilakukan oleh tools bawaan CLI di folder proyek (tidak ada Git Worktree terpisah).
+* **Kontrak IPC manual & terdokumentasi:** nama command/event Tauri wajib sesuai [`specs/ipc-contracts.md`](./specs/ipc-contracts.md) (tidak memakai generator `tauri-specta`; tipe TypeScript ditulis tangan di `desktop-ui/src/services/`).
+* **Keamanan Kredensial:** API key opsional disimpan di **Windows Credential Manager** (DPAPI) via crate `keyring`; login langganan tetap dikelola masing-masing CLI.
+* **Proteksi Zombie Process (Windows Job Objects):** setiap proses CLI (mode Chat GUI maupun Terminal) diikat ke *Job Object* dengan `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Tombol Stop / tutup tab mematikan seluruh pohon proses; Jeda/Lanjut menjeda seluruh proses di job (`crates/soraja-desktop/src/commands/process_job.rs`).
+* **Pembatalan:** Stop/Jeda/Lanjut dialamatkan per `sessionId` (`stop_agent_session`, `pause_agent_session`, `resume_agent_session`), bukan lewat `CancellationToken` HTTP — Soraja tidak membuka stream HTTP ke LLM.
+* **Guardrails Keamanan (HITL):** perintah shell agen di mode aman dimintakan izin lewat modal 5 opsi (lihat `specs/agent-protocols.md` bagian 7); `run_workspace_terminal` menolak perintah destruktif.
+* **Batas 500 baris per berkas kode** (TS/TSX/Rust) dan **Spec-Driven:** patuhi `specs/` serta `CLAUDE.md`.
 
 ---
 
 ## 📋 DAFTAR ISI
-1. [Prasyarat Lingkungan Pengembangan (Prerequisites)](#-1-prasyarat-lingkungan-pengembangan-prerequisites)
+1. [Prasyarat Lingkungan Pengembangan](#-1-prasyarat-lingkungan-pengembangan)
 2. [Arsitektur & Tech Stack](#-2-arsitektur--tech-stack)
-3. [Katalog Lengkap Model AI Agent](#-3-katalog-lengkap-model-ai-agent)
-4. [Mekanisme Koneksi Langganan Akun (Pro / Ultra / Copilot)](#-4-mekanisme-koneksi-langganan-akun)
-5. [Orkestrasi Sub-Agent & Guardrails Keamanan](#-5-orkestrasi-sub-agent--guardrails-keamanan)
-6. [Isolasi Eksekusi: Git Worktree Engine](#-6-isolasi-eksekusi-git-worktree-engine)
-7. [Spesifikasi Model Context Protocol (MCP) Tools](#-7-spesifikasi-model-context-protocol-mcp-tools)
+3. [Katalog Agen & Model](#-3-katalog-agen--model)
+4. [Akun, Paket & Kuota](#-4-akun-paket--kuota)
+5. [Izin Eksekusi (HITL) & Guardrails](#-5-izin-eksekusi-hitl--guardrails)
+6. [Kontrol Proses: Stop, Jeda & Job Object](#-6-kontrol-proses-stop-jeda--job-object)
+7. [MCP Lokal (Jembatan Izin)](#-7-mcp-lokal-jembatan-izin)
 8. [Struktur Direktori Repositori (Monorepo)](#-8-struktur-direktori-repositori-monorepo)
-9. [Skema Database & State Management](#-9-skema-database--state-management)
+9. [Penyimpanan Data](#-9-penyimpanan-data)
 10. [Web Portal Download](#-10-web-portal-download)
 11. [Panduan Menjalankan Proyek (Quick Start)](#-11-panduan-menjalankan-proyek-quick-start)
-12. [Roadmap Pembangunan](#-12-roadmap-pembangunan)
-13. [Log Perubahan & Arsitektur Terkini (Changelog v1.0.0 - v1.2.0)](#-13-log-perubahan--arsitektur-terkini-changelog-v100)
-14. [Spesifikasi & Cetak Biru: Chat GUI Antigravity Desktop & Mesin CLI Terminal DeSaIn](#-14-spesifikasi--cetak-biru-chat-gui-antigravity-desktop--mesin-cli-terminal-desain)
-15. [Aksesibilitas Pengguna Non-Teknis & Stabilisasi Mesin Terminal CLI](#-15-aksesibilitas-pengguna-non-teknis--stabilisasi-mesin-terminal-cli)
+12. [Status & Utang Teknis](#-12-status--utang-teknis)
+13. [Arsip: Log Perubahan v1.0.0 – v1.2.0](#-13-log-perubahan--arsitektur-terkini-changelog-v100)
+14. [Arsip: Cetak Biru Chat GUI & Mesin CLI Terminal](#-14-spesifikasi--cetak-biru-chat-gui-antigravity-desktop--mesin-cli-terminal-desain)
+15. [Arsip: Aksesibilitas Pengguna Non-Teknis & Stabilisasi Terminal](#-15-aksesibilitas-pengguna-non-teknis--stabilisasi-mesin-terminal-cli)
 
 ---
 
-## 💻 1. PRASYARAT LINGKUNGAN PENGEMBANGAN (PREREQUISITES)
+## 💻 1. PRASYARAT LINGKUNGAN PENGEMBANGAN
 
-Untuk mengompilasi dan menjalankan aplikasi di lingkungan **Windows 10/11 64-bit**:
-* **Rust:** Versi stabil terbaru (`rustup toolchain install stable`).
-* **C++ Build Tools:** Visual Studio 2022 C++ Build Tools (wajib dengan komponen *MSVC v143* dan *Windows 10/11 SDK* untuk Tauri v2).
-* **Node.js:** v20.x atau v22.x LTS dengan **`pnpm`** (`npm install -g pnpm`).
-* **Git CLI:** v2.40+ (mendukung fitur `git worktree`).
-* **WebView2 Runtime:** Terpasang bawaan di Windows 10/11.
+Untuk mengompilasi dan menjalankan aplikasi di **Windows 10/11 64-bit**:
+* **Rust:** versi stabil terbaru (`rustup toolchain install stable`).
+* **C++ Build Tools:** Visual Studio 2022 C++ Build Tools (*MSVC v143* + *Windows 10/11 SDK*) untuk Tauri v2.
+* **Node.js:** v20+ dengan **`pnpm`** v9+ (`npm install -g pnpm`).
+* **WebView2 Runtime:** bawaan Windows 10/11.
+* **CLI agen** yang ingin dipakai, terpasang & sudah login: `agy`, `claude`, `codex`, `opencode`, dan/atau `kiro-cli`.
 
 ---
 
 ## 🏗️ 2. ARSITEKTUR & TECH STACK
 
 ### A. Desktop Command Center
-* **Desktop Runtime:** **Tauri v2** (Rust) — konsumsi memori idle < 60 MB, installer < 15 MB.
-* **Native Backend (Rust Core Shared Crate):**
-  * `tokio`: Async multithreading pool dengan batas konkurensi (mencegah CPU thrashing).
-  * `portable-pty`: Pengendalian virtual PTY terminal interaktif.
-  * `git2`: Pengelolaan branch & Git worktrees terisolasi untuk background tasks.
-  * `reqwest` + `eventsource-stream`: Streaming SSE multi-provider LLM.
-  * `keyring-rs`: Integrasi langsung ke Windows Credential Manager (DPAPI) untuk token terenkripsi.
-  * `rusqlite` + `r2d2`: Database relasional lokal dengan connection pooling & WAL mode.
-  * `tauri-specta`: Generator otomatis tipe TypeScript dari fungsi backend Rust.
-* **Frontend UI (Webview):**
-  * **Framework:** React 19 / TypeScript (Vite).
-  * **Styling & Components:** Tailwind CSS v4 + Shadcn UI + Lucide Icons.
-  * **Terminal Emulator:** `@xterm/xterm` + addon fit/webgl dengan buffer scrollback virtual.
-  * **Code & Diff Viewer:** CodeMirror 6 (ringan & cepat) dengan visual git diff.
-  * **State Store:** Zustand.
+* **Runtime:** Tauri v2 (Rust). Plugin: `tauri-plugin-dialog` (pemilih folder), `tauri-plugin-opener`.
+* **Backend `crates/soraja-desktop`** (router IPC, semua berkas < 500 baris):
+  * `commands/pty.rs` — Terminal CLI di ConPTY (`portable-pty`), riwayat output untuk reload webview.
+  * `commands/headless.rs` — Chat GUI: spawn CLI headless, stdout NDJSON → event `agent:token_stream`, stdin JSON-RPC (Codex app-server, OpenCode/Kiro ACP).
+  * `commands/session_control.rs` + `commands/process_job.rs` — Stop/Jeda/Lanjut per sesi & Windows Job Object.
+  * `commands/permission_bridge.rs` — MCP HTTP lokal untuk izin HITL Claude; `antigravity_grants.rs` — izin perintah Antigravity.
+  * `commands/catalog.rs`, `language_rules.rs`, `workspace.rs`, `attachments.rs`, `skills.rs`.
+* **Core `crates/soraja-core`:** deteksi & katalog agen CLI (`agent_catalog.rs`, `agent_models.rs`), akun & kuota dari data CLI (`cli_accounts/`, `token_tracker.rs`), DPAPI (`auth.rs`), guardrail terminal (`mcp_tools.rs`), registri skill (`skills.rs`), dan lapisan SQLite (`db.rs`, belum dipakai aplikasi — lihat bagian 9).
+* **Frontend `desktop-ui`:** React 19 + TypeScript (Vite 8), Tailwind CSS v4, Lucide Icons, `marked` (Markdown), `@xterm/xterm` + addon fit & unicode-graphemes. State memakai React hooks (`src/hooks/`), tanpa Zustand.
 
-### B. Web Download Portal
-* **Framework:** **Astro** (Zero-JS by default, instant TTFB).
-* **Styling:** Tailwind CSS.
-* **Hosting:** Cloudflare Pages / Vercel (Gratis CDN global).
-* **Fitur Download:**
-  * **Tab Desktop:** Deteksi OS otomatis (`.exe`, `.msi`, `.dmg`, `.AppImage`).
-  * **Tab CLI:** Skrip instalasi 1-baris untuk PowerShell (`install.ps1`) dan Bash (`install.sh`), serta paket Homebrew/Winget.
+### B. Web Download Portal (`web-landing`)
+* **Astro** dengan halaman unduhan yang membaca `web-landing/src/data/releases.json`.
+* Installer dibangun GitHub Actions (`.github/workflows/release.yml`, tag `v*`) untuk Windows, macOS, dan Linux; `scripts/publish-release.mjs` memperbarui manifest unduhan.
 
 ---
 
-## 🧠 3. KATALOG LENGKAP MODEL AI AGENT
+## 🧠 3. KATALOG AGEN & MODEL
 
-Aplikasi desktop ini dilengkapi selector model modular dengan kategori lengkap:
+| `agent_id` | Nama di UI | Biner | Vendor |
+| :--- | :--- | :--- | :--- |
+| `antigravity` | Antigravity | `agy` | Google |
+| `claude` | Claude | `claude` | Anthropic |
+| `codex` | Codex | `codex` | OpenAI |
+| `opencode` | OpenCode | `opencode` | SST (multi-provider) |
+| `kiro` | Kiro | `kiro-cli` | Amazon Web Services |
 
-### 3.1 Google Gemini
-Mendukung pengaturan **Thinking Budget** (*Low*, *Medium*, *High*):
-* **Gemini 3.1 Pro** (`gemini-3.1-pro`): Penalaran utama, coding arsitektur, refactor mendalam.
-* **Gemini 3.8 Flash** (`gemini-3.8-flash`): Kecepatan tinggi, pembuatan komponen UI, debugging instan.
-* **Gemini 2.5 Pro / Flash**: Kapasitas context window 2 juta token.
-* **Gemini 2.0 Flash Thinking Exp**: Mode penalaran eksperimental dengan CoT eksplisit.
-* **Gemini 1.5 Pro / Flash**: Model stabil generasi sebelumnya.
-
-### 3.2 Anthropic Claude
-* **Claude 3.7 Sonnet** (`claude-3-7-sonnet`): Model coding unggulan dengan kemampuan *Hybrid Extended Thinking* yang dapat diatur budget tokennya.
-* **Claude 3.5 Sonnet** (`claude-3-5-sonnet`): Standar industri untuk penulisan kode terstruktur dan elegan.
-* **Claude 3.5 Haiku** (`claude-3-5-haiku`): Ringkas dan berkecepatan tinggi untuk evaluasi kode dan linting.
-* **Claude 3 Opus** (`claude-3-opus`): Penalaran mendalam untuk masalah konseptual kompleks.
-
-### 3.3 OpenAI & Codex Family
-* **OpenAI o3-mini**: Model penalaran coding dengan opsi reasoning: **Low**, **Medium**, dan **High**.
-* **OpenAI o1 & o1-pro**: Model penalaran otonom untuk masalah algoritma rumit.
-* **OpenAI o1-mini**: Model penalaran berbobot ringan untuk tugas cepat.
-* **GPT-4.5 (Orion)**: Model flagship multimodal dengan pemahaman konteks mendalam.
-* **GPT-4o & GPT-4o-mini**: Model serba bisa untuk general task & parsing data.
-* **OpenAI Codex API**: Kompatibilitas backwards endpoint code completion.
-
-### 3.4 Open Code / Open Source Models
-Koneksi ke penyedia lokal (**Ollama**, **vLLM**, **LM Studio**) maupun cloud API (Together AI, Fireworks, DeepInfra):
-* **DeepSeek-R1**: Full reasoning open-weight model setara o1.
-* **DeepSeek-V3 & DeepSeek-Coder-V2**: Model spesialis multi-bahasa pemrograman dan repo analysis.
-* **Qwen2.5-Coder (32B, 14B, & 7B Instruct)**: Model coding open-source terbaik saat ini.
-* **StarCoder2 (15B / 7B / 3B)**: Model berlisensi permisif untuk *code completion*.
-* **Code Llama (70B / 34B / 13B / 7B)**: Model fondasi coding dari Meta.
-* **Yi-Coder & Devstral**: Alternatif open-source model coding efisien.
-
-### 3.5 Web Research & Provider Khusus
-* **Perplexity Sonar & Sonar Pro**: Agen pencari informasi berbasis internet realtime dengan sitasi sumber.
-* **Mistral AI - Codestral (22B) & Codestral Mamba**: Sangat optimal untuk autocompletion dengan context window 256K.
-* **xAI - Grok 2 & Grok 3**: Kemampuan analisis kode dan reasoning terkini.
-* **Groq (LPU Inference)**: Kecepatan ekstrem (300–500 token/detik) untuk open-code models.
+* **Daftar model tidak di-hardcode di UI.** Model diambil live dari CLI (`get_agent_models`, mis. `agy models`, `opencode models`, `codex debug models`); katalog di `crates/soraja-core/src/agent_catalog.rs` hanya cadangan. Opsi `cli-default` = biarkan CLI memakai model bawaannya.
+* Detail flag per CLI dan format stream: [`specs/agent-protocols.md`](./specs/agent-protocols.md).
 
 ---
 
-## 🔑 4. MEKANISME KONEKSI LANGGANAN AKUN
+## 🔑 4. AKUN, PAKET & KUOTA
 
-Aplikasi menyediakan panel **Settings > Accounts & Providers** untuk menghubungkan langganan pengguna:
-
-```mermaid
-flowchart LR
-    subgraph AuthInput ["Input Pengguna"]
-        OAuthGoogle["Login Akun Google (OAuth PKCE)"]
-        OAuthGH["Login GitHub Copilot (Device Flow)"]
-        KeyInput["Input API Key (OpenAI / Claude / Groq)"]
-    end
-
-    subgraph Security ["Keamanan Lokal"]
-        Keyring["Windows Credential Locker (Encrypted DPAPI)"]
-    end
-
-    subgraph QuotaDetection ["Deteksi Tier & Langganan"]
-        CheckG["Cek Entitlement Google Cloud / Workspace"]
-        CheckGH["Cek GitHub Copilot Plan (Individual/Business)"]
-        CheckAPI["Cek Rate Limit & Quota Headers (Tier 1 - 5)"]
-    end
-
-    subgraph UIStatus ["Status di Tampilan UI"]
-        Badge1["[Google: Pro / Enterprise Active]"]
-        Badge2["[GitHub Copilot: Active Subscriber]"]
-        Badge3["[OpenAI: Tier 4 Pro Quota]"]
-    end
-
-    AuthInput --> Security
-    Security --> QuotaDetection
-    QuotaDetection --> UIStatus
-```
-
-1. **OAuth 2.0 PKCE (Google Account):** Pengguna login dengan akun Google untuk mengaktifkan akun Google Cloud / Gemini Studio, langsung membaca limit kuota yang tersedia.
-2. **GitHub Device Flow (GitHub Copilot):** Pengguna dengan langganan Copilot (\$10/bln) dapat memakai model GPT-4o, Claude 3.5 Sonnet, dan o1 tanpa bayar per-token API.
-3. **API Key Tier Auto-Discovery:** Menampilkan badge kuota real-time (*Tier 1 hingga Tier 5*) dari response header provider.
+* Login memakai mekanisme bawaan tiap CLI (kuota langganan tetap berlaku). Soraja hanya **membaca** status login, email, paket, dan sisa kuota dari data milik CLI (`get_user_cli_profile`, `get_agent_token_stats`); token rahasia tidak pernah dibaca atau dikirim.
+* Bila CLI tidak melaporkan suatu angka, UI menampilkan "Tidak dilaporkan oleh CLI" — tidak ada angka karangan.
+* API key opsional (mode `api_key`) disimpan via `save_account_credential` ke Windows Credential Manager (DPAPI) dan hanya disuntikkan sebagai env proses CLI.
 
 ---
 
-## 🤖 5. ORKESTRASI SUB-AGENT & GUARDRAILS KEAMANAN
+## 🛡️ 5. IZIN EKSEKUSI (HITL) & GUARDRAILS
 
-Persis seperti Antigravity Command Center, sistem mendukung hirarki sub-agent yang berjalan paralel di latar belakang:
-
-```mermaid
-flowchart TD
-    UserPrompt["Prompt Pengguna"] --> LeadAgent["Lead Agent (Planner)"]
-    LeadAgent -->|Spawn Subagent 1| Sub1["Researcher Agent (Perplexity / Flash)"]
-    LeadAgent -->|Spawn Subagent 2| Sub2["Coder Agent (Claude 3.7 / Gemini 3.1)"]
-    LeadAgent -->|Spawn Subagent 3| Sub3["Tester Agent (Terminal PTY)"]
-    
-    Sub2 -->|File Edits| Worktree["Git Worktree Sandbox"]
-    Sub3 -->|Run Tests| Worktree
-    
-    Sub3 -->|Destructive Command?| Gate{"Guardrail Check"}
-    Gate -->|Aman| Exec["Eksekusi Terminal (Job Object Sandbox)"]
-    Gate -->|Bahaya (rm / format)| Modal["Popup Izin Pengguna (Human-in-the-Loop)"]
-```
-
-### Aturan Keamanan & Guardrails:
-* **Perintah Berbahaya (Destructive Commands):** Perintah terminal seperti `Remove-Item -Recurse`, `rm -rf`, perubahan permission sistem, atau penghapusan file `.env` akan dihentikan dan meminta persetujuan manual via popup UI sebelum dieksekusi.
-* **Proteksi File Rahasia:** Agent secara otomatis dicegah mengunggah file `.env`, `id_rsa`, atau token otentikasi ke prompt konteks model LLM.
-* **Tauri v2 Capability Sandboxing:** Frontend tidak bisa sembarangan mengakses file sistem di luar direktori workspace yang diizinkan oleh pengguna.
+* **Mode Aman** (bawaan): kelima agen menanyakan izin sebelum menjalankan perintah shell lewat modal 5 opsi (izinkan sekali / di percakapan ini / di proyek ini / global / tolak). Baca, cari, dan edit berkas berjalan otomatis.
+* Claude memakai `--permission-prompt-tool` ke MCP lokal Soraja; Codex/OpenCode/Kiro memakai protokol JSON-RPC (app-server / ACP); Antigravity menanyakan setelah perintah ditolak lalu melanjutkan sesi. Detail: `specs/agent-protocols.md` bagian 7.
+* **Mode Otonom:** izin diserahkan ke CLI (`permissionMode` otonom).
+* `run_workspace_terminal` (perintah cepat UI, mis. `git diff`) menolak pola destruktif (`rm -rf`, `Remove-Item -Recurse`, `format`, dll.).
 
 ---
 
-## 🛡️ 6. ISOLASI EKSEKUSI: GIT WORKTREE ENGINE
+## ⏹️ 6. KONTROL PROSES: STOP, JEDA & JOB OBJECT
 
-Agar beberapa agen otonom dapat berjalan bersamaan tanpa merusak kode di branch utama:
-
-1. Saat task agent dimulai, Rust Core membuat worktree terisolasi:  
-   `.soraja/worktrees/agent-<session_id>/`
-2. Agen menjalankan sub-proses terminal (compile, edit file, run test) di dalam direktori worktree tersebut.
-3. Setelah task selesai, antarmuka menampilkan **Diff Viewer** interaktif:
-   - Pengguna dapat melihat file mana yang diubah secara visual.
-   - Tombol **"Apply & Merge to Main"** atau **"Discard Changes"** memberikan kontrol penuh kepada pengguna.
+* Setiap proses CLI diikat ke Windows Job Object segera setelah spawn (`commands/process_job.rs`).
+* **Stop** (`stop_agent_session { sessionId }`) dan **tutup tab Terminal** (`close_interactive_pty`) memanggil `TerminateJobObject` → CLI beserta compiler/dev server/shell yang dijalankannya ikut mati.
+* **Jeda/Lanjut** (`pause_agent_session` / `resume_agent_session`) menjeda seluruh proses di job (`NtSuspendProcess`/`NtResumeProcess`).
+* **Soraja ditutup atau crash** → handle job tertutup → seluruh proses agen ikut mati (tidak ada proses zombie).
+* CLI yang selesai normal melepas job tanpa mematikan proses latar yang sengaja ditinggalnya.
+* Fallback bila Job Object gagal dibuat: `taskkill /F /T /PID`.
 
 ---
 
-## 🔌 7. SPESIFIKASI MODEL CONTEXT PROTOCOL (MCP) TOOLS
+## 🔌 7. MCP LOKAL (JEMBATAN IZIN)
 
-Backend Rust bertindak sebagai host MCP untuk menyediakan tools lokal bagi AI Agent:
-* **`fs_view(path, start_line, end_line)`**: Membaca isi file lokal dengan limit byte aman.
-* **`fs_edit(path, target_content, replacement_content)`**: Melakukan perubahan kode secara presisi.
-* **`terminal_run(command, cwd, is_background)`**: Menjalankan perintah terminal di dalam Windows Job Object.
-* **`git_diff(worktree_path)`**: Mengambil perubahan diff antara worktree agen dan branch utama.
-* **`web_search(query)`**: Melakukan pencarian web realtime via DuckDuckGo / Tavily / Perplexity API.
+Soraja tidak menjadi host tool agen (tool bawaan tiap CLI yang dipakai). Satu-satunya server MCP milik Soraja adalah jembatan izin HITL di `127.0.0.1:<port acak>` dengan token acak (`prepare_permission_bridge`), yang menyediakan tool `approval_prompt` untuk Claude. Lihat `specs/ipc-contracts.md` bagian 2.
 
 ---
 
@@ -231,141 +142,60 @@ Backend Rust bertindak sebagai host MCP untuk menyediakan tools lokal bagi AI Ag
 
 ```text
 agent-soraja-ai/
-├── README.md                       # Master guide & AI prompt instructions
-├── pnpm-workspace.yaml             # Definisi monorepo pnpm untuk frontend & web
-├── Cargo.toml                      # Root Cargo Workspace untuk Rust crates
-├── specs/                          # SpecKit folder (Kontrak arsitektur & rekayasa baku)
-│   ├── README.md                   # Katalog & Panduan Navigasi SpecKit
-│   ├── sdd-speckit.md              # Master System Design Document (SDD v1.2.0)
-│   ├── prd.md                      # Product Requirement Document
-│   ├── ipc-contracts.md            # Definisi Tauri Command & Event IPC
-│   ├── agent-protocols.md          # Format pesan LLM, tool definitions & MCP
-│   └── database-schema.sql         # Skema SQLite DDL WAL Mode
-├── crates/                         # Rust Workspace (Shared Core Engine)
-│   ├── soraja-core/                # Shared Engine (LLM stream, MCP, Git, SQLite, Auth)
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   └── soraja-desktop/             # Desktop App Backend (Tauri v2)
-│       ├── Cargo.toml
-│       ├── tauri.conf.json
-│       ├── capabilities/           # Tauri v2 Sandboxed Security Permissions
-│       └── src/
-├── desktop-ui/                     # Frontend Desktop (React 19 + TypeScript)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── chat/               # Chat stream & reasoning accordion
-│   │   │   ├── terminal/           # Xterm.js terminal instance
-│   │   │   ├── editor/             # Code & git diff viewer
-│   │   │   └── settings/           # Model switcher & Account tier badges
-│   │   ├── bindings.ts             # Auto-generated Types dari tauri-specta
-│   │   ├── stores/                 # Zustand state stores
-│   │   └── App.tsx
-│   ├── package.json
-│   └── tailwind.config.js
-└── web-landing/                    # Portal Web Download (Astro)
-    ├── src/
-    │   ├── pages/
-    │   │   └── index.astro         # Halaman download (Tab Desktop + Tab CLI)
-    │   └── components/
-    │       ├── DownloadDesktop.astro
-    │       └── InstallCliBox.astro
-    ├── public/
-    ├── astro.config.mjs
-    └── package.json
+├── README.md, CLAUDE.md, AGENTS.md, GEMINI.md   # Panduan proyek & aturan asisten AI
+├── Cargo.toml                      # Cargo workspace: soraja-core + soraja-desktop
+├── package.json, pnpm-workspace.yaml  # pnpm workspace: desktop-ui + web-landing
+├── specs/                          # SpecKit (sumber kebenaran): sdd, prd, ipc, protokol agen, skema DB
+├── crates/
+│   ├── soraja-core/                # Engine bersama (katalog agen, akun & kuota CLI, DPAPI, skills, db)
+│   └── soraja-desktop/             # Host Tauri v2 + command IPC (src/commands/*.rs), capabilities/
+├── desktop-ui/                     # Frontend React 19 + Vite
+│   ├── src/components/             # chat, diff, header, modals, settings, sidebar, terminal, ui
+│   ├── src/hooks/                  # useChatGeneration, useAgentStreamBridge, useHitlPermissions, ...
+│   ├── src/services/               # cliAdapters, db (localStorage), cli/ (perintah, parser stream, JSON-RPC)
+│   ├── headlessBridge.ts, cliBridge.ts, modelsBridge.ts  # Jembatan dev Vite (CLI dari browser)
+│   └── tests/                      # Tes node:test (`pnpm --filter desktop-ui test`)
+├── web-landing/                    # Portal unduhan Astro
+├── scripts/publish-release.mjs     # Penerbit manifest installer
+└── .github/workflows/release.yml   # Build installer multi-OS
 ```
+
+Tidak ada crate `soraja-cli`: mode Terminal menjalankan CLI asli tiap agen.
 
 ---
 
-## 💾 9. SKEMA DATABASE & STATE MANAGEMENT
+## 💾 9. PENYIMPANAN DATA
 
-### SQLite Database (`~/.soraja-agent/data.db`)
-Database lokal beroperasi dalam **WAL Mode**, sangat cepat, konkurensi tinggi, dan bebas lock issue.
-
-```sql
--- Mengaktifkan performa konkurensi maksimal
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-
--- Tabel Pengaturan & Workspace
-CREATE TABLE workspaces (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    path TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabel Kredensial & Status Langganan
-CREATE TABLE accounts (
-    id TEXT PRIMARY KEY,
-    provider TEXT NOT NULL,          -- 'google', 'github_copilot', 'openai', 'anthropic'
-    account_email TEXT,
-    tier_status TEXT,                -- 'pro', 'ultra', 'tier_4', 'copilot_individual'
-    is_active INTEGER DEFAULT 1,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabel Percakapan / Sesi Agent
-CREATE TABLE agent_sessions (
-    id TEXT PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    title TEXT,
-    provider TEXT NOT NULL,          -- 'gemini', 'claude', 'opencode', 'openai'
-    model_name TEXT NOT NULL,        -- misal: 'gemini-3.1-pro', 'claude-3-7-sonnet'
-    thinking_budget TEXT,            -- 'low', 'medium', 'high'
-    worktree_path TEXT,              -- path folder isolasi git worktree
-    status TEXT DEFAULT 'idle',      -- 'idle', 'thinking', 'executing_tool', 'awaiting_approval', 'done', 'interrupted'
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
-);
-
--- Tabel Log Perjalanan Task & Tool Calls
-CREATE TABLE execution_logs (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    role TEXT NOT NULL,              -- 'user', 'assistant', 'system', 'tool'
-    content TEXT,
-    thinking_content TEXT,           -- Menampung output penalaran model
-    tool_calls_json TEXT,            -- Payload pemanggilan fungsi terminal/git
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
-);
-```
+* **Saat ini:** proyek, percakapan, pesan, dan pengaturan disimpan frontend di **`localStorage` WebView** (`desktop-ui/src/services/db.ts`, kunci berawalan `soraja_db_v3_`).
+* **Target:** SQLite WAL di `%APPDATA%\soraja-ai\soraja.db` sesuai [`specs/database-schema.sql`](./specs/database-schema.sql). Lapisan `crates/soraja-core/src/db.rs` (pool r2d2 + migrasi) sudah ada tetapi **belum dipanggil aplikasi**; `get_workspaces` masih stub.
+* Berkas lain di `%APPDATA%\soraja-ai\`: `rules/bahasa-indonesia.md` (aturan bahasa agen) dan `skills.json` (status aktif skill).
+* Lampiran chat disimpan di `<proyek>/.soraja/attachments/<id pesan>/` (folder di-gitignore otomatis).
 
 ---
 
 ## 🌐 10. WEB PORTAL DOWNLOAD
 
-Web ini dibuat super minimalis menggunakan Astro:
-* **Fitur Utama:**
-  * Tombol Download pintar yang mendeteksi sistem operasi pengunjung (`Windows x64 / ARM`, `macOS Apple Silicon / Intel`, `Linux`).
-  * Tautan langsung ke file release binary (`.exe`, `.msi`, `.dmg`, `.AppImage`).
-  * Informasi rilis terbaru (versi, changelog singkat) via GitHub Releases API.
-* **Kecepatan:** Skor Google Lighthouse 100/100, muat seketika (*instant load*).
+* Halaman Astro tunggal (`web-landing/src/pages/index.astro`) dengan bagian produk dan unduhan.
+* Tombol unduh membaca `web-landing/src/data/releases.json` (ukuran + SHA-256) yang ditulis `scripts/publish-release.mjs` / workflow rilis; berkas installer di-host di GitHub Releases.
 
 ---
 
 ## ⚡ 11. PANDUAN MENJALANKAN PROYEK (QUICK START)
 
-Monorepo ini dikonfigurasi menggunakan root **pnpm workspace** dan **Cargo workspace**.
-
-### Instalasi Dependensi Seluruh Monorepo:
 ```bash
-pnpm install
+pnpm install                         # dependensi desktop-ui & web-landing
+pnpm dev:desktop                     # server Vite di http://127.0.0.1:5173 (UI + jembatan CLI dev)
+cargo run -p soraja-desktop          # jendela Tauri (build debug memuat UI dari server Vite)
+pnpm dev:web                         # portal unduhan Astro
 ```
 
-### Menjalankan Desktop App dalam Mode Dev:
+Verifikasi sebelum commit (wajib sesuai `CLAUDE.md`):
 ```bash
-pnpm --filter desktop-ui dev
-# atau via Tauri CLI:
-pnpm --filter desktop-ui tauri dev
+cd desktop-ui && npx tsc -b && pnpm test   # type-check + tes frontend
+cargo check && cargo test -p soraja-desktop -p soraja-core
 ```
 
-### Menjalankan Web Portal Download:
-```bash
-pnpm --filter web-landing dev
-```
-
-### Build Aplikasi Desktop Rilis (`target/release/soraja-desktop.exe`):
+### Build aplikasi desktop rilis (`target/release/soraja-desktop.exe`)
 ```bash
 pnpm build:app
 ```
@@ -374,29 +204,21 @@ Perintah ini membangun `desktop-ui/dist` lalu menjalankan `cargo build --release
 memuat halaman dari server Vite dev (`127.0.0.1:5173`), sehingga webview ikut *full reload* setiap kali berkas proyek berubah
 (mis. saat agen CLI sedang bekerja) dan data `localStorage` tersimpan di origin yang berbeda.
 
-### Build Installer Desktop Produksi (Windows `.msi` / `.exe`):
-```bash
-pnpm --filter desktop-ui tauri build
-```
+### Installer (`.msi` / `-setup.exe`)
+Dibangun otomatis oleh GitHub Actions saat tag `v*` di-push. Untuk build lokal dibutuhkan Tauri CLI
+(`cargo install tauri-cli --version "^2"`), lalu jalankan `cargo tauri build` di `crates/soraja-desktop`.
 
 ---
 
-## 🛣️ 12. ROADMAP PEMBANGUNAN
+## 🛣️ 12. STATUS & UTANG TEKNIS
 
-1. **Fase 1: Fondasi Specs & Monorepo Scaffold**
-   - Menyiapkan folder `specs/` (PRD, kontrak IPC, dan DDL Database).
-   - Inisialisasi Root Cargo workspace (`crates/`) dan pnpm monorepo (`desktop-ui`, `web-landing`).
-2. **Fase 2: Native Engine & Security (Rust Core)**
-   - Integrasi `keyring-rs` (Windows Credential Locker) dan deteksi akun berbayar.
-   - Implementasi adapter provider LLM (Gemini SSE, Claude SSE, OpenAI-compatible SSE).
-   - Implementasi virtual PTY (Terminal) dengan Windows Job Objects dan Git Worktree isolasi.
-3. **Fase 3: Frontend Desktop & UI Terminal**
-   - Tampilan chat dengan accordion penalaran (*Thinking Mode: Low/Med/High*).
-   - Integrasi Xterm.js dan Code Diff viewer.
-   - Tampilan status badge akun (Pro, Ultra, Copilot).
-4. **Fase 4: Web Landing Page & Distribusi Installer**
-   - Halaman portal download Astro untuk distribusi installer Desktop Windows, macOS, dan Linux.
-   - GitHub Actions untuk kompilasi installer otomatis.
+Sudah berjalan: 5 agen CLI di Chat GUI & Terminal, model & kuota dinamis dari CLI, HITL nyata untuk kelima agen,
+lampiran gambar/dokumen, panel review diff, Stop/Jeda/Lanjut per sesi dengan Job Object.
+
+Belum / sebagian (daftar resmi: `specs/ipc-contracts.md` bagian 7):
+1. Data aplikasi masih di `localStorage`; migrasi ke SQLite (`db.rs`) dan `get_workspaces` belum dikerjakan.
+2. Registri skill di `soraja-core` berisi 12 skill (bukan 52), batas 20.000 token ditegakkan saat `toggle_skill`, tetapi belum ada UI dan isinya belum disuntikkan ke CLI agen.
+3. Plafon token dinamis (*Dynamic Token Budgeting*) untuk prompt agen belum ada; konteks dikelola masing-masing CLI.
 
 ---
 

@@ -1,6 +1,7 @@
 // ============================================================================
-// SORAJA ENGINE - LOCAL PERSISTENT DATABASE SERVICE (SQLite WAL & IndexedDB Engine)
+// SORAJA ENGINE - LOCAL PERSISTENT DATABASE SERVICE (localStorage WebView, kunci `soraja_db_v3_*`)
 // Full dynamic storage: Projects, Conversations, Messages, Settings, DPAPI Credentials
+// Target SQLite WAL (crates/soraja-core/src/db.rs) belum tersambung — specs/ipc-contracts.md bagian 7.
 // ============================================================================
 
 import type { AgentTokenStats, UserCliProfile } from './cliAdapters';
@@ -457,7 +458,7 @@ class SorajaDatabase {
     const convs = await this.getConversations();
     const messages = this.getStorageItem<MessageRecord[]>('messages', []);
     return {
-      mode: 'SQLite WAL Mode (Active)',
+      mode: 'localStorage WebView',
       totalProjects: projects.length,
       totalSessions: convs.length,
       totalMessages: messages.length,

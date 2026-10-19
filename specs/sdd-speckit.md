@@ -11,13 +11,13 @@
 
 **Agent Soraja AI** adalah platform *Agentic Command Center* dan lingkungan *Vibe Coding* otonom lokal berkecepatan tinggi yang dirancang untuk menandingi Google Antigravity Desktop 2.0, Claude Code, dan Cursor. 
 
-Sistem ini menyatukan **5 agen coding CLI resmi** — Antigravity (`agy`), Claude Code (`claude`), Codex (`codex`), OpenCode (`opencode`), Kiro dan Kiro (`kiro-cli`) — dalam dua mode: **Chat GUI** ala Antigravity Desktop (CLI headless + stream JSON) dan **Terminal CLI** yang identik dengan CLI aslinya (ConPTY + xterm.js). Soraja tidak mengimplementasikan agen sendiri; arsitektur acuan ada di §11 dan [`agent-protocols.md`](./agent-protocols.md).
+Sistem ini menyatukan **5 agen coding CLI resmi** — Antigravity (`agy`), Claude Code (`claude`), Codex (`codex`), OpenCode (`opencode`), dan Kiro (`kiro-cli`) — dalam dua mode: **Chat GUI** ala Antigravity Desktop (CLI headless + stream JSON) dan **Terminal CLI** yang identik dengan CLI aslinya (ConPTY + xterm.js). Soraja tidak mengimplementasikan agen sendiri; arsitektur acuan ada di §11 dan [`agent-protocols.md`](./agent-protocols.md).
 
 ### Mengapa SDD / SpecKit Ini Mutlak Diperlukan?
 1. **Single Source of Truth untuk AI Coding Assistants:**  
    Ketika AI (seperti Gemini 3.1 Pro, Claude 3.7 Sonnet, atau Cursor) mengedit kode dalam repositori ini, ketiadaan spesifikasi formal menyebabkan halusinasi nama method IPC, struktur tabel database yang tidak konsisten, atau pelanggaran batas file (< 500 baris). SDD SpecKit ini berfungsi sebagai panduan baku yang tidak dapat diganggu gugat.
-2. **Paritas Fitur Desktop (GUI) dan CLI:**  
-   Menjamin bahwa fungsionalitas inti (eksekusi terminal, pembacaan file, guardrail HITL, enkripsi DPAPI, dan 52 Skills Registry) memiliki kontrak data yang persis sama antara aplikasi desktop (`soraja-desktop`) dan terminal headless (`soraja-cli`).
+2. **Paritas Mode Chat GUI dan Terminal CLI:**  
+   Menjamin bahwa kedua mode memakai biner CLI agen, folder workspace, dan (bila didukung CLI) sesi yang sama, dengan kontrak IPC yang tercatat di [`ipc-contracts.md`](./ipc-contracts.md). Tidak ada biner terminal milik Soraja (`soraja-cli` tidak dibuat).
 3. **Kepatuhan Guardrail & Keamanan Sistem:**  
    Menstandarisasi alur proteksi Human-in-the-Loop (HITL) agar tidak ada perintah terminal berbahaya (`rm -rf`, format partisi) yang dapat dieksekusi tanpa otorisasi pengguna.
 
@@ -27,7 +27,7 @@ Sistem ini menyatukan **5 agen coding CLI resmi** — Antigravity (`agy`), Claud
 
 * **Kecepatan Inferensi & Operasi (< 5ms Local IPC):** Operasi pembacaan berkas lokal, penulisan berkas, dan pemindaian pohon direktori dieksekusi secara instan melalui Rust `std::fs` tanpa overhead layer yang berat.
 * **Batas Maksimal 500 Baris Per File (Separation of Concerns):** Seluruh berkas kode sumber baik di frontend TypeScript maupun backend Rust dilarang keras melampaui 500 baris. Komponen monolitik wajib didekomposisi menjadi sub-komponen terisolasi.
-* **Zero-Lock Database Concurrency (SQLite WAL Mode):** Database lokal beroperasi dengan `PRAGMA journal_mode = WAL;` dan `PRAGMA synchronous = NORMAL;`, memungkinkan multi-agent menulis log percakapan dan status tugas secara simultan tanpa table locking.
+* **Zero-Lock Database Concurrency (SQLite WAL Mode) — target, belum tersambung (data UI masih di `localStorage`):** Database lokal beroperasi dengan `PRAGMA journal_mode = WAL;` dan `PRAGMA synchronous = NORMAL;`, memungkinkan multi-agent menulis log percakapan dan status tugas secara simultan tanpa table locking.
 * **Isolasi Keamanan Kredensial (Windows DPAPI):** API Key dan token pengguna tidak pernah disimpan sebagai teks biasa (*plain text*) di disk, melainkan dienkripsi secara native oleh Windows Credential Manager.
 * **Zero-Ghost Retention:** Seluruh aksi mutasi data (penghapusan proyek, percakapan, tugas) memiliki persistensi mutlak. Data yang dihapus tidak boleh muncul kembali saat aplikasi direfresh.
 
@@ -44,15 +44,14 @@ agent-soraja-ai/
 │   ├── agent-protocols.md          # State Machine & Protokol MCP Tools
 │   └── database-schema.sql         # DDL Skema SQLite WAL
 ├── crates/                         # [Rust Workspace] Shared Native Core
-│   ├── soraja-core/                # Shared Engine (Auth DPAPI, Skills, MCP, Worktree)
-│   ├── soraja-desktop/             # Tauri v2 Desktop Host & Window Manager
-│   └── soraja-cli/                 # Terminal CLI Binary (~8 MB)
+│   ├── soraja-core/                # Shared Engine (katalog agen CLI, akun & kuota, DPAPI, skills, db)
+│   └── soraja-desktop/             # Tauri v2 Desktop Host + command IPC (src/commands/*.rs)
 ├── desktop-ui/                     # [React 19 Frontend] Desktop Command Center
 │   ├── src/
 │   │   ├── components/             # Sub-komponen UI modular (< 500 baris)
-│   │   ├── hooks/                  # useWorkspaceState, useAppTheme
-│   │   ├── services/               # agentEngine, db, dbDefaults
-│   │   ├── constants/              # agentProviders, skills catalog
+│   │   ├── hooks/                  # useChatGeneration, useAgentStreamBridge, useHitlPermissions, ...
+│   │   ├── services/               # cliAdapters, db (localStorage), cli/ (perintah, parser, JSON-RPC)
+│   │   ├── constants/              # agentProviders (katalog cadangan)
 │   │   └── types/                  # agent.ts, database.ts
 │   └── package.json
 └── web-landing/                    # [Astro Portal] Web Download Publik
@@ -110,9 +109,15 @@ Tiap item mengikuti struct `CliModelItem` ([`ipc-contracts.md`](./ipc-contracts.
 
 ---
 
-## 6. Arsitektur 52 Skills Registry & Token Budgeting
+## 6. Arsitektur Skills Registry & Token Budgeting
 
-Sistem mengadopsi 52 skills terstandarisasi yang diekstrak dari ekosistem Antigravity dan Science Plugins:
+> **Status (19 Okt 2026): sebagian.** `soraja-core/src/skills.rs` berisi 12 skill bawaan (target awal 52) dengan
+> `max_token_budget` 20.000. `get_skills`/`toggle_skill` memakai satu registri aplikasi yang persisten
+> (`%APPDATA%\soraja-ai\skills.json`) dan menolak aktivasi yang melewati batas token. Belum ada UI pengelola skill
+> (tab *Kustomisasi* / `CustomizationsTab.tsx` dihapus) dan isi skill belum disuntikkan ke prompt CLI agen.
+> Diagram di bawah adalah rancangan target.
+
+Rancangan target: skills terstandarisasi yang diekstrak dari ekosistem Antigravity dan Science Plugins:
 
 ```mermaid
 flowchart LR
@@ -161,7 +166,12 @@ Setiap perintah yang dieksekusi oleh agen melalui `run_workspace_terminal` dipin
   5. *Reject / Do not allow* (Tolak eksekusi perintah)
 
 ### C. Proteksi Zombie Process (Windows Job Objects)
-Sub-proses terminal PTY diikat ke dalam `Windows Job Object` dengan konfigurasi `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Ketika sesi agen dibatalkan oleh pengguna (tombol Stop), seluruh anak proses (seperti compiler, nodemon, dev server) dimatikan secara tuntas tanpa meninggalkan proses zombie di Windows Task Manager.
+Setiap proses CLI agen — mode Terminal (PTY) maupun Chat GUI (headless) — diikat ke `Windows Job Object` dengan konfigurasi `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` segera setelah spawn (`crates/soraja-desktop/src/commands/process_job.rs`):
+* **Stop** (`stop_agent_session`) dan **tutup tab Terminal** (`close_interactive_pty`) memanggil `TerminateJobObject`: seluruh anak proses (compiler, nodemon, dev server, shell) dimatikan tuntas tanpa proses zombie.
+* **Jeda/Lanjut** (`pause_agent_session`/`resume_agent_session`) menjeda seluruh proses di job, bukan hanya proses induk.
+* **Soraja ditutup atau crash:** OS menutup handle job → semua proses agen ikut mati.
+* **CLI selesai normal:** batas kill-on-close dicabut sebelum job dilepas, sehingga proses latar yang sengaja ditinggal agen tetap hidup (perilaku sama seperti CLI dijalankan dari terminal biasa).
+* Fallback bila job gagal dibuat: `taskkill /F /T /PID` (Stop) / proses induk saja (Jeda).
 
 ---
 
@@ -183,7 +193,7 @@ Sub-proses terminal PTY diikat ke dalam `Windows Job Object` dengan konfigurasi 
 
 ### Alur Instan Terpadu (Zero Confirmation Click):
 Begitu pengguna memilih folder dan memberikan izin explorer:
-1. Workspace record otomatis disimpan ke SQLite database.
+1. Workspace record otomatis disimpan ke penyimpanan lokal (saat ini `localStorage` WebView via `services/db.ts`; target SQLite, lihat [`ipc-contracts.md`](./ipc-contracts.md) bagian 7).
 2. Sesi percakapan baru otomatis dibuat dan diikat ke folder tersebut.
 3. Workspace langsung disetel sebagai `activeProject`.
 4. Modal wizard langsung tertutup secara otomatis tanpa memerlukan klik tombol konfirmasi tambahan.
@@ -209,8 +219,8 @@ Begitu pengguna memilih folder dan memberikan izin explorer:
 
 ### C. Dual Controls: Tombol Jeda (Pause ⏸️ / Resume ▶️) & Stop Total (⏹️)
 * Menggantikan tombol Kirim (`Send`) di pojok kanan bawah chat bar saat agen sedang bekerja (`isGenerating: true`):
-  1. **Tombol Stop Total (⏹️ - Antigravity Style):** Berbentuk squircle gelap berbingkai merah/slate untuk pembatalan seketika (*hard abort & cleanup process*).
-  2. **Tombol Jeda / Lanjutkan (⏸️ / ▶️ - Exclusive Feature):** Menghentikan sementara siklus otonom pada batas langkah (*breakpoint*) sehingga pengguna dapat memeriksa kode di panel review tanpa membatalkan seluruh sesi, lalu melanjutkan kembali dengan menekan tombol Play (▶️).
+  1. **Tombol Stop Total (⏹️ - Antigravity Style):** Berbentuk squircle gelap berbingkai merah/slate untuk pembatalan seketika (*hard abort*): `stop_agent_session { sessionId }` mematikan seluruh pohon proses CLI lewat Job Object (bagian 7C).
+  2. **Tombol Jeda / Lanjutkan (⏸️ / ▶️ - Exclusive Feature):** Membekukan seluruh proses CLI sesi (`pause_agent_session` / `resume_agent_session`, `NtSuspendProcess`) sehingga pengguna dapat memeriksa kode di panel review tanpa membatalkan sesi, lalu melanjutkan dengan tombol Play (▶️). Jeda terjadi seketika (bukan di batas langkah); hanya aktif setelah `agent:session_start` diterima dan di aplikasi desktop (bukan browser dev).
 
 ---
 
@@ -221,7 +231,7 @@ Sistem mengadopsi arsitektur orkestrator hybrid yang menggabungkan keindahan Des
 ```mermaid
 flowchart TD
     subgraph UI ["Lapisan Presentasi: Rich Desktop GUI (React 19 + Tailwind v4)"]
-        ChatInput["Input Prompt & Pemilihan Agent (4 Flagship)"]
+        ChatInput["Input Prompt & Pemilihan Agent (5 CLI)"]
         ThinkingCard["Kartu Proses Berpikir (CoT Accordion)"]
         DiffViewer["Docked Split-Pane Diff Viewer (Hijau/Merah)"]
         ActionControls["Tombol Kontrol: Stop (⏹️) & Jeda/Lanjut (⏸️/▶️)"]
@@ -238,6 +248,7 @@ flowchart TD
         ClaudeCode["Anthropic Claude Code CLI (claude.exe)"]
         CodexCLI["OpenAI Codex CLI (codex.exe)"]
         OpenCode["OpenCode AI CLI (opencode.exe)"]
+        Kiro["AWS Kiro CLI (kiro-cli.exe)"]
     end
 
     subgraph Workspace ["Ruang Kerja Komputer"]
@@ -251,13 +262,11 @@ flowchart TD
     CLI_Agents -->|"5. Output ANSI / Text Stream"| EventParser
     EventParser -->|"6. Event: thinking_step"| ThinkingCard
     EventParser -->|"7. Event: diff_preview"| DiffViewer
-    ActionControls -->|"8. Sinyal OS (SIGTERM / Suspend / Kill)"| ProcessMgr
+    ActionControls -->|"8. Job Object per sessionId (Terminate / Suspend / Resume)"| ProcessMgr
 ```
 
-### A. Konfigurasi Adapter 4 Agen Resmi
-Resolusi biner **tidak memakai path absolut hardcode**: `agent_catalog::detect_cli` mencari di `PATH` (termasuk `%APPDATA%
-pm`, `%LOCALAPPDATA%gyin`, `%ProgramFiles%
-odejs`), lalu shim npm `.cmd` di-unwrap menjadi `node <target.js>` (`resolve_npm_shim_target`) agar ConPTY menerima proses asli.
+### A. Konfigurasi Adapter 5 Agen Resmi
+Resolusi biner **tidak memakai path absolut hardcode**: `agent_catalog::detect_cli` mencari di `PATH` lalu lokasi instalasi umum (`%APPDATA%\npm`, `%LOCALAPPDATA%\agy\bin`, `%ProgramFiles%\nodejs`), lalu shim npm `.cmd` di-unwrap menjadi `node <target.js>` atau biner aslinya (`resolve_cli_launch`) agar ConPTY / proses headless menerima proses asli.
 
 | Agen | Biner | Persiapan workspace | Slash command khas (mode Terminal) |
 | :--- | :--- | :--- | :--- |
@@ -265,6 +274,7 @@ odejs`), lalu shim npm `.cmd` di-unwrap menjadi `node <target.js>` (`resolve_npm
 | Claude Code | `claude` | Aturan proyek dibaca CLI dari `CLAUDE.md` | `/model`, `/usage`, `/cost` |
 | Codex | `codex` | Aturan proyek dibaca CLI dari `AGENTS.md`; config di `.codex/` | `/model`, `/status` |
 | OpenCode | `opencode` | Aturan proyek dari `AGENTS.md`; config di `.opencode/` | `/models` |
+| Kiro | `kiro-cli` | Tidak ada; login via `kiro-cli login` (biner umumnya di `%LOCALAPPDATA%\Kiro-Cli\`) | `/usage` |
 
 **Autentikasi:** default memakai login bawaan CLI (kuota langganan tetap berlaku). API key DPAPI hanya disuntikkan sebagai env proses anak bila pengguna memilih mode `api_key` (lihat [`agent-protocols.md`](./agent-protocols.md) §4). Flag argumen headless/interaktif per agen: [`agent-protocols.md`](./agent-protocols.md) §2.
 

@@ -9,7 +9,7 @@
 - Sebelum merancang arsitektur, mengubah fungsi IPC, mengedit database, atau menulis kode baru, Anda **WAJIB membaca dan mematuhi spesifikasi di folder `specs/`**:
   * [**`specs/README.md`**](./specs/README.md): Peta navigasi dan aturan dokumen spesifikasi.
   * [**`specs/sdd-speckit.md`**](./specs/sdd-speckit.md): Master System Design Document (Arsitektur Rust Core, Tauri v2, ConPTY, dan Vibe Coding Engine).
-  * [**`specs/prd.md`**](./specs/prd.md): Product Requirement Document (Katalog 4 Agen: Antigravity, Claude, Codex, OpenCode).
+  * [**`specs/prd.md`**](./specs/prd.md): Product Requirement Document (Katalog 5 Agen: Antigravity, Claude, Codex, OpenCode, Kiro).
   * [**`specs/ipc-contracts.md`**](./specs/ipc-contracts.md): Kontrak resmi nama fungsi IPC Tauri ↔ TypeScript (DILARANG mengarang/halusinasi nama method IPC).
   * [**`specs/database-schema.sql`**](./specs/database-schema.sql): Skema DDL tabel SQLite WAL lokal.
   * [**`specs/agent-protocols.md`**](./specs/agent-protocols.md): Protokol format streaming LLM dan Model Context Protocol (MCP).

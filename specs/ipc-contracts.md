@@ -1,7 +1,8 @@
 # Tauri IPC Contracts (Rust ↔ TypeScript)
 
 > **Sumber kebenaran:** `crates/soraja-desktop/src/main.rs` (`tauri::generate_handler![...]`), implementasi di
-> `crates/soraja-desktop/src/commands/{pty,headless,catalog,language_rules,workspace}.rs`.
+> `crates/soraja-desktop/src/commands/*.rs` (`pty`, `headless`, `session_control`, `permission_bridge`, `antigravity_grants`,
+> `catalog`, `language_rules`, `skills`, `workspace`, `attachments`).
 > Dokumen ini WAJIB diperbarui di commit yang sama setiap kali command/event ditambah, diubah, atau dihapus.
 > Dilarang memanggil `invoke('<nama>')` yang tidak tercantum di sini.
 
@@ -12,7 +13,8 @@
 * **Capability (WAJIB):** `crates/soraja-desktop/capabilities/default.json` memberi window `main` izin `core:default` (termasuk `event.listen` untuk `pty:output`/`agent:*`), `opener:default`, dan `dialog:default`. Tanpa berkas ini event stream ditolak di aplikasi desktop.
 * **Plugin dialog:** pemilih folder proyek memanggil `invoke('plugin:dialog|open', { options: { directory: true } })` (`tauri-plugin-dialog`) → path absolut asli.
 * **Error:** semua command mengembalikan `Result<T, String>`; pesan error berbahasa Indonesia.
-* **Identitas sesi:** `sessionId` dibuat oleh frontend dan dipakai untuk korelasi event (mode chat: id pesan agen `agt-<timestamp>`; mode terminal: `pty-<agent>-<timestamp>`). `pid` adalah PID OS proses CLI (dikirim via `agent:session_start`).
+* **Identitas sesi:** `sessionId` dibuat oleh frontend dan dipakai untuk korelasi event dan kontrol proses (mode chat: id pesan agen `agt-<timestamp>`; mode terminal: `pty-<agent>-<timestamp>`). `pid` adalah PID OS proses CLI (dikirim via `agent:session_start`, hanya informasi).
+* **Job Object (Windows):** setiap proses CLI (PTY maupun headless) diikat ke Job Object `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` segera setelah spawn (`commands/process_job.rs`). Stop/tutup sesi mematikan seluruh pohon proses; Soraja ditutup/crash → semua proses agen ikut mati; CLI yang keluar normal melepas job tanpa mematikan proses latar yang ditinggalnya.
 
 ---
 
@@ -27,7 +29,7 @@ Aturan konkurensi (mencegah terminal beku / input hilang — bug Okt 2026):
 * Frontend (`terminal/ptyTransport.ts`): spawn dibagi per `sessionId`, close ditunda 250 ms (`ptyRelease`) dan dibatalkan oleh mount ulang (`ptyRetain`). Dev server Vite memakai aturan kepemilikan yang sama.
 
 ### `start_interactive_pty`
-Menjalankan biner CLI agen (`agy`, `claude`, `codex`, `opencode`) di dalam pseudo-terminal (ConPTY via `portable-pty`). Shim npm `.cmd/.bat` di-unwrap menjadi `node <target.js>`. Env: `TERM=xterm-256color`, `COLORTERM=truecolor`, `LANG=en_US.UTF-8`, ditambah `envs` (mis. `OPENCODE_CONFIG_CONTENT` untuk aturan bahasa). Argumen disusun `buildInteractiveCommand` ([`agent-protocols.md`](./agent-protocols.md) §2, §5). `cwd` kosong → direktori kerja proses.
+Menjalankan biner CLI agen (`agy`, `claude`, `codex`, `opencode`, `kiro-cli`) di dalam pseudo-terminal (ConPTY via `portable-pty`). Shim npm `.cmd/.bat` di-unwrap menjadi `node <target.js>`. Env: `TERM=xterm-256color`, `COLORTERM=truecolor`, `LANG=en_US.UTF-8`, ditambah `envs` (mis. `OPENCODE_CONFIG_CONTENT` untuk aturan bahasa). Argumen disusun `buildInteractiveCommand` ([`agent-protocols.md`](./agent-protocols.md) §2, §5). `cwd` kosong → direktori kerja proses.
 * **Input:** `session_id: String, agent_executable: String, agent_args: Vec<String>, cwd: String, cols: u16, rows: u16, envs: Option<HashMap<String, String>>` (`0` → default 100×24)
 * **Output:** `Result<(), String>`
 * **Event dipicu:** `pty:output`, `pty:exit`
@@ -47,7 +49,7 @@ Meneruskan input keyboard xterm.js (termasuk escape sequence) ke stdin PTY. Erro
 * **Output:** `Result<(), String>`
 
 ### `close_interactive_pty`
-Menghapus sesi dari state dan `kill()` proses anak.
+Menghapus sesi dari state dan mematikan CLI beserta seluruh anak prosesnya (`TerminateJobObject`; fallback `kill()` proses CLI).
 * **Input:** `session_id: String`
 * **Output:** `Result<(), String>`
 
@@ -77,14 +79,16 @@ ditambahkan Soraja (aturan milik pengguna tidak disentuh). Dipakai `useAntigravi
 * **Output:** `Result<(), String>`
 
 ### `stop_agent_session`
-Hard abort: `taskkill /F /T /PID` (Windows) — membunuh seluruh pohon proses.
-* **Input:** `pid: u32`
+Hard abort seluruh pohon proses CLI sesi: `TerminateJobObject` (Windows; fallback `taskkill /F /T /PID`) atau `kill -9`.
+Sesi yang tidak dikenal / sudah berakhir → `Ok(())`. Implementasi: `commands/session_control.rs`.
+* **Input:** `session_id: String` (sama dengan `sessionId` di `spawn_headless_agent`)
 * **Output:** `Result<(), String>`
 
 ### `pause_agent_session` / `resume_agent_session`
-Menjeda / melanjutkan proses via `NtSuspendProcess` / `NtResumeProcess` (Windows) atau `SIGSTOP` / `SIGCONT`.
-* **Input:** `pid: u32`
-* **Output:** `Result<(), String>`
+Menjeda / melanjutkan **seluruh proses di Job Object sesi** via `NtSuspendProcess` / `NtResumeProcess` (Windows; fallback
+proses CLI saja) atau `SIGSTOP` / `SIGCONT`.
+* **Input:** `session_id: String`
+* **Output:** `Result<(), String>` — error bila sesi sudah tidak berjalan
 
 ### `prepare_permission_bridge`
 Menyalakan (sekali per aplikasi) jembatan izin HITL Chat GUI: MCP server HTTP lokal di `127.0.0.1:<port acak>` dengan token acak,
@@ -104,7 +108,7 @@ Keputusan pengguna atas modal HITL Chat GUI, diteruskan ke CLI yang sedang menun
 
 ## 3. Katalog, Deteksi Agen CLI & Aturan Bahasa
 
-> **Catatan eksekusi:** `get_available_cli_agents`, `get_agent_providers`, `get_agent_models`, `get_agent_token_stats`, `get_user_cli_profile`, dan `trust_and_prepare_workspace_for_cli` adalah command **`async`** yang menjalankan kerjanya di `tokio::task::spawn_blocking`. Command sinkron berjalan di main thread Tauri dan membekukan UI selama CLI berjalan, jadi command yang menjalankan proses CLI **wajib** `async`. Nama, input, dan output tidak berubah. Di sisi core: perintah CLI dibatasi timeout 10 detik (`run_cli`), katalog model di-cache 30 menit per agen (proses probe berprioritas BELOW_NORMAL di Windows), dan keempat provider dibangun paralel. `get_available_cli_agents` HANYA mendeteksi biner (`get_agent_install_status`, tanpa menjalankan CLI, `models` tidak dipakai) sehingga aman dipanggil saat startup dan saat wizard "ganti agen" dibuka; katalog model lengkap hanya dari `get_agent_providers`.
+> **Catatan eksekusi:** `get_available_cli_agents`, `get_agent_providers`, `get_agent_models`, `get_agent_token_stats`, `get_user_cli_profile`, dan `trust_and_prepare_workspace_for_cli` adalah command **`async`** yang menjalankan kerjanya di `tokio::task::spawn_blocking`. Command sinkron berjalan di main thread Tauri dan membekukan UI selama CLI berjalan, jadi command yang menjalankan proses CLI **wajib** `async`. Nama, input, dan output tidak berubah. Di sisi core: perintah CLI dibatasi timeout 10 detik (`run_cli`), katalog model di-cache 30 menit per agen (proses probe berprioritas BELOW_NORMAL di Windows), dan kelima provider dibangun paralel. `get_available_cli_agents` HANYA mendeteksi biner (`get_agent_install_status`, tanpa menjalankan CLI, `models` tidak dipakai) sehingga aman dipanggil saat startup dan saat wizard "ganti agen" dibuka; katalog model lengkap hanya dari `get_agent_providers`.
 
 ### `get_available_cli_agents`
 * **Input:** `()`
@@ -214,12 +218,15 @@ Menyimpan API key opsional ke Windows Credential Manager (DPAPI) via `keyring`. 
 * **Output:** `Result<(), String>`
 
 ### `get_skills`
+Registri skill `soraja-core` (12 skill bawaan) dari satu state aplikasi (`commands/skills.rs`). Belum dipakai UI.
 * **Input:** `()`
 * **Output:** `Result<Vec<SkillDefinition>, String>`
 
 ### `toggle_skill`
+Mengubah status aktif skill dan menyimpannya ke `%APPDATA%\soraja-ai\skills.json` (dimuat ulang saat aplikasi dibuka).
+Mengaktifkan skill yang membuat total `token_cost` skill aktif melewati `max_token_budget` (20.000) → error.
 * **Input:** `skill_id: String, enabled: bool`
-* **Output:** `Result<bool, String>`
+* **Output:** `Result<bool, String>` — `false` bila `skill_id` tidak dikenal
 
 ---
 
@@ -229,7 +236,7 @@ Menyimpan API key opsional ke Windows Credential Manager (DPAPI) via `keyring`. 
 | :--- | :--- | :--- | :--- |
 | `pty:output` | `{ sessionId: string, data: string, seq: number }` | `start_interactive_pty` (chunk 4 KB, UTF-8 lossy) | `terminal/ptyTransport.ts` → `xterm.write()` (dilokalisasi kecuali OpenCode) |
 | `pty:exit` | `{ sessionId: string, exitCode: number }` | `start_interactive_pty` | Status tab terminal |
-| `agent:session_start` | `{ sessionId: string, agent: string, executable: string, pid: number }` | `spawn_headless_agent` | Simpan `pid` untuk Stop/Jeda |
+| `agent:session_start` | `{ sessionId: string, agent: string, executable: string, pid: number }` | `spawn_headless_agent` | Tanda proses sudah berjalan (tombol Jeda aktif); Stop/Jeda memakai `sessionId` |
 | `agent:token_stream` | `{ sessionId: string, chunk: string }` | `spawn_headless_agent` (1 baris stdout/stderr + `\n`) | `agentStreamParser.ts` → `cli/streamParsers.ts` (NDJSON → `UiAgentEvent`) |
 | `agent:session_end` | `{ sessionId: string, exitCode: number, summary: string }` | `spawn_headless_agent` | `useAgentStreamBridge`: tutup bubble & simpan pesan; `useHitlPermissions`: buang antrean izin sesi itu |
 | `agent:permission_request` | `{ sessionId: string, requestId: string, toolName: string, input: object }` | `prepare_permission_bridge` (MCP `tools/call` dari CLI) | `useHitlPermissions`: aturan "selalu izinkan" atau Modal HITL 5 opsi → `approve_human_in_the_loop` |
@@ -239,8 +246,12 @@ Tidak ada event Tauri lain. Nama lama `agent:thinking_step`, `agent:tool_invoked
 ---
 
 ## 7. Utang Teknis yang Diketahui
-1. `stop/pause/resume_agent_session` memakai `pid`, bukan `session_id` → backend belum menyimpan peta `session_id → Child` untuk mode headless.
-2. Proses headless belum diikat ke **Windows Job Object** (target SDD §7C); kill masih via `taskkill /T`.
-3. `get_workspaces` masih stub. HITL Chat GUI tersedia untuk kelima agen (agent-protocols §7). Aturan sementara Antigravity bisa tertinggal di settings agy bila aplikasi ditutup paksa di tengah giliran lanjutan (hanya perintah persis yang sudah disetujui).
-4. `toggle_skill` membuat `SkillRegistry` baru setiap panggilan (state tidak persisten).
-5. `crates/soraja-core/src/db.rs` (pool SQLite + migrasi dari `database-schema.sql`) belum dipanggil aplikasi; data UI masih disimpan `desktop-ui/src/services/db.ts`.
+Selesai (19 Okt 2026): `stop/pause/resume_agent_session` kini memakai `session_id` (peta sesi → proses di
+`session_control.rs`); proses headless & PTY diikat ke **Windows Job Object** (SDD bagian 7C); `toggle_skill` memakai satu
+registri aplikasi yang persisten.
+
+Masih terbuka:
+1. `get_workspaces` masih stub. HITL Chat GUI tersedia untuk kelima agen (agent-protocols §7). Aturan sementara Antigravity bisa tertinggal di settings agy bila aplikasi ditutup paksa di tengah giliran lanjutan (hanya perintah persis yang sudah disetujui).
+2. `crates/soraja-core/src/db.rs` (pool SQLite + migrasi dari `database-schema.sql`) belum dipanggil aplikasi; data UI masih disimpan di `localStorage` WebView oleh `desktop-ui/src/services/db.ts` (bukan `%APPDATA%\soraja-ai\soraja.db`).
+3. Registri skill belum punya UI dan isinya belum disuntikkan ke CLI agen (`get_skills`/`toggle_skill` belum dipanggil frontend).
+4. Anak proses yang dibuat CLI sebelum `AssignProcessToJobObject` (jendela mikrodetik setelah spawn) tidak ikut job.

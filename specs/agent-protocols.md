@@ -1,6 +1,6 @@
 # Agent Protocols — 5 CLI Native ↔ Soraja UI
 
-> Prinsip dasar: **Soraja tidak mengimplementasikan agen sendiri.** Keempat agen adalah biner CLI resmi yang
+> Prinsip dasar: **Soraja tidak mengimplementasikan agen sendiri.** Kelima agen adalah biner CLI resmi yang
 > sudah terpasang di mesin pengguna. Soraja hanya (1) menjalankan, (2) mengalirkan output, dan (3) menerjemahkan
 > output tersebut menjadi UI. Tools (baca/tulis berkas, shell, MCP) adalah milik CLI masing-masing.
 > Kontrak IPC terkait: [`ipc-contracts.md`](./ipc-contracts.md).
@@ -211,9 +211,9 @@ Aturan lebar terjemahan (terverifikasi dengan stream PTY nyata kelima CLI, 16 Ok
 * `Idle` → `Thinking` (proses spawn, menunggu event pertama)
 * `Thinking` ↔ `ExecutingTool` (event `tool` running/done)
 * `AwaitingApproval` — CLI meminta izin (lihat §7)
-* `Paused` — `pause_agent_session` dipanggil
+* `Paused` — `pause_agent_session { sessionId }` dipanggil (seluruh proses di Job Object dijeda)
 * `Done` — event `done` / `agent:session_end` dengan `exitCode = 0`
-* `Interrupted` — `stop_agent_session` atau `exitCode ≠ 0`
+* `Interrupted` — `stop_agent_session { sessionId }` (seluruh pohon proses dimatikan) atau `exitCode ≠ 0`
 
 Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-schema.sql)).
 

@@ -4,5 +4,8 @@ pub mod catalog;
 pub mod headless;
 pub mod language_rules;
 pub mod permission_bridge;
+pub mod process_job;
 pub mod pty;
+pub mod session_control;
+pub mod skills;
 pub mod workspace;

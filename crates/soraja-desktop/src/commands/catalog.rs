@@ -1,4 +1,5 @@
-//! Katalog & deteksi agen CLI, kredensial, skills (HITL: `permission_bridge.rs`). Kontrak: specs/ipc-contracts.md §2-§5.
+//! Katalog & deteksi agen CLI, kredensial (skills: `skills.rs`, HITL: `permission_bridge.rs`).
+//! Kontrak: specs/ipc-contracts.md §2-§5.
 
 use soraja_core::agent_catalog::{self, CliAgentProvider, CliModelItem, UserCliProfile};
 
@@ -96,16 +97,4 @@ fn trust_workspace_blocking(workspace_path: String, agent_id: String) -> Result<
 #[tauri::command]
 pub fn save_account_credential(provider: String, secret_token: String) -> Result<(), String> {
     soraja_core::auth::save_token(&provider, &secret_token).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_skills() -> Result<Vec<soraja_core::skills::SkillDefinition>, String> {
-    let registry = soraja_core::skills::SkillRegistry::default();
-    Ok(registry.get_all_skills().into_iter().cloned().collect())
-}
-
-#[tauri::command]
-pub fn toggle_skill(skill_id: String, enabled: bool) -> Result<bool, String> {
-    let mut registry = soraja_core::skills::SkillRegistry::default();
-    Ok(registry.set_skill_enabled(&skill_id, enabled))
 }

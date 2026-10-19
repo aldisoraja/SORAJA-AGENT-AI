@@ -126,20 +126,21 @@ export async function spawnHeadlessAgentSession(o: HeadlessSpawnOptions): Promis
   });
 }
 
-export async function stopHeadlessAgentSession(pid: number, sessionId?: string): Promise<void> {
+/** Hard stop seluruh pohon proses CLI sesi (Job Object di Windows). Sesi yang sudah berakhir diabaikan. */
+export async function stopHeadlessAgentSession(sessionId: string): Promise<void> {
   if (!isTauriRuntime) {
-    if (sessionId) bridgeStop(sessionId);
+    bridgeStop(sessionId);
     return;
   }
-  await invoke('stop_agent_session', { pid });
+  await invoke('stop_agent_session', { sessionId });
 }
 
-export async function pauseHeadlessAgentSession(pid: number): Promise<void> {
-  await invoke('pause_agent_session', { pid });
+export async function pauseHeadlessAgentSession(sessionId: string): Promise<void> {
+  await invoke('pause_agent_session', { sessionId });
 }
 
-export async function resumeHeadlessAgentSession(pid: number): Promise<void> {
-  await invoke('resume_agent_session', { pid });
+export async function resumeHeadlessAgentSession(sessionId: string): Promise<void> {
+  await invoke('resume_agent_session', { sessionId });
 }
 
 export interface CliAgentStatus {

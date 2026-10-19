@@ -18,7 +18,8 @@ pub fn user_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn app_data_dir() -> Option<PathBuf> {
+/// `%APPDATA%\soraja-ai` (folder data aplikasi Soraja).
+pub fn app_data_dir() -> Option<PathBuf> {
     std::env::var("APPDATA")
         .ok()
         .map(PathBuf::from)

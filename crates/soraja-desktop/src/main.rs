@@ -5,7 +5,10 @@
 
 mod commands;
 
-use commands::{antigravity_grants, attachments, catalog, headless, language_rules, permission_bridge, pty, workspace};
+use commands::{
+    antigravity_grants, attachments, catalog, headless, language_rules, permission_bridge, pty, session_control, skills,
+    workspace,
+};
 
 fn main() {
     tauri::Builder::default()
@@ -16,6 +19,9 @@ fn main() {
         // Jembatan izin HITL Chat GUI (MCP lokal untuk `--permission-prompt-tool` Claude)
         .manage(permission_bridge::PermissionBridge::default())
         .manage(headless::HeadlessStdins::default())
+        // Proses CLI headless per sesi (Job Object Windows) untuk Stop/Jeda/Lanjut
+        .manage(session_control::HeadlessProcesses::default())
+        .manage(skills::SkillsState::default())
         .invoke_handler(tauri::generate_handler![
             // Mode Terminal (PTY interaktif)
             pty::start_interactive_pty,
@@ -26,9 +32,9 @@ fn main() {
             // Mode Chat GUI (CLI headless)
             headless::spawn_headless_agent,
             headless::write_headless_agent_stdin,
-            headless::stop_agent_session,
-            headless::pause_agent_session,
-            headless::resume_agent_session,
+            session_control::stop_agent_session,
+            session_control::pause_agent_session,
+            session_control::resume_agent_session,
             permission_bridge::prepare_permission_bridge,
             permission_bridge::approve_human_in_the_loop,
             antigravity_grants::set_antigravity_command_grant,
@@ -40,8 +46,8 @@ fn main() {
             catalog::get_user_cli_profile,
             catalog::trust_and_prepare_workspace_for_cli,
             catalog::save_account_credential,
-            catalog::get_skills,
-            catalog::toggle_skill,
+            skills::get_skills,
+            skills::toggle_skill,
             language_rules::prepare_agent_language_rules,
             // Workspace & berkas
             workspace::get_workspaces,

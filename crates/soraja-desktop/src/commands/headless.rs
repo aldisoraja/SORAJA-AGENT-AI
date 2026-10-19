@@ -1,6 +1,8 @@
 //! Mode Chat GUI: menjalankan CLI agen secara headless dan mengalirkan stdout NDJSON.
 //! Kontrak: specs/ipc-contracts.md §2, format stream: specs/agent-protocols.md §3.
+//! Stop / Jeda / Lanjut: `session_control.rs`.
 
+use crate::commands::session_control::HeadlessProcesses;
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncWriteExt;
@@ -13,8 +15,6 @@ const CLOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(8);
 #[derive(Default)]
 pub struct HeadlessStdins {
     stdins: tokio::sync::Mutex<HashMap<String, ChildStdin>>,
-    /// pid proses ber-stdin yang masih berjalan, per sesi.
-    running: std::sync::Mutex<HashMap<String, u32>>,
     /// Sesi yang dimatikan Soraja setelah stdin ditutup: giliran sudah selesai, jadi dilaporkan exit 0.
     reaped: std::sync::Mutex<std::collections::HashSet<String>>,
 }
@@ -71,10 +71,10 @@ pub async fn spawn_headless_agent(
         .spawn()
         .map_err(|e| format!("Gagal spawn {}: {}", agent_executable, e))?;
     let pid = child.id().unwrap_or(0);
+    // Diikat ke Job Object segera setelah spawn (Stop/Jeda seluruh pohon proses).
+    app.state::<HeadlessProcesses>().register(&session_id, &child);
     if let Some(stdin) = child.stdin.take().filter(|_| stdin_pipe) {
-        let state = app.state::<HeadlessStdins>();
-        state.stdins.lock().await.insert(session_id.clone(), stdin);
-        let _ = state.running.lock().map(|mut running| running.insert(session_id.clone(), pid));
+        app.state::<HeadlessStdins>().stdins.lock().await.insert(session_id.clone(), stdin);
     }
 
     let _ = app.emit(
@@ -113,6 +113,7 @@ pub async fn spawn_headless_agent(
             .await
             .map(|s| s.code().unwrap_or(0))
             .unwrap_or(-1);
+        app.state::<HeadlessProcesses>().release(&sid_end, pid);
         let reaped = app
             .state::<HeadlessStdins>()
             .reaped
@@ -122,9 +123,7 @@ pub async fn spawn_headless_agent(
         let exit_code = if reaped { 0 } else { exit_code };
         // Permintaan izin yang belum dijawab tidak lagi berarti: modal ditutup UI, CLI sudah selesai.
         crate::commands::permission_bridge::cancel_session(&app, &sid_end);
-        let state = app.state::<HeadlessStdins>();
-        state.stdins.lock().await.remove(&sid_end);
-        let _ = state.running.lock().map(|mut running| running.remove(&sid_end));
+        app.state::<HeadlessStdins>().stdins.lock().await.remove(&sid_end);
         let _ = app.emit(
             "agent:session_end",
             serde_json::json!({
@@ -159,79 +158,16 @@ pub async fn write_headless_agent_stdin(
     }
     if close {
         map.remove(&session_id);
-        let pid = stdins.running.lock().ok().and_then(|r| r.get(&session_id).copied());
-        if let Some(pid) = pid {
+        if let Some(pid) = app.state::<HeadlessProcesses>().pid_of(&session_id) {
             tokio::spawn(async move {
                 tokio::time::sleep(CLOSE_GRACE).await;
-                let still_running = app
-                    .state::<HeadlessStdins>()
-                    .running
-                    .lock()
-                    .map(|r| r.get(&session_id) == Some(&pid))
-                    .unwrap_or(false);
-                if still_running {
-                    let state = app.state::<HeadlessStdins>();
-                    let _ = state.reaped.lock().map(|mut r| r.insert(session_id.clone()));
-                    let _ = stop_agent_session(pid);
+                let processes = app.state::<HeadlessProcesses>();
+                if processes.pid_of(&session_id) == Some(pid) {
+                    let _ = app.state::<HeadlessStdins>().reaped.lock().map(|mut r| r.insert(session_id.clone()));
+                    let _ = processes.stop(&session_id, Some(pid));
                 }
             });
         }
     }
     Ok(())
-}
-
-#[tauri::command]
-pub fn stop_agent_session(pid: u32) -> Result<(), String> {
-    #[cfg(windows)]
-    let status = {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new("taskkill")
-            .args(["/F", "/T", "/PID", &pid.to_string()])
-            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
-            .status()
-    };
-    #[cfg(not(windows))]
-    let status = std::process::Command::new("kill")
-        .args(["-9", &pid.to_string()])
-        .status();
-    status.map(|_| ()).map_err(|e| e.to_string())
-}
-
-/// Menjeda/melanjutkan proses via NtSuspendProcess / NtResumeProcess (P/Invoke PowerShell).
-#[cfg(windows)]
-fn nt_process_call(pid: u32, func: &str) -> Result<(), String> {
-    let script = format!(
-        "$src = @\"\nusing System;\nusing System.Runtime.InteropServices;\npublic class W32 {{ [DllImport(\\\"kernel32.dll\\\")] public static extern IntPtr OpenProcess(uint a, bool b, uint c); [DllImport(\\\"ntdll.dll\\\")] public static extern int {func}(IntPtr h); [DllImport(\\\"kernel32.dll\\\")] public static extern bool CloseHandle(IntPtr h); }}\n\"@; Add-Type -TypeDefinition $src; $h = [W32]::OpenProcess(0x0800, $false, {pid}); if ($h -ne [IntPtr]::Zero) {{ [W32]::{func}($h); [W32]::CloseHandle($h); }}",
-    );
-    use std::os::windows::process::CommandExt;
-    std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
-        .status()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn pause_agent_session(pid: u32) -> Result<(), String> {
-    #[cfg(windows)]
-    return nt_process_call(pid, "NtSuspendProcess");
-    #[cfg(not(windows))]
-    std::process::Command::new("kill")
-        .args(["-STOP", &pid.to_string()])
-        .status()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn resume_agent_session(pid: u32) -> Result<(), String> {
-    #[cfg(windows)]
-    return nt_process_call(pid, "NtResumeProcess");
-    #[cfg(not(windows))]
-    std::process::Command::new("kill")
-        .args(["-CONT", &pid.to_string()])
-        .status()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
 }

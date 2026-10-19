@@ -23,17 +23,17 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
    - Deteksi instalasi otomatis via `PATH` + unwrap shim npm (`get_available_cli_agents`). Agen yang belum terpasang ditampilkan dengan tombol/perintah instalasi.
    - **Daftar model tidak di-hardcode di UI.** Model diambil dari CLI (`get_agent_models`, mis. `agy models`, `opencode models`) dengan katalog bawaan di `soraja-core` hanya sebagai fallback. Opsi `cli-default` = biarkan CLI memakai model default/konfigurasinya.
 
-2. **Tanpa Selector Penalaran di Chat GUI:**  
-   - Chat GUI tidak menyediakan pilihan Low/Medium/High dan tidak mengirim flag effort ke CLI. Tingkat penalaran diatur pengguna lewat perintah bawaan CLI di tab Terminal (`/model`, `/effort`).
+2. **Tanpa Selector Penalaran di Bar Chat:**  
+   - Bar input Chat GUI tidak menyediakan pilihan Low/Medium/High. Kedalaman penalaran diatur sekali di *Pengaturan → Umum → Ketelitian AI di Chat* (`Normal`/`Teliti`/`Paling teliti` → `high`/`xhigh`/`max`, poin 22) dan dikirim sebagai flag effort CLI (`buildHeadlessCommand`: Claude & Antigravity `--effort`, Codex `model_reasoning_effort`, OpenCode `--variant`; Kiro tidak). Di tab Terminal, pengguna memakai perintah bawaan CLI (`/model`, `/effort`).
    - Daftar model di Chat GUI **identik dengan menu `/model`** tiap CLI (Antigravity: `agy models` dikelompokkan per model; Codex: `codex debug models` yang `visibility=list`; Claude: Default/Opus/Fable/Sonnet/Haiku; OpenCode: `opencode models`).
 
 14. **Antigravity-Style Dynamic Model Popover:**  
    Selector model terintegrasi langsung di dalam bar input obrolan sebelah tombol `+` (`[+] [ Model Name ^ ]`). Mengklik trigger ini akan membuka popover vertikal ke atas:
-   - Menampilkan model-model yang dinamis sesuai provider agen aktif (**Antigravity**, **Claude**, **Codex**, atau **OpenCode**), diambil dari `get_agent_models`.
+   - Menampilkan model-model yang dinamis sesuai provider agen aktif (**Antigravity**, **Claude**, **Codex**, **OpenCode**, atau **Kiro**), diambil dari `get_agent_models`.
    - Dilengkapi tautan bawah *Lihat kuota* menuju pengaturan akun & kuota.
 
 15. **Standardisasi Lokalisasi Bahasa Indonesia & Keselarasan Ekosistem Web-Landing:**  
-   Seluruh antarmuka aplikasi desktop (Sidebar, Header Canvas, Modal Pengaturan, Modal Riwayat, Modal Favorit, Modal Wizard, Dialog Konfirmasi) dan halaman publik web portal `web-landing` diselaraskan menggunakan Bahasa Indonesia alami serta identitas agen resmi: **Antigravity**, **Claude**, **Codex**, dan **OpenCode**. Jawaban agen di mode Chat GUI maupun Terminal CLI diwajibkan berbahasa Indonesia (lihat poin 10).
+   Seluruh antarmuka aplikasi desktop (Sidebar, Header Canvas, Modal Pengaturan, Modal Riwayat, Modal Favorit, Modal Wizard, Dialog Konfirmasi) dan halaman publik web portal `web-landing` diselaraskan menggunakan Bahasa Indonesia alami serta identitas agen resmi: **Antigravity**, **Claude**, **Codex**, **OpenCode**, dan **Kiro**. Jawaban agen di mode Chat GUI maupun Terminal CLI diwajibkan berbahasa Indonesia (lihat poin 10).
 
 16. **Models & Usage Quota Management (Batas Harian, Mingguan & Circular Progress):**  
    - **Semua angka berasal dari CLI** (lihat [`agent-protocols.md`](./agent-protocols.md) §4): paket asli (mis. "Claude Pro", "ChatGPT Free"), email akun, sisa kuota 5 jam & mingguan/30 hari beserta waktu reset. Bila CLI tidak melaporkan suatu jendela kuota, UI menampilkan "Tidak dilaporkan oleh CLI" — tidak ada angka default/karangan.  
@@ -43,7 +43,7 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
    - **Filter Koneksi Ketat:** Hanya agen AI yang statusnya telah terhubung (`isConnected: true`) via Windows DPAPI yang ditampilkan dalam ringkasan kuota Models & Usage.
 
 17. **Universal Antigravity Controls & 5-Option HITL Terminal Modal:**  
-   - Seluruh 4 agen AI (Antigravity, Claude, Codex, OpenCode) mendukung kontrol Antigravity lengkap: model selector popover, bottom chat toolbar `[+] [ Model ^ ]`, serta tautan langsung *Lihat Penggunaan (View Usage)*.
+   - Kelima agen AI (Antigravity, Claude, Codex, OpenCode, Kiro) mendukung kontrol Antigravity lengkap: model selector popover, bottom chat toolbar `[+] [ Model ^ ]`, serta tautan langsung *Lihat Penggunaan (View Usage)*.
    - Modal izin eksekusi terminal Human-in-the-Loop (HITL) dengan banner "2 Running background tasks", preview command terminal terintegrasi, dan 5 opsi izin radio granular:
      1. *Allow once* (Izinkan sekali)
      2. *Always allow in this conversation* (Selalu izinkan di percakapan ini)
@@ -81,14 +81,14 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
    - **Mekanisme Reset DB ke Default:** Tombol utilitas maintenance / pemulihan bencana (*Factory Reset*) yang aman untuk mengembalikan konfigurasi lokal database SQLite ke kondisi pabrik awal saat terjadi inkonsistensi cache.
    - **Aksesibilitas & Inspeksi Database SQLite:**
      - *GUI & Status Bar*: Indikator live status di pojok sidebar pengaturan (`SQLite WAL • 2.4 KB`).
-     - *Penyimpanan Fisik Windows (Desktop/Tauri)*: Berkas fisik database tersimpan di `%APPDATA%\soraja-ai\soraja.db` (beserta journal WAL `soraja.db-wal` dan `soraja.db-shm`), dapat dibuka langsung dengan DB Browser for SQLite atau DBeaver.
-     - *Penyimpanan Web / Dev Server*: Persistensi lokal otomatis tersinkronisasi pada LocalStorage / IndexedDB browser di bawah origin `http://localhost:5173`.
+     - *Penyimpanan saat ini (desktop & dev server)*: proyek, percakapan, pesan, dan pengaturan disimpan di **`localStorage` WebView** oleh `desktop-ui/src/services/db.ts` (kunci `soraja_db_v3_*`); di dev server per origin `http://127.0.0.1:5173`. Statistik di tab *Data & Bantuan* membaca data ini.
+     - *Target (belum diimplementasikan)*: berkas SQLite `%APPDATA%\soraja-ai\soraja.db` (beserta `soraja.db-wal`/`soraja.db-shm`) lewat `crates/soraja-core/src/db.rs`, yang bisa dibuka dengan DB Browser for SQLite atau DBeaver. Lihat utang teknis di [`ipc-contracts.md`](./ipc-contracts.md) bagian 7.
      - *Skema SQL Proyek*: Dokumentasi struktur tabel DDL tersedia di `specs/database-schema.sql`.
 
 22. **Multi-Agent Quota Command Center, Penyederhanaan Pengaturan, & Appearance Studio Kreatif:**  
    - **Multi-Agent Quota Command Center (Full Dinamis):**
      - Mengubah pendekatan dari layout Google-sentris yang kaku menjadi arsitektur multi-agen independen asli SORAJA AI. Dinamisasi murni berasal dari persentase dan konsumsi token di SQLite WAL.
-     - Setiap agen yang terhubung (Antigravity, Claude, Codex, OpenCode) memiliki kartu kuota tersendiri yang menampilkan ring SVG sisa kuota mingguan (*Weekly Limit Remaining*) dan 5-jam (*Five Hour Limit Remaining*), durasi reset dinamis real-time, statistik token riil, email akun, badge plan tier (`PRO`, `ULTRA`, `PLUS`, `LOKAL`), serta tombol *Ubah Kunci* dan *Putuskan*.
+     - Setiap agen yang terhubung (Antigravity, Claude, Codex, OpenCode, Kiro) memiliki kartu kuota tersendiri yang menampilkan ring SVG sisa kuota mingguan (*Weekly Limit Remaining*) dan 5-jam (*Five Hour Limit Remaining*), durasi reset dinamis real-time, statistik token riil, email akun, badge plan tier (`PRO`, `ULTRA`, `PLUS`, `LOKAL`), serta tombol *Ubah Kunci* dan *Putuskan*.
      - **Tata Letak Elegan Multi-Koneksi (3 Agen Terhubung):** Menggunakan sistem grid adaptif yang menjaga isolasi data tiap agen ketika 3 atau lebih agen aktif bersamaan tanpa distorsi visual.
      - Agen yang belum terhubung dikelompokkan terpisah dengan tombol aksi cepat `+ Hubungkan [Agent]` langsung menuju modal DPAPI.
    - **Penyederhanaan Pengaturan:**
@@ -122,7 +122,7 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
      - `desktop-ui/src/components/settings/SettingsModal.tsx`, `AppearanceTab.tsx`, & `ModelsUsageDashboard.tsx`: Modal pengaturan dan kuota multi-agen.
      - `desktop-ui/src/components/modals/*`: Dialog terisolasi (New Project Wizard, DPAPI Credentials, HITL Terminal, History, Favorites, Confirm Dialog).
      - `crates/*`: Submodul Rust backend dipertahankan sangat ringkas (< 90 baris per berkas).
-   - Status audit (12 Okt 2026): **belum 100% patuh** — `desktop-ui/src/components/terminal/EmbeddedCliTerminal.tsx` (1.801 baris) dan `crates/soraja-desktop/src/main.rs` (544 baris) wajib dipecah (mis. `pty.rs`, `headless.rs`, `catalog_cmds.rs`).
+   - Status audit (19 Okt 2026): **patuh untuk seluruh berkas TS/TSX/Rust** — `EmbeddedCliTerminal.tsx` sudah dipecah (452 baris) dan `crates/soraja-desktop/src/main.rs` tinggal 57 baris (command dipindah ke `src/commands/*.rs`, terbesar `pty.rs` & `permission_bridge.rs` 370 baris). Berkas TS terbesar: `useWorkspaceState.ts` 472 baris. Pengecualian non-kode: `README.md` dan stylesheet `web-landing/src/styles/global.css` (745 baris).
 
 24. **Eksekusi Berkas & Terminal oleh Agen CLI:**  
     Baca/tulis berkas dan eksekusi shell dilakukan oleh tools bawaan masing-masing CLI di dalam workspace. Command Soraja (`read_workspace_file`, `write_workspace_file`, `list_workspace_files`, `run_workspace_terminal`) dipakai UI untuk fitur pendukung (autocomplete `@`, menghitung diff untuk panel review, menjalankan perintah cepat) — bukan sebagai mesin agen.
@@ -130,8 +130,8 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
 25. **Model Selector Dinamis dari CLI:**  
     Katalog model tidak dikurasi manual di dokumen ini. Model yang tampil adalah yang dilaporkan oleh CLI/akun pengguna (`get_agent_models`), sehingga otomatis mengikuti rilis model terbaru tanpa update aplikasi. Katalog fallback di `crates/soraja-core/src/agent_catalog.rs` wajib diperbarui berkala.
 
-26. **52 Skills Registry & Dynamic Token Budgeting (20K Ceiling):**  
-    Registri 52 skills ilmiah, developer, dan kustomisasi dengan pelindung batas pagu 20,000 token terintegrasi.
+26. **Skills Registry & Token Budgeting (20K Ceiling) — sebagian:**  
+    Target awal 52 skill. Saat ini `crates/soraja-core/src/skills.rs` berisi **12 skill bawaan** dengan batas 20.000 token; `get_skills`/`toggle_skill` memakai satu registri aplikasi yang persisten (`%APPDATA%\soraja-ai\skills.json`) dan menolak aktivasi yang melewati batas. **Belum ada:** UI pengelola skill (tab *Kustomisasi* dihapus, poin 22), penyuntikan skill ke prompt CLI agen, dan plafon token dinamis untuk prompt.
 
 27. **Multimodal 10-Image Vision Pipeline:**  
     Mendukung drag-and-drop dan paste clipboard hingga 10 gambar sekaligus dengan verifikasi batas dan galeri kartu thumbnail.
@@ -143,9 +143,9 @@ Kedua mode berbagi folder workspace dan (bila didukung CLI) sesi yang sama, sehi
     Cetak biru arsitektur lengkap yang mendokumentasikan kontrak IPC, skema database, dan guardrail keamanan untuk AI Coding Assistant dan pengembang.
 
 ### 3. Arsitektur Komponen (Modular Monolith)
-* `crates/soraja-core`: Shared Rust engine (deteksi & katalog agen CLI, token tracker, DPAPI auth, DB layer, skills).
-* `crates/soraja-desktop`: Backend Tauri & IPC routers (PTY interaktif, spawn headless, katalog). Kontrak: [`ipc-contracts.md`](./ipc-contracts.md).
-* `crates/soraja-cli`: Utilitas CLI headless milik Soraja (opsional; bukan fitur Terminal CLI agen).
+* `crates/soraja-core`: Shared Rust engine (deteksi & katalog agen CLI, akun & kuota CLI, token tracker, DPAPI auth, skills; DB layer SQLite belum dipakai aplikasi).
+* `crates/soraja-desktop`: Backend Tauri & IPC routers (PTY interaktif, spawn headless, kontrol sesi + Job Object, jembatan izin HITL, katalog). Kontrak: [`ipc-contracts.md`](./ipc-contracts.md).
+* Tidak ada crate `soraja-cli`: mode Terminal CLI menjalankan biner CLI asli tiap agen (Cargo workspace hanya berisi `soraja-core` dan `soraja-desktop`).
 * `desktop-ui`: Antarmuka aplikasi GUI React 19 + Vite (arsitektur modular < 500 baris per komponen).
 * `web-landing`: Situs publik Astro untuk download installer.
 
