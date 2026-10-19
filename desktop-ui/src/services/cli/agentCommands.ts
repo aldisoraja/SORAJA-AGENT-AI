@@ -11,7 +11,7 @@ export type PermissionMode = 'safe' | 'autonomous';
 
 /** Aturan bahasa jawaban agen (lihat specs/agent-protocols.md §5). */
 export const LANGUAGE_RULE =
-  'Selalu jawab, jelaskan, dan rangkum dalam Bahasa Indonesia yang jelas dan ramah. Istilah teknis (function, hook, endpoint, dll.) boleh tetap dalam bahasa aslinya.';
+  'Selalu jawab, jelaskan, dan rangkum dalam Bahasa Indonesia yang jelas dan ramah. Istilah teknis (function, hook, endpoint, dll.) boleh tetap dalam bahasa aslinya. Jangan gunakan simbol § saat merujuk bagian dokumen; tulis bagian N (misalnya bagian 7).';
 
 export interface CliLaunchOptions {
   agentId: string;

@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-pub const LANGUAGE_RULE: &str = "Selalu jawab, jelaskan, dan rangkum dalam Bahasa Indonesia yang jelas dan ramah. Istilah teknis (function, hook, endpoint, dll.) boleh tetap dalam bahasa aslinya.";
+pub const LANGUAGE_RULE: &str = "Selalu jawab, jelaskan, dan rangkum dalam Bahasa Indonesia yang jelas dan ramah. Istilah teknis (function, hook, endpoint, dll.) boleh tetap dalam bahasa aslinya. Jangan gunakan simbol § saat merujuk bagian dokumen; tulis bagian N (misalnya bagian 7).";
 const AGY_MARKER: &str = "<!-- soraja:bahasa-indonesia -->";
 
 pub fn user_home() -> Option<PathBuf> {
