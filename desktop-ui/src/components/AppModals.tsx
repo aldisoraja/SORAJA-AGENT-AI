@@ -117,6 +117,11 @@ export function AppModals({
           warning={ws.hitlRequest.destructive ? 'Perintah berisiko merusak data — hanya bisa diizinkan sekali.' : undefined}
           queueCount={ws.hitlQueueLength}
           disabledOptions={ws.hitlRequest.ruleKey && !ws.hitlRequest.destructive ? [] : [2, 3, 4]}
+          disabledReason={
+            ws.hitlRequest.destructive
+              ? undefined
+              : 'Perintah berantai (&&, ;, |, $(...)) hanya bisa diizinkan sekali — aturan "selalu izinkan" per program bisa ikut meloloskan perintah lain di rangkaian.'
+          }
           onClose={() => ws.answerHitl(5)}
           onSelectOption={ws.setHitlSelectedOption}
           onSubmit={ws.answerHitl}
