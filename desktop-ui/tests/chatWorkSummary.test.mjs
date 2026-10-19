@@ -82,14 +82,19 @@ test('wholeFileAdded & relativeToProject', () => {
   assert.equal(relativeToProject('E:/lain/x.ts', 'D:/Proj'), 'E:/lain/x.ts');
 });
 
-test('groupSteps: ≥3 baca/cari berurutan diringkas; langkah berjalan & jenis lain memutus grup', () => {
+test('groupSteps: ≥2 baca/cari berurutan diringkas (termasuk yang berjalan); jenis lain memutus grup', () => {
   const r = (label, status = 'done') => ({ type: 'analyzed', label, status });
   const s = { type: 'explored', label: '"x"', status: 'done' };
   const cmd = { type: 'command', label: 'npm test', status: 'done', toolId: 'c' };
   const items = groupSteps([r('a.ts'), r('b.ts'), s, cmd, r('c.ts'), r('d.ts'), r('e.ts', 'running')]);
-  assert.deepEqual(items.map((i) => i.kind), ['group', 'step', 'step', 'step', 'step']);
+  assert.deepEqual(items.map((i) => i.kind), ['group', 'step', 'group']);
   assert.equal(items[0].steps.length, 3);
   assert.equal(groupSummary(items[0].steps), '2 berkas dibaca · 1 pencarian');
+  // Langkah baru yang berjalan tidak memecah grup lama menjadi baris lepas (kunci grup tetap).
+  const before = groupSteps([r('a.ts'), r('b.ts'), r('c.ts')]);
+  const after = groupSteps([r('a.ts'), r('b.ts'), r('c.ts'), r('d.ts', 'running')]);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].key, before[0].key);
   assert.equal(new Set(items.map((i) => i.key)).size, items.length, 'key React unik');
   assert.equal(groupSummary([r('a.ts'), r('A.ts'), r('b.ts')]), '2 berkas dibaca', 'berkas yang sama dibaca ulang dihitung sekali');
 });

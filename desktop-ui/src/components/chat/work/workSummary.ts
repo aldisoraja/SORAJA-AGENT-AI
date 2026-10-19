@@ -118,10 +118,12 @@ export type StepItem =
 const EXPLORE_TYPES: TrajectoryStep['type'][] = ['analyzed', 'explored'];
 
 /**
- * Menggabungkan rangkaian baca/cari berurutan (≥ `min` langkah, sudah selesai) menjadi satu baris
- * "Menelusuri kode" agar timeline tidak penuh oleh puluhan baris baca berkas.
+ * Menggabungkan rangkaian baca/cari berurutan (≥ `min` langkah) menjadi satu baris "Menelusuri kode"
+ * agar timeline tidak penuh oleh puluhan baris baca berkas. Langkah yang masih berjalan ikut masuk grup
+ * (grup menampilkan status live) supaya baris tidak muncul lalu terserap lagi — timeline tidak naik-turun.
+ * Batas 2: satu baris baca berganti jadi satu baris grup (tinggi sama), jadi tidak ada lompatan tinggi.
  */
-export function groupSteps(steps: TrajectoryStep[], min = 3): StepItem[] {
+export function groupSteps(steps: TrajectoryStep[], min = 2): StepItem[] {
   const items: StepItem[] = [];
   let run: { step: TrajectoryStep; index: number }[] = [];
   let texts = 0;
@@ -135,7 +137,7 @@ export function groupSteps(steps: TrajectoryStep[], min = 3): StepItem[] {
     run = [];
   };
   steps.forEach((step, index) => {
-    if (EXPLORE_TYPES.includes(step.type) && step.status !== 'running') {
+    if (EXPLORE_TYPES.includes(step.type)) {
       run.push({ step, index });
       return;
     }
