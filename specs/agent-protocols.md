@@ -227,7 +227,13 @@ Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-sc
   tidak lagi ditolak otomatis:
   1. Claude memanggil tool MCP `approval_prompt` `{tool_name, input, tool_use_id}` → `permission_bridge.rs` memancarkan
      `agent:permission_request` dan menahan jawaban HTTP (SSE + komentar keepalive 15 detik, tanpa batas waktu).
-  2. `hooks/useHitlPermissions.ts` menjawab otomatis bila ada aturan "selalu izinkan"; selain itu menampilkan **Modal HITL 5 opsi**
+  2. `hooks/useHitlPermissions.ts` menjawab otomatis (tanpa modal) bila perintah shell **hanya membaca**
+     (`services/cli/readOnlyCommands.ts`, Okt 2026): allow-list konservatif seperti `ls`, `cat`, `grep`, `Get-Content`,
+     `Get-ChildItem`, `Select-String`, `Measure-Object`, `ForEach-Object { … }`, `git status/diff/log/show`, dan `<program> --version`.
+     Rangkaian (`;`, `|`, `&&`, blok `{ }`/`( )`) lolos hanya bila **semua** bagiannya baca-saja. Tetap ditanyakan bila ada
+     pengalihan ke berkas (`>`), `$(`, backtick, `&`, `::`, method selain manipulasi string (`.Delete()`), hashtable `@{}`,
+     perintah multi-baris, atau (di Bash) `$VAR` di posisi perintah. Selain itu, ada aturan "selalu izinkan" → otomatis;
+     sisanya menampilkan **Modal HITL 5 opsi**
      (antre bila lebih dari satu). Opsi 2 disimpan di memori per percakapan, opsi 3 di `AppSettings.hitlAllowProjects[pathProyek]`,
      opsi 4 di `AppSettings.hitlAllowGlobal`. Kunci aturan (`services/cli/permissionRules.ts`): perintah shell per program pertama
      (`Bash:npm`), tool lain per nama tool. Perintah berantai (`&&`, `;`, `|`, `` ` ``, `$(`) dan perintah berbahaya (`rm -rf`,

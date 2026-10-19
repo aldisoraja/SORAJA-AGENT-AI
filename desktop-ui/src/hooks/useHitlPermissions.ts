@@ -2,7 +2,8 @@
  * useHitlPermissions.ts
  * HITL Chat GUI: menerima permintaan izin dari `hitlBus` — jembatan MCP Claude (event `agent:permission_request`,
  * dijawab lewat IPC `approve_human_in_the_loop`) dan driver Codex app-server / OpenCode ACP (dijawab lewat stdin).
- * Menjawab otomatis bila ada aturan "selalu izinkan", selain itu mengantrekan modal 5 opsi untuk pengguna.
+ * Menjawab otomatis bila perintah hanya membaca atau ada aturan "selalu izinkan", selain itu mengantrekan
+ * modal 5 opsi untuk pengguna.
  * Spesifikasi: specs/agent-protocols.md §7.
  */
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
@@ -90,6 +91,11 @@ export function useHitlPermissions(deps: HitlDeps) {
         respond,
         afterTurn: !!p.context,
       };
+      // Perintah yang hanya membaca (ls, Get-Content, git status, …) tidak perlu ditanyakan.
+      if (req.readOnly) {
+        respond(true).catch(() => {});
+        return;
+      }
       if (await isPreApproved(req)) {
         respond(true).catch(() => {});
         d.showDbToast(`Diizinkan otomatis: ${ruleLabel(req.ruleKey!)}.`);

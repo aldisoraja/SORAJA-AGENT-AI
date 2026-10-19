@@ -3,6 +3,7 @@
  * Aturan izin HITL Chat GUI: kunci aturan "selalu izinkan", deteksi perintah berbahaya, dan ringkasan
  * permintaan izin untuk modal. Spesifikasi: specs/agent-protocols.md §7. Modul murni (tanpa import runtime).
  */
+import { isReadOnlyCommand } from './readOnlyCommands.ts';
 
 const SHELL_TOOLS = /^(bash|powershell|shell|run_command|exec_command)$/i;
 
@@ -35,6 +36,8 @@ export interface PermissionSummary {
   /** Kunci aturan "selalu izinkan"; `null` = permintaan ini harus selalu ditanyakan. */
   ruleKey: string | null;
   destructive: boolean;
+  /** Perintah shell yang hanya membaca (`readOnlyCommands.ts`): diizinkan otomatis tanpa modal. */
+  readOnly: boolean;
 }
 
 function commandOf(input: Record<string, unknown>): string {
@@ -67,11 +70,14 @@ export function ruleLabel(key: string): string {
 export function summarizePermissionRequest(toolName: string, input: Record<string, unknown>): PermissionSummary {
   const command = commandOf(input);
   const file = [input.file_path, input.notebook_path, input.path, input.url].find((v) => typeof v === 'string') as string | undefined;
+  const destructive = !!command && isDestructiveCommand(command);
   const preview = command || file || (Object.keys(input).length > 0 ? JSON.stringify(input).slice(0, 400) : toolName);
   return {
     preview,
     description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
     ruleKey: permissionRuleKey(toolName, input),
-    destructive: !!command && isDestructiveCommand(command),
+    destructive,
+    readOnly:
+      !destructive && !!command && SHELL_TOOLS.test(toolName) && isReadOnlyCommand(command, /powershell/i.test(toolName)),
   };
 }
