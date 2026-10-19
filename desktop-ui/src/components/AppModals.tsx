@@ -96,11 +96,11 @@ export function AppModals({
         onSubmit={(opt) => {
           const labels = [
             '',
-            'Diizinkan 1x (Allow once)',
+            'Diizinkan sekali',
             'Selalu diizinkan di sesi ini',
             'Selalu diizinkan di project ini',
             'Selalu diizinkan secara global',
-            'Perintah ditolak (Rejected)',
+            'Perintah ditolak',
           ];
           ws.setHitlModal(null);
           ws.showDbToast(`Izin Terminal: ${labels[opt] || 'Diperbarui'}.`);

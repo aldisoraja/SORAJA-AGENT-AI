@@ -100,11 +100,11 @@ export function TerminalPermissionModal({
         {/* 5 Radio Options */}
         <div className="space-y-2 pt-1">
           {[
-            { id: 1, label: 'Allow once', desc: 'Izinkan eksekusi satu kali ini saja' },
-            { id: 2, label: 'Always allow in this conversation', desc: 'Selalu izinkan di percakapan aktif ini' },
-            { id: 3, label: 'Always allow in this project', desc: 'Selalu izinkan di ruang kerja proyek ini' },
-            { id: 4, label: 'Always allow globally', desc: 'Selalu izinkan untuk semua proyek & sesi' },
-            { id: 5, label: 'Reject (Do not allow)', desc: 'Tolak eksekusi perintah terminal ini' },
+            { id: 1, label: 'Izinkan sekali', desc: 'Izinkan eksekusi satu kali ini saja' },
+            { id: 2, label: 'Selalu izinkan di percakapan ini', desc: 'Berlaku selama percakapan aktif ini' },
+            { id: 3, label: 'Selalu izinkan di proyek ini', desc: 'Berlaku di ruang kerja proyek ini' },
+            { id: 4, label: 'Selalu izinkan secara global', desc: 'Berlaku untuk semua proyek & sesi' },
+            { id: 5, label: 'Tolak (Jangan izinkan)', desc: 'Tolak eksekusi perintah terminal ini' },
           ].map((opt) => {
             const isSelected = selected === opt.id;
             const disabled = disabledOptions.includes(opt.id);
@@ -165,7 +165,7 @@ export function TerminalPermissionModal({
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
             }`}
           >
-            Skip
+            Lewati
           </button>
           <button
             onClick={() => onSubmit(selected)}
@@ -175,7 +175,7 @@ export function TerminalPermissionModal({
                 : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-blue-950/60'
             }`}
           >
-            Submit
+            Kirim
           </button>
         </div>
       </div>
