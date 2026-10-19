@@ -69,6 +69,28 @@ export function displaySteps(msg: MessageRecord): TrajectoryStep[] {
   return [{ type: 'thought', label: 'Penalaran', thoughtContent: reasoning, status: 'done' }, ...steps];
 }
 
+const isMergeableEdit = (s: TrajectoryStep) => s.type === 'edited' && s.status !== 'denied' && s.status !== 'error' && !!(s.file || s.diff?.file);
+const editKey = (s: TrajectoryStep) => norm(s.file || s.diff?.file);
+
+/**
+ * Edit berulang pada berkas yang sama digabung ke posisi edit terakhirnya: diff git bersifat kumulatif,
+ * jadi tiap baris akan menampilkan kode yang sama persis. `count` = jumlah panggilan edit berkas itu.
+ * Edit yang gagal/ditolak tetap tampil terpisah.
+ */
+export function mergeFileEdits(steps: TrajectoryStep[]): TrajectoryStep[] {
+  const total = new Map<string, number>();
+  for (const s of steps) if (isMergeableEdit(s)) total.set(editKey(s), (total.get(editKey(s)) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return steps.flatMap((s) => {
+    if (!isMergeableEdit(s)) return [s];
+    const key = editKey(s);
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    const all = total.get(key) ?? 1;
+    return n < all ? [] : [all > 1 ? { ...s, count: all } : s];
+  });
+}
+
 export type StepItem =
   | { kind: 'step'; step: TrajectoryStep; key: string }
   | { kind: 'group'; steps: TrajectoryStep[]; key: string };
@@ -82,7 +104,9 @@ const EXPLORE_TYPES: TrajectoryStep['type'][] = ['analyzed', 'explored'];
 export function groupSteps(steps: TrajectoryStep[], min = 3): StepItem[] {
   const items: StepItem[] = [];
   let run: { step: TrajectoryStep; index: number }[] = [];
-  const keyOf = (s: TrajectoryStep, i: number) => s.toolId ?? `${s.type}-${i}`;
+  // Baris edit gabungan berpindah toolId tiap ada edit baru → kunci per berkas agar state buka/tutup tidak hilang.
+  const keyOf = (s: TrajectoryStep, i: number) =>
+    isMergeableEdit(s) ? `edit-${editKey(s)}` : s.toolId ?? `${s.type}-${i}`;
   const flush = () => {
     if (run.length >= min) items.push({ kind: 'group', steps: run.map((r) => r.step), key: `grp-${keyOf(run[0].step, run[0].index)}` });
     else run.forEach((r) => items.push({ kind: 'step', step: r.step, key: keyOf(r.step, r.index) }));

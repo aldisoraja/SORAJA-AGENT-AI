@@ -13,7 +13,9 @@ import {
   splitPath,
   summaryParts,
   countSteps,
+  mergeFileEdits,
 } from '../src/components/chat/work/workSummary.ts';
+import { applyFileChange } from '../src/services/cli/trajectoryBuilder.ts';
 import { absoluteInProject, isNewFileStatus, parseUnifiedDiff, relativeToProject, wholeFileAdded } from '../src/services/cli/fileChangeDiff.ts';
 
 /** Keluaran nyata `git diff --no-color` (2 hunk, karakter non-ASCII, baris kosong ditambahkan). */
@@ -139,4 +141,24 @@ test('activityLabel & summaryParts: kalimat status berbahasa Indonesia', () => {
 test('splitPath: folder & nama berkas', () => {
   assert.deepEqual(splitPath('src\\components\\App.tsx'), { dir: 'src/components/', name: 'App.tsx' });
   assert.deepEqual(splitPath('README.md'), { dir: '', name: 'README.md' });
+});
+
+test('mergeFileEdits: edit berulang berkas sama jadi satu baris (posisi terakhir); gagal/ditolak tetap terpisah', () => {
+  const e = (id, file, status = 'done') => ({ type: 'edited', label: 'App.tsx', file, toolId: id, status });
+  const read = { type: 'analyzed', label: 'x', file: 'x.ts', status: 'done' };
+  const merged = mergeFileEdits([e('t1', 'D:\\p\\src\\App.tsx'), read, e('t2', 'd:/p/src/App.tsx'), e('t3', 'D:\\p\\b.ts'), e('t4', 'D:\\p\\src\\App.tsx', 'error')]);
+  assert.deepEqual(merged.map((s) => s.toolId ?? s.type), ['analyzed', 't2', 't3', 't4']);
+  assert.equal(merged[1].count, 2);
+  assert.equal(merged[2].count, undefined);
+  const keys = groupSteps(merged).map((i) => i.key);
+  assert.equal(new Set(keys).size, keys.length, 'kunci unik');
+  assert.equal(groupSteps(mergeFileEdits([e('t1', 'a.ts')]))[0].key, groupSteps(mergeFileEdits([e('t1', 'a.ts'), e('t9', 'a.ts')]))[0].key, 'kunci stabil saat edit baru masuk');
+});
+
+test('applyFileChange: tool edit tanpa path (OpenCode patch) diisi berkasnya, bukan ditambah baris kembar', () => {
+  const steps = applyFileChange([{ type: 'edited', label: 'patch', toolId: 'p1', status: 'done' }], 'src/a.ts', 5);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].file, 'src/a.ts');
+  assert.equal(steps[0].label, 'a.ts');
+  assert.equal(applyFileChange(steps, 'src/b.ts', 6).length, 2, 'berkas kedua patch → baris baru');
 });

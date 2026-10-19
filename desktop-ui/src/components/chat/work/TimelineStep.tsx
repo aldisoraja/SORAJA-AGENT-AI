@@ -107,6 +107,11 @@ export function TimelineStep({ step, isLight, now, verbose, diff, onOpenDiff }: 
         <ExtBadge path={path} isLight={isLight} />
         <FilePath path={path} isLight={isLight} />
         {step.lineRange && <span className={`shrink-0 font-mono text-[10.5px] ${muted}`}>{step.lineRange}</span>}
+        {step.type === 'edited' && (step.count ?? 0) > 1 && (
+          <span title={`${step.count} kali diedit (diff gabungan)`} className={`shrink-0 font-mono text-[10.5px] ${muted}`}>
+            {step.count}×
+          </span>
+        )}
       </>
     );
   } else if (step.type === 'command') {

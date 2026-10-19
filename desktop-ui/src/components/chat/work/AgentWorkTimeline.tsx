@@ -18,7 +18,7 @@ import { TimelineStep } from './TimelineStep';
 import { StepGroup } from './StepGroup';
 import { RunInfoChips } from './RunInfoChips';
 import { DiffStat } from './FileVisuals';
-import { activityLabel, countSteps, diffForStep, displaySteps, formatClock, formatDuration, groupSteps } from './workSummary';
+import { activityLabel, countSteps, diffForStep, displaySteps, formatClock, formatDuration, groupSteps, mergeFileEdits } from './workSummary';
 
 interface AgentWorkTimelineProps {
   msg: MessageRecord;
@@ -51,7 +51,7 @@ export function AgentWorkTimeline({ msg, isLight, now, verbose, onOpenDiff }: Ag
 
   const steps = displaySteps(msg);
   const counts = countSteps(steps, msg.codeEdits);
-  const items = groupSteps(steps);
+  const items = groupSteps(mergeFileEdits(steps));
   const logs = msg.logs || [];
   const elapsed = msg.startedAt ? (msg.finishedAt ?? now) - msg.startedAt : 0;
   const hasFooter = !!msg.runInfo || !!msg.usage || logs.length > 0;

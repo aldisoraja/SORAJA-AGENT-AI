@@ -209,6 +209,9 @@ export function markDenied(steps: TrajectoryStep[] = [], ev: DeniedEvent): Traje
 /** Memastikan ada langkah "edited" untuk berkas yang dilaporkan berubah (Codex hanya mengirim `file_change`). */
 export function applyFileChange(steps: TrajectoryStep[] = [], path: string, now: number): TrajectoryStep[] {
   if (steps.some((s) => s.type === 'edited' && samePath(s.file, path))) return steps;
+  // Tool edit tanpa argumen path (mis. OpenCode `patch`) diisi berkas pertamanya, bukan ditambah baris kembar.
+  const unnamed = steps.findLastIndex((s) => s.type === 'edited' && !s.file && s.status === 'done');
+  if (unnamed >= 0) return steps.map((s, i) => (i === unnamed ? { ...s, file: path, label: baseName(path) } : s));
   return [...closeThoughts(steps, now), { type: 'edited', label: baseName(path), file: path, status: 'done', startedAt: now, endedAt: now }];
 }
 
