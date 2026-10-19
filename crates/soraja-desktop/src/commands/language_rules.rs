@@ -2,8 +2,9 @@
 //!
 //! - Menulis berkas aturan bersama di `%APPDATA%\soraja-ai\rules\bahasa-indonesia.md`
 //!   (dipakai OpenCode via `OPENCODE_CONFIG_CONTENT.instructions`).
-//! - Antigravity tidak punya flag system prompt, jadi blok aturan bertanda ditambahkan SEKALI
-//!   ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia.
+//! - Antigravity tidak punya flag system prompt, jadi blok aturan bertanda ditambahkan ke
+//!   `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia, dan
+//!   diperbarui bila `LANGUAGE_RULE` berubah.
 
 use std::path::PathBuf;
 
@@ -47,12 +48,35 @@ fn ensure_antigravity_global_rule() -> Result<(), String> {
     }
     let path = dir.join("instructions.md");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    if existing.contains(AGY_MARKER) || existing.contains("Bahasa Indonesia") {
-        return Ok(());
+    match antigravity_instructions_update(&existing) {
+        Some(updated) => std::fs::write(&path, updated).map_err(|e| format!("Gagal menulis {}: {}", path.display(), e)),
+        None => Ok(()),
+    }
+}
+
+/// Isi baru `instructions.md` Antigravity, atau `None` bila tidak perlu ditulis ulang.
+/// Blok bertanda milik Soraja diperbarui bila teks aturannya berubah; aturan Bahasa Indonesia
+/// buatan pengguna sendiri (tanpa penanda) dibiarkan apa adanya.
+fn antigravity_instructions_update(existing: &str) -> Option<String> {
+    const HEADING: &str = "## Aturan Bahasa (ditambahkan oleh Soraja AI)";
+    if let Some(start) = existing.find(AGY_MARKER) {
+        // Blok = baris penanda, baris judul, lalu satu baris aturan.
+        let block_end = existing[start..]
+            .match_indices('\n')
+            .nth(2)
+            .map(|(i, _)| start + i + 1)
+            .unwrap_or(existing.len());
+        let block = format!("{}\n{}\n{}\n", AGY_MARKER, HEADING, LANGUAGE_RULE);
+        if existing[start..block_end] == block {
+            return None;
+        }
+        return Some(format!("{}{}{}", &existing[..start], block, &existing[block_end..]));
+    }
+    if existing.contains("Bahasa Indonesia") {
+        return None;
     }
     let separator = if existing.is_empty() || existing.ends_with('\n') { "" } else { "\n" };
-    let block = format!("{}\n{}\n## Aturan Bahasa (ditambahkan oleh Soraja AI)\n{}\n", separator, AGY_MARKER, LANGUAGE_RULE);
-    std::fs::write(&path, existing + &block).map_err(|e| format!("Gagal menulis {}: {}", path.display(), e))
+    Some(format!("{}{}\n{}\n{}\n{}\n", existing, separator, AGY_MARKER, HEADING, LANGUAGE_RULE))
 }
 
 /// Menyiapkan aturan bahasa untuk agen tertentu dan mengembalikan path berkas aturan bersama.
@@ -63,4 +87,30 @@ pub fn prepare_agent_language_rules(agent_id: String) -> Result<String, String> 
         ensure_antigravity_global_rule()?;
     }
     Ok(rules_path.to_string_lossy().replace('\\', "/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{antigravity_instructions_update, AGY_MARKER, LANGUAGE_RULE};
+
+    #[test]
+    fn blok_lama_diperbarui_tanpa_menyentuh_isi_lain() {
+        let lama = format!("Catatan pengguna\n\n{}\n## Aturan Bahasa (ditambahkan oleh Soraja AI)\nAturan lama.\nPenutup\n", AGY_MARKER);
+        let baru = antigravity_instructions_update(&lama).expect("harus ditulis ulang");
+        assert!(baru.starts_with("Catatan pengguna\n\n"));
+        assert!(baru.contains(LANGUAGE_RULE) && !baru.contains("Aturan lama."));
+        assert!(baru.ends_with("Penutup\n"));
+        assert_eq!(antigravity_instructions_update(&baru), None, "blok terbaru tidak ditulis ulang");
+    }
+
+    #[test]
+    fn berkas_tanpa_aturan_mendapat_blok_baru() {
+        let baru = antigravity_instructions_update("Catatan").unwrap();
+        assert!(baru.starts_with("Catatan\n\n") && baru.contains(AGY_MARKER) && baru.contains(LANGUAGE_RULE));
+    }
+
+    #[test]
+    fn aturan_buatan_pengguna_dibiarkan() {
+        assert_eq!(antigravity_instructions_update("Jawab dalam Bahasa Indonesia."), None);
+    }
 }

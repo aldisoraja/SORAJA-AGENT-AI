@@ -185,7 +185,7 @@ Keputusan produk: **jawaban agen wajib berbahasa Indonesia** di kedua mode. Teks
 | `codex` | `-c developer_instructions="<aturan>"` | Chat & Terminal |
 | `opencode` | env `OPENCODE_CONFIG_CONTENT={"instructions":["<path aturan>"]}`; path dari IPC `prepare_agent_language_rules` (`%APPDATA%\soraja-ai\rules\bahasa-indonesia.md`) | Chat & Terminal |
 | `kiro` | Tidak ada flag system prompt yang dipakai: mode Chat menyisipkan `[Instruksi: …]` di awal prompt. Mode Terminal belum memaksa Bahasa Indonesia. | Chat |
-| `antigravity` | Tidak ada flag system prompt. IPC `prepare_agent_language_rules` menambahkan **sekali** blok bertanda `<!-- soraja:bahasa-indonesia -->` ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia; mode Chat juga menyisipkan `[Instruksi: …]` di awal prompt | Chat & Terminal |
+| `antigravity` | Tidak ada flag system prompt. IPC `prepare_agent_language_rules` menambahkan blok bertanda `<!-- soraja:bahasa-indonesia -->` ke `~/.gemini/antigravity-cli/instructions.md` bila belum ada aturan Bahasa Indonesia, dan memperbarui blok itu bila `LANGUAGE_RULE` berubah (aturan buatan pengguna tanpa penanda tidak disentuh); mode Chat juga menyisipkan `[Instruksi: …]` di awal prompt | Chat & Terminal |
 
 **Keputusan: jawaban asli CLI, tanpa lapisan penerjemah.** Isi jawaban dan penalaran agen tidak pernah diterjemahkan,
 "dipulihkan", atau disunting oleh Soraja (di Chat GUI maupun Terminal). Bahasa jawaban dijaga hanya oleh aturan di atas
