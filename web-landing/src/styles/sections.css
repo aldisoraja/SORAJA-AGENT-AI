@@ -74,23 +74,33 @@
   border: 1px solid var(--bg-card-border);
   background: var(--code-box-bg);
 }
-.cm-work { border: 1px solid var(--bg-card-border); border-radius: 12px; background: var(--code-box-bg); overflow: hidden; }
+/* Proses kerja tanpa card: baris status sekaligus tombol lipat, lalu alur penjelasan + langkah */
 .cm-work-head {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--bg-card-border);
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
 }
+.cm-work-head::-webkit-details-marker { display: none; }
+.cm-work-head:hover { background: var(--code-box-bg); }
+.cm-chevron { color: var(--text-muted); font-size: 0.95rem; line-height: 1; transition: transform 0.2s; }
+.cm-work[open] .cm-chevron { transform: rotate(90deg); }
+.cm-flow { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.cm-text { margin: 0; line-height: 1.6; }
+.cm-work-head .cm-diff { margin-left: auto; }
 .cm-ok { color: #10b981; font-weight: 800; }
-.cm-diff { margin-left: auto; font-family: ui-monospace, monospace; }
+.cm-diff { font-family: ui-monospace, monospace; }
 .add { color: #10b981; }
 .del { color: #f43f5e; }
 .cm-dim { color: var(--text-muted); font-size: 0.75rem; }
 .cm-italic { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.cm-steps { list-style: none; margin: 0; padding: 10px 14px 4px; position: relative; display: flex; flex-direction: column; gap: 7px; }
-.cm-steps::before { content: ''; position: absolute; left: 24.5px; top: 18px; bottom: 16px; width: 1px; background: var(--bg-card-border); }
+.cm-steps { list-style: none; margin: 0; padding: 0; position: relative; display: flex; flex-direction: column; gap: 7px; }
+.cm-steps::before { content: ''; position: absolute; left: 10.5px; top: 11px; bottom: 11px; width: 1px; background: var(--bg-card-border); }
 .cm-steps li { display: flex; align-items: center; gap: 8px; min-width: 0; position: relative; }
 .cm-node {
   width: 22px;
@@ -120,7 +130,7 @@
 .cm-steps code b { font-size: 0.6rem; color: #38bdf8; margin-right: 4px; }
 .cm-time { margin-left: auto; color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; }
 .cm-time u { text-decoration: none; color: var(--accent-cyan); font-weight: 700; margin-left: 4px; }
-.cm-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 12px; }
+.cm-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid var(--bg-card-border); }
 .cm-chips span {
   font-size: 0.68rem;
   color: var(--text-secondary);
@@ -129,7 +139,8 @@
   border: 1px solid var(--bg-card-border);
 }
 .cm-answer { margin: 0; line-height: 1.6; }
-.cm-answer code {
+.cm-answer code,
+.cm-text code {
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
   padding: 1px 6px;
@@ -137,6 +148,27 @@
   color: var(--accent-cyan);
   background: var(--accent-cyan-glow);
 }
+.cm-edits { border: 1px solid var(--bg-card-border); border-radius: 12px; background: var(--code-box-bg); overflow: hidden; }
+.cm-edits-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--bg-card-border); }
+.cm-edits-btn {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--bg-card-border);
+  color: var(--text-secondary);
+}
+.cm-edits-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-width: 0; }
+.cm-edits-row code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cm-edits-row code b { font-size: 0.6rem; color: #38bdf8; margin-right: 4px; }
 .cm-actions { display: flex; gap: 12px; color: var(--text-secondary); font-size: 0.75rem; }
 
 /* Unduhan langsung */
@@ -214,4 +246,5 @@
 @media (max-width: 640px) {
   .cm-user { max-width: 92%; }
   .cm-italic, .cm-work-head .cm-dim { display: none; }
+  .cm-steps li { flex-wrap: wrap; }
 }
