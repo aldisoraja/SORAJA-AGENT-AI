@@ -65,6 +65,8 @@ jobs:
 
   manifest:
     needs: build
+    # Tetap jalan bila sebagian build OS gagal, agar tombol unduh OS yang berhasil tidak ikut rusak.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -26,7 +26,7 @@ async-stream = "0.3"
 # System, Security & Tools
 keyring = "3.0"
 portable-pty = "0.8"
-git2 = "0.18"
+git2 = { version = "0.18", default-features = false }
 regex = "1.10"
 
 # Error Handling
