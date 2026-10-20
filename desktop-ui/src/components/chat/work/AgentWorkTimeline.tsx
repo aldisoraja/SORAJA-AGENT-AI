@@ -123,53 +123,62 @@ export function AgentWorkTimeline({ msg, steps, isLight, now, verbose, onOpenDif
   }
 
   const lastSegment = segments[segments.length - 1];
+  // Selama berjalan baris status menempel di atas area chat. Wrapper `contents` membuat sticky berlaku sepanjang
+  // pesan agen (termasuk jawaban yang sedang ditulis), bukan hanya timeline; jarak `space-y` induk tidak berlaku
+  // pada elemen `contents`, jadi diganti margin eksplisit. `-top-5` mengimbangi `py-5` area scroll ChatFeed
+  // (Chromium menempelkan sticky di bawah padding kontainer scroll).
+  const stickyBar = running
+    ? `sticky -top-5 z-10 -mx-2 px-2 backdrop-blur-sm ${isLight ? 'bg-[#f8fafc]/90' : 'bg-[#07090e]/90'} ${open ? '' : 'mb-3'}`
+    : undefined;
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        title={open ? 'Lipat proses kerja' : 'Tampilkan proses kerja'}
-        className={`group flex items-center gap-2 max-w-full min-h-[28px] -mx-1.5 px-1.5 rounded-lg text-left cursor-pointer transition-colors ${
-          isLight ? 'hover:bg-slate-100/80' : 'hover:bg-white/[0.03]'
-        }`}
-      >
-        <span className="shrink-0">{statusIcon}</span>
-        <span className={`text-[12.5px] font-medium truncate ${isLight ? 'text-slate-700' : 'text-slate-200'} ${running ? 'soraja-shimmer' : ''}`}>
-          {title}
-        </span>
-        {elapsed >= 1000 && (
-          <span className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
-            {running ? formatClock(elapsed) : formatDuration(elapsed)}
+    <div className={running ? 'contents' : undefined}>
+      <div className={stickyBar}>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          title={open ? 'Lipat proses kerja' : 'Tampilkan proses kerja'}
+          className={`group flex items-center gap-2 max-w-full min-h-[28px] -mx-1.5 px-1.5 rounded-lg text-left cursor-pointer transition-colors ${
+            isLight ? 'hover:bg-slate-100/80' : 'hover:bg-white/[0.03]'
+          }`}
+        >
+          <span className="shrink-0">{statusIcon}</span>
+          <span className={`text-[12.5px] font-medium truncate ${isLight ? 'text-slate-700' : 'text-slate-200'} ${running ? 'soraja-shimmer' : ''}`}>
+            {title}
           </span>
-        )}
-        {usage && (
-          <span title={usage.title} className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
-            {usage.text}
+          {elapsed >= 1000 && (
+            <span className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
+              {running ? formatClock(elapsed) : formatDuration(elapsed)}
+            </span>
+          )}
+          {usage && (
+            <span title={usage.title} className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
+              {usage.text}
+            </span>
+          )}
+          <span className="flex items-center gap-2.5 shrink-0">
+            <Stat isLight={isLight} value={counts.reads} title="Berkas dibaca" icon={<FileText className="w-3 h-3" />} />
+            <Stat isLight={isLight} value={counts.searches} title="Pencarian" icon={<Search className="w-3 h-3" />} />
+            <Stat isLight={isLight} value={counts.web} title="Akses web" icon={<Globe className="w-3 h-3" />} />
+            <Stat isLight={isLight} value={counts.commands} title="Perintah terminal" icon={<SquareTerminal className="w-3 h-3" />} />
+            <Stat isLight={isLight} value={counts.edits} title="Berkas diubah" icon={<FilePen className="w-3 h-3" />} />
+            <Stat
+              isLight={isLight}
+              value={counts.denied}
+              title="Aksi ditolak mode aman"
+              tone={isLight ? 'text-amber-600' : 'text-amber-400'}
+              icon={<ShieldAlert className="w-3 h-3" />}
+            />
+            <Stat isLight={isLight} value={counts.errors} title="Langkah gagal" tone="text-rose-500" icon={<CircleX className="w-3 h-3" />} />
           </span>
-        )}
-        <span className="flex items-center gap-2.5 shrink-0">
-          <Stat isLight={isLight} value={counts.reads} title="Berkas dibaca" icon={<FileText className="w-3 h-3" />} />
-          <Stat isLight={isLight} value={counts.searches} title="Pencarian" icon={<Search className="w-3 h-3" />} />
-          <Stat isLight={isLight} value={counts.web} title="Akses web" icon={<Globe className="w-3 h-3" />} />
-          <Stat isLight={isLight} value={counts.commands} title="Perintah terminal" icon={<SquareTerminal className="w-3 h-3" />} />
-          <Stat isLight={isLight} value={counts.edits} title="Berkas diubah" icon={<FilePen className="w-3 h-3" />} />
-          <Stat
-            isLight={isLight}
-            value={counts.denied}
-            title="Aksi ditolak mode aman"
-            tone={isLight ? 'text-amber-600' : 'text-amber-400'}
-            icon={<ShieldAlert className="w-3 h-3" />}
-          />
-          <Stat isLight={isLight} value={counts.errors} title="Langkah gagal" tone="text-rose-500" icon={<CircleX className="w-3 h-3" />} />
-        </span>
-        {counts.additions + counts.deletions > 0 && <DiffStat additions={counts.additions} deletions={counts.deletions} />}
-        <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${muted} ${open ? 'rotate-90' : ''}`} />
-      </button>
+          {counts.additions + counts.deletions > 0 && <DiffStat additions={counts.additions} deletions={counts.deletions} />}
+          <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${muted} ${open ? 'rotate-90' : ''}`} />
+        </button>
+      </div>
 
       {open && (
-        <div className="mt-2 space-y-3">
+        <div className={`mt-2 space-y-3 ${running ? 'mb-3' : ''}`}>
           {segments.map((seg) =>
             seg.kind === 'text' ? (
               <div key={seg.key} className="px-0.5">
