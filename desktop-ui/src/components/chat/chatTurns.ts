@@ -62,9 +62,11 @@ function sumUsage(parts: MessageRecord[]): AgentUsage | undefined {
   const total = (pick: (u: AgentUsage) => number | undefined) => used.reduce((n, u) => n + (pick(u) ?? 0), 0);
   const costUsd = total((u) => u.costUsd);
   const credits = total((u) => u.credits);
+  const cacheRead = total((u) => u.cacheReadTokens);
   return {
     inputTokens: total((u) => u.inputTokens),
     outputTokens: total((u) => u.outputTokens),
+    ...(cacheRead > 0 ? { cacheReadTokens: cacheRead } : {}),
     costUsd: costUsd || undefined,
     credits: credits || undefined,
   };

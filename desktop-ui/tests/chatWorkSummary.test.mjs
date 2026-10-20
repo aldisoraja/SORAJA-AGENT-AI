@@ -175,6 +175,10 @@ test('usageHeadline: total token masuk + keluar, kredit untuk Kiro, kosong bila 
   assert.ok(tokens.title.includes('23.857 token masuk'));
   assert.ok(tokens.title.includes('1.858 token keluar'));
   assert.ok(tokens.title.includes('$0.1092'));
+  assert.ok(!tokens.title.includes('cache'), 'tanpa baca cache → tidak disebut');
+  const cached = usageHeadline({ inputTokens: 77721, outputTokens: 26490, cacheReadTokens: 2766744 });
+  assert.equal(cached.text, '104,2 rb token', 'baca cache tidak ikut total');
+  assert.ok(cached.title.includes('2,8 jt token dibaca ulang dari cache'));
   assert.equal(usageHeadline({ inputTokens: 0, outputTokens: 0, credits: 0.15 }).text, '0,15 kredit');
   assert.equal(usageHeadline({ inputTokens: 0, outputTokens: 0 }), undefined);
   assert.equal(usageHeadline(undefined), undefined);

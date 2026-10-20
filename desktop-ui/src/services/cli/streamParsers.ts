@@ -25,7 +25,7 @@ export type UiAgentEvent =
    * `target` = perintah persis yang ditolak (Antigravity) untuk dimintakan izin lewat modal HITL.
    */
   | { kind: 'denied'; toolId?: string; action?: string; target?: string }
-  | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number; credits?: number }
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens?: number; costUsd?: number; credits?: number }
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
   | { kind: 'done'; ok: boolean; summary?: string };
@@ -106,8 +106,10 @@ function createClaudeParser(): StreamParser {
       const u = o.usage ?? {};
       out.push({
         kind: 'usage',
-        inputTokens: num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens),
+        // `result.usage` = akumulasi semua request giliran ini; baca cache dipisah agar total tidak menggelembung.
+        inputTokens: num(u.input_tokens) + num(u.cache_creation_input_tokens),
         outputTokens: num(u.output_tokens),
+        cacheReadTokens: num(u.cache_read_input_tokens),
         costUsd: typeof o.total_cost_usd === 'number' ? o.total_cost_usd : undefined,
       });
       const denials = (Array.isArray(o.permission_denials) ? o.permission_denials : []) as Json[];
@@ -172,7 +174,9 @@ function createCodexParser(): StreamParser {
       }
     } else if (o.type === 'turn.completed') {
       const u = o.usage ?? {};
-      out.push({ kind: 'usage', inputTokens: num(u.input_tokens), outputTokens: num(u.output_tokens) });
+      // Konvensi OpenAI: `cached_input_tokens` adalah bagian dari `input_tokens`.
+      const cached = Math.min(num(u.cached_input_tokens), num(u.input_tokens));
+      out.push({ kind: 'usage', inputTokens: num(u.input_tokens) - cached, outputTokens: num(u.output_tokens), cacheReadTokens: cached });
       out.push({ kind: 'done', ok: true });
     } else if (o.type === 'turn.failed') {
       out.push({ kind: 'done', ok: false, summary: toText(o.error?.message) });
@@ -222,7 +226,14 @@ function createOpencodeParser(): StreamParser {
       }
     } else if (o.type === 'step_finish') {
       const t = part.tokens ?? {};
-      out.push({ kind: 'usage', inputTokens: num(t.input), outputTokens: num(t.output), costUsd: num(part.cost) });
+      // OpenCode: `input` sudah tanpa cache (`total` = input + output + reasoning + cache.read + cache.write).
+      out.push({
+        kind: 'usage',
+        inputTokens: num(t.input) + num(t.cache?.write),
+        outputTokens: num(t.output),
+        cacheReadTokens: num(t.cache?.read),
+        costUsd: num(part.cost),
+      });
     } else if (o.type === 'error') {
       out.push({ kind: 'notice', level: 'error', message: toText(o.error?.data?.message ?? o.error?.message ?? o.error) });
     }

@@ -103,7 +103,7 @@ type UiAgentEvent =
   | { kind: 'tool'; id: string; name: string; input: object; status: 'running' | 'done' | 'error'; output?: string; category?: string } // → trajectory (category = jenis tool ACP Kiro)
   | { kind: 'file_change'; path: string }                           // → git diff → pill "Edited" + DiffReviewPanel (hanya setelah tool edit BERHASIL)
   | { kind: 'denied'; toolId?: string; action?: string }            // → langkah berstatus 'denied' (ditolak mode aman, bukan gagal)
-  | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd?: number }
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens?: number; costUsd?: number; credits?: number } // inputTokens TANPA baca cache
   | { kind: 'notice'; level: 'info' | 'warn' | 'error'; message: string }
   | { kind: 'log'; line: string }
   | { kind: 'done'; ok: boolean; summary?: string };
@@ -132,7 +132,7 @@ Kiro (amplop `{type, data}`, isi ACP), dari dokumentasi resmi — belum ada fixt
 | `thinking` | content `type="thinking"` | `item.type="reasoning"` | `{type:"reasoning"}` | `step_update.thinking_delta` |
 | `tool` | content `tool_use` (running) + `user` `tool_result` (done/error, `is_error`) | `item.type="command_execution"` (`item.started` → `item.completed`, `exit_code`) / `mcp_tool_call` | `{type:"tool_use",part.tool,part.state.status}` | `step_update.step_type="tool"`, `tool_name`, `state` ACTIVE/DONE |
 | `file_change` | `tool_use` `Write`/`Edit`/`MultiEdit`/`NotebookEdit` → `input.file_path` | `item.type="file_change"` → `changes[].path` | tool `write`/`edit`/`patch` selesai → `state.input.filePath` | tool `write_to_file`/`replace_file_content`/… → `parameters.TargetFile` |
-| `usage` | `result.usage`, `result.total_cost_usd` | `turn.completed.usage` | `step_finish.part.tokens`, `part.cost` | `result.usage` |
+| `usage` | `result.usage` (akumulasi semua request giliran): input = `input_tokens` + `cache_creation_input_tokens`, `cache_read_input_tokens` → `cacheReadTokens`; `result.total_cost_usd` | `turn.completed.usage`: `cached_input_tokens` ⊂ `input_tokens` → input dikurangi cached, cached → `cacheReadTokens` (app-server: `tokenUsage.last.cachedInputTokens` sama) | `step_finish.part.tokens`: input = `input` + `cache.write`, `cache.read` → `cacheReadTokens`; `part.cost` | `result.usage` apa adanya (`cache_read_tokens` belum terverifikasi apakah ⊂ input) |
 | `notice` | — | `{type:"error"}` | `{type:"error"}` | `result.denied_actions[]` |
 | `done` | `{type:"result",is_error}` | `turn.completed` / `turn.failed` | (exit proses) | `result.status="SUCCESS"` |
 

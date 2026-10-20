@@ -43,7 +43,7 @@ export function createCodexAppServerDriver(o: CodexRpcOptions, io: RpcDriverIo):
   const peer = new JsonRpcPeer(io.write);
   let messageCount = 0;
   let finished = false;
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
 
   const finish = (events: UiAgentEvent[]) => {
     if (finished) return;
@@ -163,8 +163,11 @@ export function createCodexAppServerDriver(o: CodexRpcOptions, io: RpcDriverIo):
         return n.params.item ? itemEvents(n.params.item, n.method === 'item/completed') : [];
       case 'thread/tokenUsage/updated': {
         // `last` = pemakaian satu panggilan model; dijumlahkan menjadi pemakaian giliran ini.
+        // `cachedInputTokens` adalah bagian dari `inputTokens` (konvensi OpenAI) → dipisah seperti `turn.completed` exec.
         const last = n.params.tokenUsage?.last ?? {};
-        usage.inputTokens += num(last.inputTokens);
+        const cached = Math.min(num(last.cachedInputTokens), num(last.inputTokens));
+        usage.inputTokens += num(last.inputTokens) - cached;
+        usage.cacheReadTokens += cached;
         usage.outputTokens += num(last.outputTokens);
         return [];
       }

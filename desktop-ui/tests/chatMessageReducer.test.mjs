@@ -42,7 +42,8 @@ test('Claude (fixture): jawaban utuh, edit + perintah selesai, file_change setel
   assert.equal(cmd.output, 'selesai');
   const kinds = events.map((e) => (e.kind === 'tool' ? `tool:${e.status}` : e.kind));
   assert.ok(kinds.indexOf('file_change') > kinds.indexOf('tool:done'), 'diff dihitung setelah berkas benar-benar ditulis');
-  assert.equal(msg.usage.inputTokens, 35414);
+  assert.equal(msg.usage.inputTokens, 4 + 17931, 'input baru + tulis cache');
+  assert.equal(msg.usage.cacheReadTokens, 17479, 'baca cache dipisah, tidak masuk total');
   assert.ok(Math.abs(msg.usage.costUsd - 0.1528998) < 1e-9);
 });
 
@@ -111,6 +112,8 @@ test('Codex (fixture): dua paragraf jawaban, perintah shell selesai beserta kelu
   assert.equal(cmd.status, 'done');
   assert.equal(cmd.output, 'selesai\r\n');
   assert.equal(msg.usage.outputTokens, 124);
+  assert.equal(msg.usage.inputTokens, 27495 - 19968, 'cached_input_tokens adalah bagian dari input_tokens');
+  assert.equal(msg.usage.cacheReadTokens, 19968);
 });
 
 test('Codex: file_change langsung memberi langkah edit (urutan kronologis), todo_list & web_search', () => {
@@ -144,6 +147,7 @@ test('OpenCode (fixture): tulis diblokir = ditolak, tulis ulang berhasil; berkas
   assert.equal(countSteps(msg.trajectory).edits, 1);
   assert.equal(byType(msg, 'command')[0].output, 'selesai\n');
   assert.equal(msg.usage.inputTokens, 30290 + 169 + 183, 'token per langkah dijumlahkan');
+  assert.equal(msg.usage.cacheReadTokens, 1664 + 32640 + 32768, 'cache.read per langkah dijumlahkan terpisah');
 });
 
 test('OpenCode: tool patch melaporkan semua berkas di patchText', () => {

@@ -203,8 +203,8 @@ export function formatTokens(n: number): string {
 }
 
 /**
- * Pemakaian untuk baris status setelah selesai: total token (masuk + keluar), atau kredit bila CLI hanya
- * melaporkan kredit (Kiro). `undefined` bila CLI tidak melaporkan apa pun.
+ * Pemakaian untuk baris status setelah selesai: total token yang benar-benar diproses (masuk + keluar, tanpa baca
+ * cache), atau kredit bila CLI hanya melaporkan kredit (Kiro). Baca cache hanya di tooltip. `undefined` bila tidak ada.
  */
 export function usageHeadline(usage?: AgentUsage): { text: string; title: string } | undefined {
   if (!usage) return undefined;
@@ -213,7 +213,13 @@ export function usageHeadline(usage?: AgentUsage): { text: string; title: string
     const cost = usage.costUsd ? ` · $${usage.costUsd.toFixed(4)}` : '';
     return {
       text: `${formatTokens(total)} token`,
-      title: `${usage.inputTokens.toLocaleString('id-ID')} token masuk · ${usage.outputTokens.toLocaleString('id-ID')} token keluar${cost}`,
+      title: [
+        `${usage.inputTokens.toLocaleString('id-ID')} token masuk`,
+        usage.cacheReadTokens ? `${formatTokens(usage.cacheReadTokens)} token dibaca ulang dari cache (lebih murah)` : '',
+        `${usage.outputTokens.toLocaleString('id-ID')} token keluar`,
+      ]
+        .filter(Boolean)
+        .join(' · ') + cost,
     };
   }
   if (usage.credits) {

@@ -118,8 +118,14 @@ export interface AgentRunInfo {
 }
 
 export interface AgentUsage {
+  /** Token input yang benar-benar diproses (input baru + penulisan cache), TANPA token yang dibaca ulang dari cache. */
   inputTokens: number;
   outputTokens: number;
+  /**
+   * Token konteks yang dibaca ulang dari cache (Claude/Codex/OpenCode). Tiap pemanggilan tool mengirim ulang seluruh
+   * konteks, jadi angkanya bisa jutaan per giliran walau murah; ditampilkan terpisah di tooltip, bukan di total.
+   */
+  cacheReadTokens?: number;
   costUsd?: number;
   /** Kredit yang dipakai (Kiro melaporkan kredit, bukan token/USD). */
   credits?: number;

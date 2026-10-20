@@ -102,7 +102,7 @@ test('Codex: handshake, baca otomatis, perintah ditanyakan, edit otomatis, seles
   events.push(...d.parse(line({ method: 'item/started', params: { item: { type: 'commandExecution', id: 'e2', command: 'x', commandActions: [{ type: 'unknown', command: 'npm test' }], status: 'inProgress' } } })));
   events.push(...d.parse(line({ method: 'item/completed', params: { item: { type: 'commandExecution', id: 'e2', command: 'x', commandActions: [{ type: 'unknown', command: 'npm test' }], status: 'declined' } } })));
   events.push(...d.parse(line({ method: 'item/completed', params: { item: { type: 'fileChange', id: 'f1', status: 'completed', changes: [{ path: 'D:/p/a.ts' }] } } })));
-  events.push(...d.parse(line({ method: 'thread/tokenUsage/updated', params: { tokenUsage: { last: { inputTokens: 10, outputTokens: 2 } } } })));
+  events.push(...d.parse(line({ method: 'thread/tokenUsage/updated', params: { tokenUsage: { last: { inputTokens: 10, cachedInputTokens: 4, outputTokens: 2 } } } })));
   events.push(...d.parse(line({ method: 'thread/tokenUsage/updated', params: { tokenUsage: { last: { inputTokens: 5, outputTokens: 1 } } } })));
   events.push(...d.parse(line({ method: 'item/completed', params: { item: { type: 'agentMessage', id: 'm1', text: 'Selesai.' } } })));
   events.push(...d.parse(line({ method: 'turn/completed', params: { turn: { status: 'completed', error: null } } })));
@@ -114,7 +114,7 @@ test('Codex: handshake, baca otomatis, perintah ditanyakan, edit otomatis, seles
   assert.equal(cmd.output, 'Ditolak oleh pengguna di Soraja.');
   assert.equal(msg.deniedActions, undefined, 'ditolak pengguna → tanpa tombol ulangi');
   assert.ok(msg.trajectory.some((s) => s.type === 'edited' && s.file === 'D:/p/a.ts'));
-  assert.deepEqual([msg.usage.inputTokens, msg.usage.outputTokens], [15, 3]);
+  assert.deepEqual([msg.usage.inputTokens, msg.usage.outputTokens, msg.usage.cacheReadTokens], [11, 3, 4], 'cachedInputTokens dipisah dari input');
   assert.equal(msg.content, 'Selesai.');
   assert.notEqual(msg.status, 'error');
 });

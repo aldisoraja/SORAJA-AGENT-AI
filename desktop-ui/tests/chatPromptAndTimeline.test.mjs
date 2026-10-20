@@ -87,4 +87,6 @@ test('finalizeMessage: status akhir, langkah running ditutup, status "stopped" d
 test('addUsage menjumlahkan token per langkah (OpenCode)', () => {
   const u = addUsage(addUsage(undefined, { kind: 'usage', inputTokens: 10, outputTokens: 5, costUsd: 0.01 }), { kind: 'usage', inputTokens: 1, outputTokens: 2 });
   assert.deepEqual(u, { inputTokens: 11, outputTokens: 7, costUsd: 0.01 });
+  const cached = addUsage(addUsage(undefined, { kind: 'usage', inputTokens: 1, outputTokens: 1, cacheReadTokens: 100 }), { kind: 'usage', inputTokens: 1, outputTokens: 1, cacheReadTokens: 50 });
+  assert.equal(cached.cacheReadTokens, 150, 'baca cache dijumlahkan terpisah');
 });
