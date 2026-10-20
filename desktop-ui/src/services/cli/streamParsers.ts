@@ -254,8 +254,10 @@ function createAntigravityParser(): StreamParser {
         const name = s.tool_name ?? s.tool_info?.name ?? 'tool';
         const params = (s.tool_info?.parameters ?? {}) as Json;
         const status = s.state === 'DONE' ? 'done' : s.state === 'ACTIVE' ? 'running' : 'error';
-        out.push({ kind: 'tool', id: `step-${s.step_index}`, name, input: params, status });
         const error = String(s.tool_info?.error?.message ?? '');
+        // Alasan gagal (mis. "file does not exist") ikut tampil di detail langkah, bukan hanya badge "gagal".
+        const output = error || (typeof s.tool_info?.output === 'string' ? s.tool_info.output : undefined);
+        out.push({ kind: 'tool', id: `step-${s.step_index}`, name, input: params, status, output });
         if (status === 'error' && typeof params.CommandLine === 'string' && /permission check failed/i.test(error)) {
           out.push({ kind: 'denied', toolId: `step-${s.step_index}`, action: name, target: params.CommandLine });
         }

@@ -62,7 +62,7 @@ export function samePath(a = '', b = ''): boolean {
 
 /** Path berkas dari argumen tool lintas CLI (claude, opencode, antigravity, kiro). */
 export function toolFilePath(input: Record<string, unknown>): string {
-  return str(input.file_path ?? input.filePath ?? input.TargetFile ?? input.AbsolutePath ?? input.notebook_path ?? input.path);
+  return str(input.file_path ?? input.filePath ?? input.TargetFile ?? input.AbsolutePath ?? input.notebook_path ?? input.path ?? input.Path);
 }
 
 function truncate(text: string | undefined): string | undefined {
@@ -121,7 +121,7 @@ export function toolStep(ev: ToolEvent, now: number): TrajectoryStep {
     }
     case 'explored': {
       const pattern = str(input.pattern ?? input.Query ?? input.query ?? input.Pattern);
-      const where = str(input.path ?? input.SearchPath ?? input.DirectoryPath ?? input.SearchDirectory);
+      const where = str(input.path ?? input.Path ?? input.SearchPath ?? input.DirectoryPath ?? input.SearchDirectory);
       const label = pattern ? `"${pattern}"${where ? ` di ${baseName(where)}` : ''}` : where || ev.name;
       return { ...common, type: 'explored', label, detail: ev.name };
     }

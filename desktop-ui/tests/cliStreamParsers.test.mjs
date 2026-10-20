@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createStreamParser } from '../src/services/cli/streamParsers.ts';
+import { applyToolEvent } from '../src/services/cli/trajectoryBuilder.ts';
 
 // Fixture = output NDJSON asli dari CLI terpasang (path lokal sudah disamarkan).
 function run(agentId, fixture) {
@@ -66,6 +67,18 @@ test('antigravity: aksi yang ditolak di mode aman memunculkan notice', () => {
   const ev = run('antigravity', 'antigravity-denied.ndjson');
   assert.deepEqual(kinds(ev, 'file_change').map((e) => e.path), ['C:\\work\\demo\\hello.txt']);
   assert.match(kinds(ev, 'notice')[0].message, /RunCommand/);
+});
+
+test('antigravity: read_file memakai parameter `Path`; galat tool diteruskan sebagai output', () => {
+  const ev = run('antigravity', 'antigravity-read.ndjson');
+  const reads = kinds(ev, 'tool').filter((e) => e.status !== 'running');
+  assert.deepEqual(reads.map((e) => e.status), ['done', 'error']);
+  const steps = reads.reduce((acc, e) => applyToolEvent(acc, e, 0), []);
+  assert.deepEqual(steps.map((s) => [s.type, s.file, s.lineRange]), [
+    ['analyzed', 'a.txt', '#L10-20'],
+    ['analyzed', 'tidak_ada.txt', undefined],
+  ]);
+  assert.equal(steps[1].output, 'file does not exist');
 });
 
 test('baris non-JSON (log stderr) menjadi event log', () => {

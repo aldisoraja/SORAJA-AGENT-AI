@@ -140,6 +140,8 @@ Aturan tambahan (diuji `tests/chatMessageReducer.test.mjs` dengan fixture nyata)
 * **Claude:** blok `text` dipisah baris kosong; pesan sub-agen (`parent_tool_use_id`) hanya menyumbang langkah tool, bukan teks
   jawaban; `file_change` dikirim saat `tool_result` sukses (bukan saat `tool_use`); `result.permission_denials[]` → `denied` + notice.
 * **Antigravity:** tiap `result.denied_actions[]` → `denied` (per jenis aksi, mis. `command` → langkah perintah terakhir).
+  `read_file` memakai `parameters.Path` (+ `StartLine`/`EndLine`); `tool_info.error.message` (mis. `file does not exist`) atau
+  `tool_info.output` diteruskan sebagai `output` langkah (fixture `antigravity-read.ndjson`, agy 1.4.2).
 * **Penolakan di keluaran tool** (mis. OpenCode `BLOCKED by …`, Claude `requested permissions … haven't granted`) → status `denied`.
   Keluaran `Ditolak oleh pengguna …` (modal HITL Soraja) juga `denied`, tetapi tidak masuk `deniedActions` (lihat §7).
 * **Rencana kerja:** `TodoWrite` (Claude), `todowrite` (OpenCode), `todo_list` (Codex), `sessionUpdate: plan` (Kiro) → satu langkah
