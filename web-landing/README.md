@@ -11,8 +11,10 @@ Situs Astro statis untuk SORAJA ENGINE: halaman produk + **unduhan installer lan
 
 ## Menerbitkan installer ke halaman Unduh
 
-Tombol Unduh membaca `src/data/releases.json` dan menautkan langsung ke berkas di `public/downloads/<versi>/`.
-Berkas yang belum diterbitkan tampil sebagai **"Belum tersedia"** (tidak ada pengalihan ke halaman lain).
+Tombol Unduh membaca `src/data/releases.json` dan menautkan langsung ke aset **GitHub Releases** (tag `v<versi>`)
+repo `origin` — installer tidak ikut di-commit. Berkas yang belum diterbitkan tampil sebagai **"Belum tersedia"**
+(tidak ada pengalihan ke halaman lain). Push tag `v*` menjalankan `.github/workflows/release.yml` yang membangun
+installer dan memperbarui manifest otomatis; langkah manual di bawah hanya bila membangun di mesin sendiri.
 
 1. Build installer (versi diambil dari `crates/soraja-desktop/tauri.conf.json`):
    - Windows: `cargo tauri build` → `target/release/bundle/{msi,nsis}`
@@ -22,6 +24,7 @@ Berkas yang belum diterbitkan tampil sebagai **"Belum tersedia"** (tidak ada pen
    pnpm publish:release -- --from target/release/bundle
    pnpm publish:release -- --from \\wsl.localhost\Ubuntu\home/<user>/soraja-target/release/bundle
    ```
-   Skrip menyalin berkas ke `public/downloads/<versi>/soraja-engine_<versi>_<arch>.<ext>` dan menulis ukuran + SHA-256
-   ke `src/data/releases.json`.
-3. `pnpm build:web` lalu deploy isi `dist/` (installer ikut di `dist/downloads/`).
+   Skrip menyalin berkas ke `public/downloads/<versi>/soraja-engine_<versi>_<arch>.<ext>` (di-gitignore) dan menulis
+   ukuran + SHA-256 + URL GitHub Releases ke `src/data/releases.json`.
+3. Unggah berkas di `public/downloads/<versi>/` ke GitHub Release tag `v<versi>` (nama berkas harus sama).
+4. Hapus `public/downloads/` agar installer tidak ikut ter-deploy, lalu `pnpm build:web` dan deploy isi `dist/`.

@@ -89,7 +89,9 @@
 .cm-work-head::-webkit-details-marker { display: none; }
 .cm-work-head:hover { background: var(--code-box-bg); }
 .cm-chevron { color: var(--text-muted); font-size: 0.95rem; line-height: 1; transition: transform 0.2s; }
-.cm-work[open] .cm-chevron { transform: rotate(90deg); }
+.cm-work[open] > .cm-work-head .cm-chevron,
+.cm-group[open] > .cm-group-head .cm-chevron { transform: rotate(90deg); }
+.cm-usage { color: var(--text-muted); font: 0.72rem ui-monospace, monospace; cursor: help; }
 .cm-flow { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .cm-text { margin: 0; line-height: 1.6; }
 .cm-work-head .cm-diff { margin-left: auto; }
@@ -128,6 +130,17 @@
   white-space: nowrap;
 }
 .cm-steps code b { font-size: 0.6rem; color: #38bdf8; margin-right: 4px; }
+/* Grup "Menelusuri kode": baca/cari berurutan diringkas satu baris, chip berkas disembunyikan saat dibuka */
+.cm-group { flex: 1; min-width: 0; }
+.cm-group-head { display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; list-style: none; border-radius: 8px; }
+.cm-group-head::-webkit-details-marker { display: none; }
+.cm-group-head:hover strong { color: var(--accent-cyan); }
+.cm-files { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.cm-files code { color: var(--text-muted); }
+.cm-group[open] .cm-files { display: none; }
+.cm-group-head .cm-chevron { margin-left: auto; }
+.cm-sub { margin: 7px 0 2px 10.5px; padding-left: 12px; border-left: 1px solid var(--bg-card-border); }
+.cm-sub::before { display: none; }
 .cm-time { margin-left: auto; color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; }
 .cm-time u { text-decoration: none; color: var(--accent-cyan); font-weight: 700; margin-left: 4px; }
 .cm-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid var(--bg-card-border); }
@@ -245,6 +258,6 @@
 }
 @media (max-width: 640px) {
   .cm-user { max-width: 92%; }
-  .cm-italic, .cm-work-head .cm-dim { display: none; }
+  .cm-italic, .cm-work-head .cm-dim, .cm-files { display: none; }
   .cm-steps li { flex-wrap: wrap; }
 }

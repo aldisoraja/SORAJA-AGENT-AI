@@ -2,6 +2,7 @@
 /**
  * Pratinjau statis tampilan Chat GUI: pesan berlampiran, alur proses kerja tanpa card (penjelasan agen
  * diselipkan tepat di bawah langkahnya, bisa dilipat seperti di aplikasi), jawaban akhir, dan kartu perubahan.
+ * Mengikuti aplikasi: baca/cari berurutan diringkas jadi "Menelusuri kode", total token tampil setelah selesai.
  */
 ---
 
@@ -18,7 +19,7 @@
 
   <div class="cm-body">
     <div class="cm-user">
-      <div class="cm-thumbs">
+      <div class="cm-thumbs" title="Klik untuk memperbesar · ← → pindah ke gambar lain">
         <span class="cm-thumb">#1 <i>✓</i></span>
         <span class="cm-thumb">#2 <i>✓</i></span>
       </div>
@@ -31,7 +32,9 @@
       <details class="cm-work" open>
         <summary class="cm-work-head" title="Klik untuk melipat atau membuka proses kerja">
           <span class="cm-ok">✓</span> <strong>Selesai</strong>
-          <span class="cm-dim">1 mnt 23 dtk · 2 dibaca · 1 perintah · 1 berkas diubah</span>
+          <span class="cm-dim">1 mnt 23 dtk</span>
+          <span class="cm-usage" title="41.380 token masuk · 6.812 token keluar">48,2 rb token</span>
+          <span class="cm-dim">2 dibaca · 1 perintah · 1 berkas diubah</span>
           <span class="cm-diff"><b class="add">+24</b> <b class="del">−6</b></span>
           <span class="cm-chevron" aria-hidden="true">›</span>
         </summary>
@@ -40,8 +43,20 @@
           <p class="cm-text">Saya lihat dulu screenshot dan komponen navbarnya.</p>
           <ol class="cm-steps">
             <li><span class="cm-node violet">◆</span><strong>Berpikir</strong><span class="cm-dim cm-italic">Gambar #2 memperlihatkan menu meluap di lebar 375px…</span><span class="cm-time">9 dtk</span></li>
-            <li><span class="cm-node sky">▤</span><strong>Membaca</strong><code><b>PNG</b> 01-navbar.png</code></li>
-            <li><span class="cm-node sky">▤</span><strong>Membaca</strong><code><b>TSX</b> Navbar.tsx</code><span class="cm-dim">#L1+180</span></li>
+            <li>
+              <details class="cm-group">
+                <summary class="cm-group-head" title="Klik untuk melihat berkas yang dibaca">
+                  <span class="cm-node sky">⌕</span><strong>Menelusuri kode</strong>
+                  <span class="cm-dim">2 berkas dibaca</span>
+                  <span class="cm-files"><code><b>PNG</b> 01-navbar.png</code><code><b>TSX</b> Navbar.tsx</code></span>
+                  <span class="cm-chevron" aria-hidden="true">›</span>
+                </summary>
+                <ol class="cm-steps cm-sub">
+                  <li><span class="cm-node sky">▤</span><strong>Membaca</strong><code><b>PNG</b> 01-navbar.png</code></li>
+                  <li><span class="cm-node sky">▤</span><strong>Membaca</strong><code><b>TSX</b> Navbar.tsx</code><span class="cm-dim">#L1+180</span></li>
+                </ol>
+              </details>
+            </li>
           </ol>
           <p class="cm-text">Menu memakai <code>flex</code> tanpa batas lebar, jadi di bawah <code>md</code> saya ganti dengan tombol hamburger.</p>
           <ol class="cm-steps">
