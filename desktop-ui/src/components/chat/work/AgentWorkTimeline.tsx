@@ -27,6 +27,7 @@ import {
   formatDuration,
   groupSteps,
   mergeFileEdits,
+  usageHeadline,
   type StepItem,
 } from './workSummary';
 
@@ -89,6 +90,8 @@ export function AgentWorkTimeline({ msg, steps, isLight, now, verbose, onOpenDif
   const logs = msg.logs || [];
   const elapsed = msg.startedAt ? (msg.finishedAt ?? now) - msg.startedAt : 0;
   const hasFooter = !!msg.runInfo || !!msg.usage || logs.length > 0;
+  // Hanya setelah selesai: kebanyakan CLI melaporkan pemakaian di akhir giliran, angka di tengah proses tidak seragam.
+  const usage = running ? undefined : usageHeadline(msg.usage);
 
   if (!running && steps.length === 0 && !hasFooter) return null;
 
@@ -139,6 +142,11 @@ export function AgentWorkTimeline({ msg, steps, isLight, now, verbose, onOpenDif
         {elapsed >= 1000 && (
           <span className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
             {running ? formatClock(elapsed) : formatDuration(elapsed)}
+          </span>
+        )}
+        {usage && (
+          <span title={usage.title} className={`text-[11px] font-mono shrink-0 tabular-nums ${muted}`}>
+            {usage.text}
           </span>
         )}
         <span className="flex items-center gap-2.5 shrink-0">

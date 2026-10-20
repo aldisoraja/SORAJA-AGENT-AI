@@ -3,7 +3,7 @@
  * Helper murni untuk panel "Proses kerja" agen: ringkasan langkah, pengelompokan, label aktivitas live,
  * statistik diff, serta format durasi & token. Diuji di `tests/chatWorkSummary.test.mjs`.
  */
-import type { ChatReasoningEffort, CodeEditChunk, MessageRecord, TrajectoryStep } from '../../../types/database.ts';
+import type { AgentUsage, ChatReasoningEffort, CodeEditChunk, MessageRecord, TrajectoryStep } from '../../../types/database.ts';
 import { samePath } from '../../../services/cli/trajectoryBuilder.ts';
 
 export interface StepCounts {
@@ -200,6 +200,26 @@ export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`;
   if (n >= 1000) return `${(n / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 })} rb`;
   return n.toLocaleString('id-ID');
+}
+
+/**
+ * Pemakaian untuk baris status setelah selesai: total token (masuk + keluar), atau kredit bila CLI hanya
+ * melaporkan kredit (Kiro). `undefined` bila CLI tidak melaporkan apa pun.
+ */
+export function usageHeadline(usage?: AgentUsage): { text: string; title: string } | undefined {
+  if (!usage) return undefined;
+  const total = usage.inputTokens + usage.outputTokens;
+  if (total > 0) {
+    const cost = usage.costUsd ? ` · $${usage.costUsd.toFixed(4)}` : '';
+    return {
+      text: `${formatTokens(total)} token`,
+      title: `${usage.inputTokens.toLocaleString('id-ID')} token masuk · ${usage.outputTokens.toLocaleString('id-ID')} token keluar${cost}`,
+    };
+  }
+  if (usage.credits) {
+    return { text: formatCredits(usage.credits), title: `Kredit terpakai pada giliran ini (dilaporkan CLI): ${usage.credits}` };
+  }
+  return undefined;
 }
 
 export function baseName(p = ''): string {

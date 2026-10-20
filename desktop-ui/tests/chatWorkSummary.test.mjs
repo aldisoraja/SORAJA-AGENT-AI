@@ -14,6 +14,7 @@ import {
   summaryParts,
   countSteps,
   mergeFileEdits,
+  usageHeadline,
 } from '../src/components/chat/work/workSummary.ts';
 import { applyFileChange } from '../src/services/cli/trajectoryBuilder.ts';
 import { absoluteInProject, isNewFileStatus, parseUnifiedDiff, relativeToProject, wholeFileAdded } from '../src/services/cli/fileChangeDiff.ts';
@@ -166,4 +167,15 @@ test('applyFileChange: tool edit tanpa path (OpenCode patch) diisi berkasnya, bu
   assert.equal(steps[0].file, 'src/a.ts');
   assert.equal(steps[0].label, 'a.ts');
   assert.equal(applyFileChange(steps, 'src/b.ts', 6).length, 2, 'berkas kedua patch → baris baru');
+});
+
+test('usageHeadline: total token masuk + keluar, kredit untuk Kiro, kosong bila tidak dilaporkan', () => {
+  const tokens = usageHeadline({ inputTokens: 23857, outputTokens: 1858, costUsd: 0.10918 });
+  assert.equal(tokens.text, '25,7 rb token');
+  assert.ok(tokens.title.includes('23.857 token masuk'));
+  assert.ok(tokens.title.includes('1.858 token keluar'));
+  assert.ok(tokens.title.includes('$0.1092'));
+  assert.equal(usageHeadline({ inputTokens: 0, outputTokens: 0, credits: 0.15 }).text, '0,15 kredit');
+  assert.equal(usageHeadline({ inputTokens: 0, outputTokens: 0 }), undefined);
+  assert.equal(usageHeadline(undefined), undefined);
 });
