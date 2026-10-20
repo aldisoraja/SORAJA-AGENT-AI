@@ -2,8 +2,10 @@ import type { Dispatch, SetStateAction } from 'react';
 import { ChevronDown, ChevronRight, Folder, MessageSquare, MessageSquarePlus, Pin, Star, Terminal, Trash2 } from 'lucide-react';
 import type { ConversationRecord, ProjectRecord } from '../../types/database';
 import type { SidebarProps } from './Sidebar';
-import { groupConversationsByDate } from './conversationGrouping';
+import { sortByActivity } from './conversationGrouping';
 import { isCliConversation } from '../../utils/conversationTitle';
+import { activityTime, fullDateTimeLabel, relativeTimeLabel } from '../../utils/relativeTime';
+import { useMinuteTick } from '../../hooks/useMinuteTick';
 
 type ItemCallbacks = Pick<
   SidebarProps,
@@ -27,7 +29,7 @@ interface SidebarProjectItemProps extends ItemCallbacks {
   setExpandedRepoChats: Dispatch<SetStateAction<Record<string, boolean>>>;
 }
 
-/** Satu proyek di pohon sidebar beserta sesi chat yang dikelompokkan per tanggal. */
+/** Satu proyek di pohon sidebar beserta sesi chat terbarunya (waktu relatif, diperbarui tiap menit). */
 export function SidebarProjectItem({
   isLight,
   proj,
@@ -45,6 +47,7 @@ export function SidebarProjectItem({
   onTogglePinProject,
   onToggleProjectCollapsed,
 }: SidebarProjectItemProps) {
+  const now = useMinuteTick();
   return (
     <div
       className={`rounded-xl transition-all duration-150 ${
@@ -185,120 +188,70 @@ export function SidebarProjectItem({
                 uniqueConvs.push(c);
               }
 
-              const sortedConvs = uniqueConvs.sort((a, b) => {
-                const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime() || 0;
-                const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime() || 0;
-                return timeB - timeA;
-              });
-
               // Default hanya tampilkan 3 teratas, jika di-expand tampilkan semua
+              const sortedConvs = sortByActivity(uniqueConvs);
               const visibleConvs = isRepoExpanded ? sortedConvs : sortedConvs.slice(0, 3);
-              const groupedConvs = groupConversationsByDate(visibleConvs);
 
               return (
-                <div className="space-y-1.5">
-                  {groupedConvs.map((group) => (
-                    <div key={group.label} className="space-y-0.5">
-                      {/* Header Kategori Tanggal: lencana kalender + judul + hari & tanggal lengkap */}
-                      <div className="flex items-center gap-2.5 pl-1 pr-1 pt-2 pb-1.5 select-none">
+                <div className="space-y-1.5 pt-1">
+                  {/* Daftar rata terbaru di atas; waktu relatif di kanan, tanggal lengkap di tooltip */}
+                  <div className="space-y-0.5 pl-1">
+                    {visibleConvs.map((conv) => {
+                      const isSelectedConv = activeConversation?.id === conv.id;
+                      const time = activityTime(conv);
+                      return (
                         <div
-                          className={`w-8 h-8 rounded-lg overflow-hidden shrink-0 flex flex-col items-stretch text-center leading-none border ${
-                            isLight ? 'border-slate-300/80 bg-white shadow-2xs' : 'border-slate-700/70 bg-slate-900/80'
+                          key={conv.id}
+                          onClick={() => onSelectConversation(proj, conv)}
+                          className={`relative flex items-center justify-between gap-2 pl-3 pr-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all duration-150 select-none group ${
+                            isSelectedConv
+                              ? isLight
+                                ? 'soraja-grad-soft text-blue-900 font-semibold'
+                                : 'bg-gradient-to-r from-cyan-500/15 to-transparent text-cyan-100 font-semibold'
+                              : isLight
+                              ? 'hover:bg-slate-100 text-slate-700'
+                              : 'hover:bg-slate-800/50 text-slate-300'
                           }`}
-                          aria-hidden="true"
+                          title={`${conv.title}\n${fullDateTimeLabel(time)}`}
                         >
-                          <span className={`text-[7px] font-bold tracking-[0.12em] py-[2.5px] text-white ${isLight ? 'soraja-grad-fill' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}>
-                            {group.badge.top}
-                          </span>
                           <span
-                            className={`flex-1 flex items-center justify-center text-[11px] font-extrabold ${
-                              isLight ? 'text-slate-800' : 'text-slate-100'
+                            className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-full transition-all duration-150 ${
+                              isSelectedConv
+                                ? 'h-4 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]'
+                                : 'h-0 group-hover:h-2.5 bg-slate-500/60'
                             }`}
-                          >
-                            {group.badge.bottom}
-                          </span>
-                        </div>
-                        <div className="flex flex-col min-w-0 flex-1 gap-[3px]">
-                          <span
-                            className={`text-[11px] font-bold tracking-wide truncate ${
-                              isLight ? 'text-slate-800' : 'text-slate-100'
-                            }`}
-                          >
-                            {group.title}
-                          </span>
-                          {group.subtitle && (
-                            <span className="text-[10px] truncate text-slate-500">{group.subtitle}</span>
+                          />
+                          {isCliConversation(conv) ? (
+                            <Terminal className="w-3 h-3 shrink-0 text-emerald-400" aria-label="Sesi Terminal" />
+                          ) : (
+                            <MessageSquare className="w-3 h-3 shrink-0 text-cyan-400/80" aria-label="Sesi Chat" />
                           )}
-                        </div>
-                        <span
-                          title={`${group.items.length} percakapan pada tanggal ini`}
-                          className={`text-[10px] min-w-[20px] text-center px-1.5 py-0.5 rounded-full font-mono font-semibold ${
-                            isLight ? 'bg-slate-200/80 text-slate-600' : 'bg-slate-800/80 text-slate-400'
-                          }`}
-                        >
-                          {group.items.length}
-                        </span>
-                      </div>
-
-                      {/* Daftar Percakapan dalam Kategori ini */}
-                      <div className="space-y-0.5 pl-1">
-                        {group.items.map((conv) => {
-                          const isSelectedConv = activeConversation?.id === conv.id;
-                          return (
-                            <div
-                              key={conv.id}
-                              onClick={() => onSelectConversation(proj, conv)}
-                              className={`relative flex items-center justify-between gap-2 pl-3 pr-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all duration-150 select-none group ${
-                                isSelectedConv
-                                  ? isLight
-                                    ? 'soraja-grad-soft text-blue-900 font-semibold'
-                                    : 'bg-gradient-to-r from-cyan-500/15 to-transparent text-cyan-100 font-semibold'
-                                  : isLight
-                                  ? 'hover:bg-slate-100 text-slate-700'
-                                  : 'hover:bg-slate-800/50 text-slate-300'
+                          <span className="truncate text-[11.5px] flex-1 min-w-0">{conv.title}</span>
+                          <button
+                            onClick={(e) => onToggleFavoriteConversation(conv.id, e)}
+                            title={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
+                            aria-label={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
+                            className={`p-0.5 rounded shrink-0 cursor-pointer transition ${
+                              conv.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                          >
+                            <Star
+                              className={`w-3 h-3 ${
+                                conv.isFavorite ? 'text-amber-400 fill-amber-400' : 'text-slate-400 hover:text-amber-400'
                               }`}
-                              title={`${conv.title} (${conv.timeAgo})`}
-                            >
-                              <span
-                                className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-full transition-all duration-150 ${
-                                  isSelectedConv
-                                    ? 'h-4 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]'
-                                    : 'h-0 group-hover:h-2.5 bg-slate-500/60'
-                                }`}
-                              />
-                              {isCliConversation(conv) ? (
-                                <Terminal className="w-3 h-3 shrink-0 text-emerald-400" aria-label="Sesi Terminal" />
-                              ) : (
-                                <MessageSquare className="w-3 h-3 shrink-0 text-cyan-400/80" aria-label="Sesi Chat" />
-                              )}
-                              <span className="truncate text-[11.5px] flex-1 min-w-0">{conv.title}</span>
-                              <button
-                                onClick={(e) => onToggleFavoriteConversation(conv.id, e)}
-                                title={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
-                                aria-label={conv.isFavorite ? 'Hapus dari Favorit' : 'Tambah ke Favorit'}
-                                className={`p-0.5 rounded shrink-0 cursor-pointer transition ${
-                                  conv.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                }`}
-                              >
-                                <Star
-                                  className={`w-3 h-3 ${
-                                    conv.isFavorite ? 'text-amber-400 fill-amber-400' : 'text-slate-400 hover:text-amber-400'
-                                  }`}
-                                />
-                              </button>
-                              <span
-                                className={`text-[9.5px] shrink-0 tabular-nums group-hover:hidden ${
-                                  isSelectedConv ? 'text-cyan-300/80' : 'text-slate-500'
-                                }`}
-                              >
-                                {conv.timeAgo}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                            />
+                          </button>
+                          <span
+                            className={`text-[9.5px] shrink-0 tabular-nums group-hover:hidden ${
+                              isSelectedConv ? 'text-cyan-300/80' : 'text-slate-500'
+                            }`}
+                          >
+                            {relativeTimeLabel(time, now)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   {/* Tombol Klik Semua / Dropdown Toggle jika total percakapan > 3 */}
                   {projConvs.length > 3 && (

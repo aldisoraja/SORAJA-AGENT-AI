@@ -1,5 +1,6 @@
 import { Star, X } from 'lucide-react';
 import type { ConversationRecord, ProjectRecord } from '../../types/database';
+import { activityTime, fullDateTimeLabel, relativeTimeLabel } from '../../utils/relativeTime';
 
 interface FavoritesModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function FavoritesModal({
 }: FavoritesModalProps) {
   if (!isOpen) return null;
   const favorites = conversations.filter((c) => c.isFavorite);
+  const now = Date.now();
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
@@ -71,7 +73,9 @@ export function FavoritesModal({
                   <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Ruang Kerja: {proj?.name || 'Unknown'}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{c.timeAgo}</span>
+                  <span title={fullDateTimeLabel(activityTime(c))} className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {relativeTimeLabel(activityTime(c), now)}
+                  </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

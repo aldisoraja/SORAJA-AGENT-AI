@@ -1,131 +1,69 @@
+/**
+ * Sidebar & modal Riwayat: label waktu relatif (dihitung dari `updatedAt`) dan pengelompokan per tanggal.
+ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { groupConversationsByDate, sortByActivity } from '../src/components/sidebar/conversationGrouping.ts';
+import { fullDateTimeLabel, historyTimeLabel, relativeTimeLabel } from '../src/utils/relativeTime.ts';
 
-const INDO_MONTHS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
+/** Selasa, 20 Oktober 2026 14:30 waktu lokal. */
+const NOW = new Date(2026, 9, 20, 14, 30).getTime();
+const at = (...args) => new Date(...args).getTime();
 
-function groupConversationsByDate(convs) {
-  if (!convs || convs.length === 0) return [];
-
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const oneDayMs = 86400000;
-  const yesterdayStart = todayStart - oneDayMs;
-  const sevenDaysStart = todayStart - 6 * oneDayMs;
-  const thirtyDaysStart = todayStart - 29 * oneDayMs;
-
-  const sorted = [...convs].sort((a, b) => {
-    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime() || 0;
-    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime() || 0;
-    return timeB - timeA;
-  });
-
-  const map = new Map();
-
-  for (const conv of sorted) {
-    const dateObj = new Date(conv.updatedAt || conv.createdAt || Date.now());
-    const validDate = isNaN(dateObj.getTime()) ? new Date() : dateObj;
-    const dayStart = new Date(validDate.getFullYear(), validDate.getMonth(), validDate.getDate()).getTime();
-    const day = validDate.getDate();
-    const month = INDO_MONTHS[validDate.getMonth()];
-    const year = validDate.getFullYear();
-
-    let key;
-    let label;
-    let order;
-
-    if (dayStart >= todayStart) {
-      key = 'today';
-      label = `Hari Ini (${day} ${month} ${year})`;
-      order = 1;
-    } else if (dayStart >= yesterdayStart) {
-      key = 'yesterday';
-      label = `Kemarin (${day} ${month} ${year})`;
-      order = 2;
-    } else if (dayStart >= sevenDaysStart) {
-      key = 'last7';
-      label = `7 Hari Terakhir (${month} ${year})`;
-      order = 3;
-    } else if (dayStart >= thirtyDaysStart) {
-      key = 'last30';
-      label = `30 Hari Terakhir (${month} ${year})`;
-      order = 4;
-    } else {
-      key = `${validDate.getFullYear()}-${validDate.getMonth()}`;
-      label = `${month} ${year}`;
-      order = 1000 + (100000 - (validDate.getFullYear() * 12 + validDate.getMonth()));
-    }
-
-    if (!map.has(key)) {
-      map.set(key, { label, order, items: [] });
-    }
-    map.get(key).items.push(conv);
-  }
-
-  return Array.from(map.values())
-    .sort((a, b) => a.order - b.order)
-    .map((g) => ({ label: g.label, items: g.items }));
-}
-
-test('Sidebar Grouping: Mengelompokkan percakapan Hari Ini, Kemarin, dan Bulan Sebelumnya', () => {
-  const now = new Date();
-  const todayISO = now.toISOString();
-
-  const yesterday = new Date(now.getTime() - 86400000);
-  const yesterdayISO = yesterday.toISOString();
-
-  const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
-  const threeDaysAgoISO = threeDaysAgo.toISOString();
-
-  const oldDate = new Date(2025, 8, 15); // 15 September 2025
-  const oldDateISO = oldDate.toISOString();
-
-  const mockConversations = [
-    { id: 'c1', title: 'Fitur Login', updatedAt: todayISO },
-    { id: 'c2', title: 'Perbaikan API', updatedAt: todayISO },
-    { id: 'c3', title: 'Setup Database', updatedAt: yesterdayISO },
-    { id: 'c4', title: 'Eksplorasi Arsitektur', updatedAt: threeDaysAgoISO },
-    { id: 'c5', title: 'Inisialisasi Awal', updatedAt: oldDateISO },
-  ];
-
-  const groups = groupConversationsByDate(mockConversations);
-
-  assert.equal(groups.length, 4, 'Harus terbagi menjadi 4 kelompok');
-  assert.match(groups[0].label, /^Hari Ini/);
-  assert.equal(groups[0].items.length, 2);
-
-  assert.match(groups[1].label, /^Kemarin/);
-  assert.equal(groups[1].items.length, 1);
-
-  assert.match(groups[2].label, /^7 Hari Terakhir/);
-  assert.equal(groups[2].items.length, 1);
-
-  assert.equal(groups[3].label, 'September 2025');
-  assert.equal(groups[3].items.length, 1);
+test('relativeTimeLabel: menit, jam, hari kalender, minggu, lalu tanggal pendek', () => {
+  assert.equal(relativeTimeLabel(NOW - 20_000, NOW), 'Baru saja');
+  assert.equal(relativeTimeLabel(NOW - 5 * 60_000, NOW), '5 mnt');
+  assert.equal(relativeTimeLabel(at(2026, 9, 20, 9, 0), NOW), '5 jam');
+  assert.equal(relativeTimeLabel(at(2026, 9, 19, 23, 59), NOW), 'Kemarin');
+  assert.equal(relativeTimeLabel(at(2026, 9, 17, 10, 0), NOW), '3 hari');
+  assert.equal(relativeTimeLabel(at(2026, 9, 6, 10, 0), NOW), '2 mgg');
+  assert.equal(relativeTimeLabel(at(2026, 8, 12, 10, 0), NOW), '12 Sep');
+  assert.equal(relativeTimeLabel(at(2025, 8, 12, 10, 0), NOW), '12 Sep 2025');
+  assert.equal(relativeTimeLabel(null, NOW), '');
 });
 
-test('Sidebar Grouping: Mengembalikan array kosong jika tidak ada percakapan', () => {
-  assert.deepEqual(groupConversationsByDate([]), []);
-  assert.deepEqual(groupConversationsByDate(null), []);
+test('relativeTimeLabel: lewat tengah malam tetap "Kemarin", bukan "2 mnt"', () => {
+  const justAfterMidnight = at(2026, 9, 20, 0, 1);
+  assert.equal(relativeTimeLabel(at(2026, 9, 19, 23, 59), justAfterMidnight), 'Kemarin');
 });
 
-test('Sidebar Limit: Menampilkan 3 percakapan teratas saat collapsed dan seluruh percakapan saat expanded', () => {
-  const mockConvs = Array.from({ length: 10 }, (_, i) => ({
-    id: `c-${i}`,
-    title: `Percakapan ${i + 1}`,
-    updatedAt: new Date(Date.now() - i * 1000 * 60).toISOString(),
-  }));
-
-  // Skenario 1: Collapsed (default) -> Hanya 3 teratas
-  const isRepoExpandedFalse = false;
-  const visibleConvsCollapsed = isRepoExpandedFalse ? mockConvs : mockConvs.slice(0, 3);
-  assert.equal(visibleConvsCollapsed.length, 3, 'Hanya 3 percakapan yang ditampilkan saat collapsed');
-
-  // Skenario 2: Expanded -> Semua 10 percakapan
-  const isRepoExpandedTrue = true;
-  const visibleConvsExpanded = isRepoExpandedTrue ? mockConvs : mockConvs.slice(0, 3);
-  assert.equal(visibleConvsExpanded.length, 10, 'Seluruh 10 percakapan ditampilkan saat expanded');
+test('historyTimeLabel & fullDateTimeLabel', () => {
+  assert.equal(historyTimeLabel(at(2026, 9, 20, 9, 5), NOW), '09:05');
+  assert.equal(historyTimeLabel(at(2026, 9, 19, 14, 32), NOW), '14:32');
+  assert.equal(historyTimeLabel(at(2026, 9, 15, 8, 0), NOW), '15 Okt');
+  assert.equal(fullDateTimeLabel(at(2026, 9, 19, 14, 32)), 'Senin, 19 Oktober 2026 · 14:32');
 });
 
+test('groupConversationsByDate: Hari Ini, Kemarin, 7 Hari Terakhir, Bulan & Tahun', () => {
+  const iso = (...args) => new Date(...args).toISOString();
+  const groups = groupConversationsByDate(
+    [
+      { id: 'c4', updatedAt: iso(2026, 9, 17, 10) },
+      { id: 'c1', updatedAt: iso(2026, 9, 20, 9) },
+      { id: 'c5', updatedAt: iso(2025, 8, 15) },
+      { id: 'c3', updatedAt: iso(2026, 9, 19, 8) },
+      { id: 'c2', updatedAt: iso(2026, 9, 20, 13) },
+    ],
+    NOW
+  );
+  assert.deepEqual(
+    groups.map((g) => [g.label, g.items.map((c) => c.id)]),
+    [
+      ['Hari Ini', ['c2', 'c1']],
+      ['Kemarin', ['c3']],
+      ['7 Hari Terakhir', ['c4']],
+      ['September 2025', ['c5']],
+    ]
+  );
+  assert.deepEqual(groupConversationsByDate([], NOW), []);
+  assert.deepEqual(groupConversationsByDate(null, NOW), []);
+});
+
+test('sortByActivity: terbaru di atas; tanggal tidak valid paling bawah', () => {
+  const sorted = sortByActivity([
+    { id: 'lama', updatedAt: '2026-10-01T00:00:00Z' },
+    { id: 'rusak', updatedAt: 'bukan tanggal' },
+    { id: 'baru', updatedAt: '2026-10-20T00:00:00Z' },
+  ]);
+  assert.deepEqual(sorted.map((c) => c.id), ['baru', 'lama', 'rusak']);
+});

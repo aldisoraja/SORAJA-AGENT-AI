@@ -24,6 +24,7 @@ export interface ConversationRecord {
   cliSessionId?: string;
   /** Ditandai bintang oleh user agar mudah ditemukan di menu Favorit. */
   isFavorite?: boolean;
+  /** @deprecated Teks statis saat dibuat (basi); label waktu dihitung dari `updatedAt` lewat `utils/relativeTime.ts`. */
   timeAgo: string;
   createdAt: string;
   updatedAt: string;
