@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Folder, FolderPlus, Loader2, Sparkles } from 'lucide-react';
 import type { MessageRecord, ProjectRecord, AppSettings, CodeEditChunk } from '../../types/database';
 import type { AgentProvider } from '../../types/agent';
-import { ImagePreviewModal } from '../ui/ImagePreviewModal';
+import { ImagePreviewModal, type PreviewImage } from '../ui/ImagePreviewModal';
 import { UserMessage } from './UserMessage';
 import { AgentMessage } from './AgentMessage';
 import { buildChatTurns, grantedContinuation } from './chatTurns';
@@ -42,7 +42,7 @@ export function ChatFeed({
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
-  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [preview, setPreview] = useState<{ image: PreviewImage; gallery: PreviewImage[] } | null>(null);
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -70,9 +70,11 @@ export function ChatFeed({
       <ImagePreviewModal
         isOpen={Boolean(preview)}
         onClose={() => setPreview(null)}
-        imageUrl={preview?.url || ''}
-        title={preview?.title || ''}
+        imageUrl={preview?.image.url || ''}
+        title={preview?.image.title || ''}
         isLight={isLight}
+        gallery={preview?.gallery}
+        onNavigate={(image) => setPreview((p) => (p ? { ...p, image } : p))}
       />
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 select-text cursor-text">
@@ -112,7 +114,7 @@ export function ChatFeed({
             {turns.map(({ msg, index }, t) => (
               <div key={msg.id} className={`flex w-full max-w-5xl mx-auto ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'user' ? (
-                  <UserMessage msg={msg} isLight={isLight} onPreviewImage={(url, title) => setPreview({ url, title })} />
+                  <UserMessage msg={msg} isLight={isLight} onPreviewImage={(image, gallery) => setPreview({ image, gallery })} />
                 ) : msg.sender === 'system' ? (
                   <div className={`max-w-2xl rounded-xl p-3 text-xs font-mono border ${isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-900/80 text-slate-300 border-slate-800'}`}>
                     {msg.content}

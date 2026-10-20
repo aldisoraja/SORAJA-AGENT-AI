@@ -120,6 +120,13 @@ export function ChatInputBar({
         imageUrl={previewModalUrl || ''}
         title={previewModalTitle}
         isLight={isLight}
+        gallery={attachments
+          .filter((a) => a.type === 'image' && a.previewUrl)
+          .map((a) => ({ url: a.previewUrl || '', title: a.name }))}
+        onNavigate={(image) => {
+          setPreviewModalUrl(image.url);
+          setPreviewModalTitle(image.title);
+        }}
       />
 
       <ChatExecutionStrip

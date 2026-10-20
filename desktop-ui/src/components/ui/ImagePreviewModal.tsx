@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Download, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { X, Download, Copy, Check, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { copyImageToClipboard } from '../../utils/clipboard';
+
+export interface PreviewImage {
+  url: string;
+  title: string;
+}
 
 interface ImagePreviewModalProps {
   isOpen: boolean;
@@ -8,6 +13,9 @@ interface ImagePreviewModalProps {
   imageUrl: string;
   title?: string;
   isLight?: boolean;
+  /** Seluruh gambar dalam kelompok yang sama — mengaktifkan navigasi sebelumnya/berikutnya (← / →). */
+  gallery?: PreviewImage[];
+  onNavigate?: (image: PreviewImage) => void;
 }
 
 export function ImagePreviewModal({
@@ -16,11 +24,28 @@ export function ImagePreviewModal({
   imageUrl,
   title = 'Pratinjau Gambar',
   isLight = false,
+  gallery,
+  onNavigate,
 }: ImagePreviewModalProps) {
+  const currentIndex = gallery ? gallery.findIndex((g) => g.url === imageUrl) : -1;
+  const canNavigate = Boolean(onNavigate && gallery && gallery.length > 1 && currentIndex >= 0);
+
+  // Berputar di ujung: setelah gambar terakhir kembali ke gambar pertama, dan sebaliknya.
+  const step = (delta: number) => {
+    if (!canNavigate || !gallery || !onNavigate) return;
+    onNavigate(gallery[(currentIndex + delta + gallery.length) % gallery.length]);
+  };
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        stepRef.current(e.key === 'ArrowLeft' ? -1 : 1);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -77,6 +102,15 @@ export function ImagePreviewModal({
             <h3 className={`font-semibold text-xs sm:text-sm truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
               {title}
             </h3>
+            {canNavigate && gallery && (
+              <span
+                className={`shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-mono ${
+                  isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                {currentIndex + 1} / {gallery.length}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -133,6 +167,36 @@ export function ImagePreviewModal({
             title="Klik untuk menyalin gambar ke clipboard"
             className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-lg border border-black/10 select-none cursor-copy"
           />
+          {canNavigate && (
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              className={`absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full border shadow-lg transition cursor-pointer ${
+                isLight
+                  ? 'bg-white/90 hover:bg-white border-slate-200 text-slate-700'
+                  : 'bg-slate-900/80 hover:bg-slate-800 border-slate-700 text-slate-100'
+              }`}
+              title="Gambar sebelumnya (←)"
+              aria-label="Gambar sebelumnya"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          {canNavigate && (
+            <button
+              type="button"
+              onClick={() => step(1)}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full border shadow-lg transition cursor-pointer ${
+                isLight
+                  ? 'bg-white/90 hover:bg-white border-slate-200 text-slate-700'
+                  : 'bg-slate-900/80 hover:bg-slate-800 border-slate-700 text-slate-100'
+              }`}
+              title="Gambar berikutnya (→)"
+              aria-label="Gambar berikutnya"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
           {copyState !== 'idle' && (
             <div
               role="status"

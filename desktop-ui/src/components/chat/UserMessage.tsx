@@ -1,17 +1,19 @@
 import { Check, FileSpreadsheet, FileText, ZoomIn } from 'lucide-react';
 import type { MessageRecord } from '../../types/database';
 import { CopyButton } from '../ui/CopyButton';
+import type { PreviewImage } from '../ui/ImagePreviewModal';
 
 interface UserMessageProps {
   msg: MessageRecord;
   isLight: boolean;
-  onPreviewImage: (url: string, title: string) => void;
+  onPreviewImage: (image: PreviewImage, gallery: PreviewImage[]) => void;
 }
 
 /** Bubble pesan pengguna: lampiran (gambar bernomor #1…#10 & dokumen), teks utuh, dan tombol salin. */
 export function UserMessage({ msg, isLight, onPreviewImage }: UserMessageProps) {
   const images = (msg.attachments || []).filter((a) => a.type === 'image' && a.previewUrl);
   const docs = (msg.attachments || []).filter((a) => a.type !== 'image');
+  const gallery: PreviewImage[] = images.map((a, idx) => ({ url: a.previewUrl || '', title: `#${idx + 1} · ${a.name}` }));
   const forwarded = (msg.attachments || []).filter((a) => a.savedPath).length;
 
   return (
@@ -23,7 +25,7 @@ export function UserMessage({ msg, isLight, onPreviewImage }: UserMessageProps) 
               <button
                 type="button"
                 key={att.id}
-                onClick={() => onPreviewImage(att.previewUrl || '', `#${idx + 1} · ${att.name}`)}
+                onClick={() => onPreviewImage(gallery[idx], gallery)}
                 className="group/img relative rounded-lg overflow-hidden border border-white/20 aspect-square bg-black/20 cursor-zoom-in"
                 title={`${att.name}${att.savedPath ? ' — diteruskan ke agen' : ''}
 Klik untuk memperbesar & menyalin gambar`}
