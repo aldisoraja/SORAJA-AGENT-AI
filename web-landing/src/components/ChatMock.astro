@@ -3,6 +3,7 @@
  * Pratinjau statis tampilan Chat GUI: pesan berlampiran, alur proses kerja tanpa card (penjelasan agen
  * diselipkan tepat di bawah langkahnya, bisa dilipat seperti di aplikasi), jawaban akhir, dan kartu perubahan.
  * Mengikuti aplikasi: baca/cari berurutan diringkas jadi "Menelusuri kode", total token tampil setelah selesai.
+ * Giliran kedua sedang berjalan: baris statusnya sticky (menempel di bawah navbar saat halaman digulir).
  */
 ---
 
@@ -82,5 +83,41 @@
 
       <div class="cm-actions"><span>⧉ Salin jawaban</span><span class="cm-dim">10:44</span></div>
     </div>
+
+    <div class="cm-user">Tambahkan tes untuk buka-tutup menu hamburger-nya.</div>
+
+    <div class="cm-agent">
+      <div class="cm-agent-name"><span class="cm-avatar">✳</span> Claude Code <em>Opus 5.5</em></div>
+
+      <div class="cm-work">
+        <div class="cm-work-head cm-sticky" title="Selama agen bekerja, baris ini menempel di atas saat digulir">
+          <span class="cm-spin" aria-hidden="true"></span> <strong class="cm-shimmer">Menjalankan npx vitest run Navbar…</strong>
+          <span class="cm-dim cm-clock" data-start="42">0:42</span>
+          <span class="cm-dim">1 dibaca · 1 perintah · 1 berkas diubah</span>
+          <span class="cm-diff"><b class="add">+38</b> <b class="del">−0</b></span>
+          <span class="cm-chevron is-open" aria-hidden="true">›</span>
+        </div>
+
+        <div class="cm-flow">
+          <p class="cm-text">Saya tambahkan tes buka-tutup menu di berkas tes Navbar, lalu jalankan tesnya.</p>
+          <ol class="cm-steps">
+            <li><span class="cm-node sky">▤</span><strong>Membaca</strong><code><b>TSX</b> Navbar.tsx</code></li>
+            <li><span class="cm-node orange">✎</span><strong>Mengubah</strong><code><b>TSX</b> Navbar.test.tsx</code><span class="cm-time"><b class="add">+38</b> <b class="del">−0</b> <u>Tinjau</u></span></li>
+            <li><span class="cm-node green"><span class="cm-spin sm" aria-hidden="true"></span></span><strong>Menjalankan</strong><code>npx vitest run Navbar</code><span class="cm-time">berjalan…</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script is:inline>
+  // Timer giliran yang sedang berjalan ikut berdetak seperti di aplikasi (m:ss).
+  document.querySelectorAll('.chat-mock .cm-clock').forEach((el) => {
+    let s = Number(el.getAttribute('data-start')) || 0;
+    setInterval(() => {
+      s += 1;
+      el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }, 1000);
+  });
+</script>

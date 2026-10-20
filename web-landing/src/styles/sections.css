@@ -92,6 +92,36 @@
 .cm-work[open] > .cm-work-head .cm-chevron,
 .cm-group[open] > .cm-group-head .cm-chevron { transform: rotate(90deg); }
 .cm-usage { color: var(--text-muted); font: 0.72rem ui-monospace, monospace; cursor: help; }
+/* Giliran yang sedang berjalan: baris status sticky seperti di aplikasi. `clip` (bukan `hidden`) agar kartu tidak
+   menjadi kontainer scroll sehingga sticky berlaku terhadap halaman; --nav-h = tinggi navbar (diukur di index.astro). */
+.chat-mock { overflow: clip; }
+.cm-sticky {
+  position: sticky;
+  top: var(--nav-h, 68px);
+  z-index: 5;
+  background: var(--modal-bg);
+  box-shadow: 0 6px 12px -10px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+.cm-sticky:hover { background: var(--modal-bg); }
+.cm-chevron.is-open { transform: rotate(90deg); }
+.cm-clock { font-family: ui-monospace, monospace; }
+.cm-spin {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent-cyan-glow);
+  border-top-color: var(--accent-cyan);
+  animation: cm-spin 0.9s linear infinite;
+}
+.cm-spin.sm { width: 10px; height: 10px; border-width: 1.5px; border-color: rgba(52, 211, 153, 0.3); border-top-color: #34d399; }
+.cm-shimmer { animation: cm-pulse 2.2s ease-in-out infinite; }
+@keyframes cm-spin { to { transform: rotate(360deg); } }
+@keyframes cm-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .cm-spin, .cm-shimmer { animation: none; }
+}
 .cm-flow { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .cm-text { margin: 0; line-height: 1.6; }
 .cm-work-head .cm-diff { margin-left: auto; }

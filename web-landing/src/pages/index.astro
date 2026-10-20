@@ -110,6 +110,14 @@ const APP_VERSION = releases.version;
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
 
+    // Tinggi navbar sticky (berubah di layar sempit) untuk elemen sticky lain, mis. baris status di pratinjau Chat GUI.
+    const navbar = document.querySelector('.navbar');
+    if (navbar) {
+      const setNavH = () => document.documentElement.style.setProperty('--nav-h', `${navbar.offsetHeight}px`);
+      setNavH();
+      new ResizeObserver(setNavH).observe(navbar);
+    }
+
     const envModeText = document.getElementById('env-mode-text');
     const runtimeBadge = document.getElementById('runtime-badge');
     const host = window.location.hostname;

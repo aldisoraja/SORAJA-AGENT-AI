@@ -48,7 +48,8 @@ html, body {
   margin: 0;
   padding: 0;
   line-height: 1.5;
-  overflow-x: hidden;
+  /* `clip`, bukan `hidden`: `hidden` menjadikan body kontainer scroll sehingga navbar & elemen sticky lain tidak menempel. */
+  overflow-x: clip;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
