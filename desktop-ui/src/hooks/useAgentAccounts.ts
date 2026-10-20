@@ -17,7 +17,7 @@ import {
 } from '../services/cliAdapters';
 import type { AgentProvider, ModelItem } from '../types/agent';
 import { AGENT_PROVIDERS } from '../constants/agentProviders';
-import { loadSessionState, saveSessionState } from '../utils/sessionState';
+import { loadLastAgentChoice, pickStartupAgentId, saveLastAgentChoice } from '../utils/agentStartupChoice';
 
 export const DEFAULT_FALLBACK_MODEL: ModelItem = {
   id: 'cli-default',
@@ -41,17 +41,18 @@ interface AgentAccountsDeps {
 
 export function useAgentAccounts({ activeProject, setCredentials, showDbToast }: AgentAccountsDeps) {
   const [agentProviders, setAgentProviders] = useState<AgentProvider[]>(AGENT_PROVIDERS);
-  const [selectedAgent, setSelectedAgent] = useState<AgentProvider>(() => {
-    const savedId = loadSessionState<string>('selectedAgentId', '');
-    return AGENT_PROVIDERS.find((p) => p.id === savedId) || AGENT_PROVIDERS[0];
-  });
+  // Agen terakhir dipakai (bertahan setelah aplikasi ditutup); diselaraskan dengan CLI terpasang saat startup
+  // Dibaca sekali sebelum effect penyimpanan menimpanya dengan nilai awal
+  const [savedChoice] = useState(loadLastAgentChoice);
+  const [selectedAgent, setSelectedAgent] = useState<AgentProvider>(
+    () => AGENT_PROVIDERS.find((p) => p.id === savedChoice.agentId) || AGENT_PROVIDERS[0]
+  );
   const [selectedModel, setSelectedModel] = useState<ModelItem>(() => {
-    const savedModelId = loadSessionState<string>('selectedModelId', '');
     const models = selectedAgent.models || [];
-    return models.find((m) => m.id === savedModelId) || models[0] || DEFAULT_FALLBACK_MODEL;
+    return models.find((m) => m.id === savedChoice.modelId) || models[0] || DEFAULT_FALLBACK_MODEL;
   });
-  useEffect(() => saveSessionState('selectedAgentId', selectedAgent.id), [selectedAgent.id]);
-  useEffect(() => saveSessionState('selectedModelId', selectedModel.id), [selectedModel.id]);
+  useEffect(() => saveLastAgentChoice('lastAgentId', selectedAgent.id), [selectedAgent.id]);
+  useEffect(() => saveLastAgentChoice('lastModelId', selectedModel.id), [selectedModel.id]);
   const [installedCliAgents, setInstalledCliAgents] = useState<Record<string, CliAgentStatus>>({});
 
   /** Profil (login, email, paket) + kuota untuk satu agen, langsung dari CLI. */
@@ -83,8 +84,27 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
   /** Status terpasang saja (cepat). Dipakai saat startup & membuka wizard "ganti agen": tidak menjalankan CLI. */
   const refreshInstalledStatus = async () => {
     const statuses = await fetchInstalledCliStatuses();
-    if (statuses.length === 0) return;
-    setInstalledCliAgents(Object.fromEntries(statuses.map((s) => [s.id, s])));
+    if (statuses.length > 0) setInstalledCliAgents(Object.fromEntries(statuses.map((s) => [s.id, s])));
+    return statuses;
+  };
+
+  /** Agen default startup: terakhir dipakai → satu-satunya terpasang → paling sering dipakai → urutan katalog. */
+  const applyStartupAgent = async (statuses: CliAgentStatus[]) => {
+    const startId = selectedAgentIdRef.current;
+    const installedIds = statuses.filter((s) => s.is_installed).map((s) => s.id);
+    const pickedId = pickStartupAgentId(
+      AGENT_PROVIDERS.map((p) => p.id),
+      installedIds,
+      savedChoice.agentId,
+      await sorajaDb.getConversations()
+    );
+    // Jangan menimpa bila pengguna sudah mengganti agen selama pemeriksaan berlangsung
+    if (!pickedId || pickedId === startId || selectedAgentIdRef.current !== startId) return;
+    const agent = providersRef.current.find((p) => p.id === pickedId);
+    if (!agent) return;
+    selectedAgentIdRef.current = pickedId;
+    setSelectedAgent(agent);
+    setSelectedModel(agent.models[0] || { ...DEFAULT_FALLBACK_MODEL, name: `${agent.name} CLI Default` });
   };
 
   const refreshAgentProviders = async () => {
@@ -106,7 +126,7 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
       }
       setInstalledCliAgents(cliMap);
       setSelectedAgent((prev) => {
-        const match = providers.find((p) => p.id === prev.id) || providers[0];
+        const match = providers.find((p) => p.id === prev.id) || providers.find((p) => p.isInstalled) || providers[0];
         setSelectedModel((prevModel) => match.models.find((m) => m.id === prevModel.id) || match.models[0] || DEFAULT_FALLBACK_MODEL);
         return match;
       });
@@ -118,7 +138,7 @@ export function useAgentAccounts({ activeProject, setCredentials, showDbToast }:
   useEffect(() => {
     // Bertahap: status terpasang (milidetik) → jeda agar UI interaktif → model live → akun & kuota.
     (async () => {
-      await refreshInstalledStatus();
+      await applyStartupAgent(await refreshInstalledStatus());
       await sleep(STARTUP_PROBE_DELAY_MS);
       await refreshAgentProviders();
       await handleSyncLiveQuota({ silent: true });
