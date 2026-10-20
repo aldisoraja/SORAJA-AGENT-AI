@@ -284,6 +284,12 @@ Nilai disimpan di `agent_sessions.status` ([`database-schema.sql`](./database-sc
   (dan **Buka di Terminal** bila sesi CLI tersimpan). Tombol ini mengirim giliran baru di sesi CLI yang sama dengan
   `grantedActions`: Claude mendapat `--allowedTools <aksi>` persis; Antigravity, Codex, OpenCode, dan Kiro tidak punya allow-list
   per tool sehingga giliran itu memakai flag mode otonom (§2) — hanya untuk satu giliran tersebut, dan UI menyebutkannya.
+* **Tampilan giliran lanjutan (kedua jalur di atas):** pesan pengguna otomatis yang melanjutkan giliran disimpan dengan
+  `MessageRecord.grantContinuation` (aksi/perintah yang diizinkan) dan **tidak** dirender sebagai bubble. `components/chat/chatTurns.ts`
+  menggabungkan jawaban agen sebelum & sesudahnya (agen yang sama) menjadi satu giliran: langkah berlanjut di satu alur dengan baris
+  `granted` ("Diizinkan: <perintah>"), notice "Aksi ditolak di mode aman" yang sudah ditindaklanjuti dibuang, langkah `denied` yang
+  diizinkan ditandai `resolved` (tidak dihitung di ringkasan), dan durasi tidak termasuk jeda menunggu izin. Riwayat lama tanpa flag
+  dikenali dari teks prompt lanjutannya. Penggabungan hanya di tampilan; pesan tersimpan tetap terpisah.
 * Regex destruktif `TerminalExecutor::is_destructive_command` tetap berlaku untuk `run_workspace_terminal` milik Soraja.
 
 ---

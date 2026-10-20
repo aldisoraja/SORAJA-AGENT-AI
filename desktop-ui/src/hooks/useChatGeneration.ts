@@ -288,6 +288,7 @@ export function useChatGeneration(d: ChatGenerationDeps) {
         content: prompt,
         attachments: persisted?.records ?? attachments.map(({ dataUrl: _omit, ...rest }) => rest),
         timestamp: nowTime(),
+        grantContinuation: options.grantedActions ?? options.agyGrantedCommands,
       })
     );
 

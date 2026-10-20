@@ -1,10 +1,11 @@
-import { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Folder, FolderPlus, Loader2, Sparkles } from 'lucide-react';
 import type { MessageRecord, ProjectRecord, AppSettings, CodeEditChunk } from '../../types/database';
 import type { AgentProvider } from '../../types/agent';
 import { ImagePreviewModal } from '../ui/ImagePreviewModal';
 import { UserMessage } from './UserMessage';
 import { AgentMessage } from './AgentMessage';
+import { buildChatTurns, grantedContinuation } from './chatTurns';
 
 interface ChatFeedProps {
   messages: MessageRecord[];
@@ -58,8 +59,11 @@ export function ChatFeed({
     if (stickToBottom.current) chatEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
+  // Lanjutan otomatis setelah izin digabung ke jawaban agen sebelumnya (bukan bubble pengguna baru).
+  const turns = useMemo(() => buildChatTurns(messages), [messages]);
+  const lastTurn = turns[turns.length - 1]?.msg;
   // Indikator cadangan bila pesan agen belum dibuat (mis. lampiran sedang disimpan).
-  const waitingWithoutBubble = isGenerating && !(lastMsg?.sender === 'agent' && lastMsg.status === 'running');
+  const waitingWithoutBubble = isGenerating && !(lastTurn?.sender === 'agent' && lastTurn.status === 'running');
 
   return (
     <>
@@ -105,7 +109,7 @@ export function ChatFeed({
           </div>
         ) : (
           <div className="space-y-6">
-            {messages.map((msg, i) => (
+            {turns.map(({ msg, index }, t) => (
               <div key={msg.id} className={`flex w-full max-w-5xl mx-auto ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'user' ? (
                   <UserMessage msg={msg} isLight={isLight} onPreviewImage={(url, title) => setPreview({ url, title })} />
@@ -120,11 +124,11 @@ export function ChatFeed({
                     settings={settings}
                     fallbackAgent={selectedAgent}
                     onOpenDiffReview={(files, idx) => {
-                      const turn = messages.slice(0, i).reverse().find((m) => m.sender === 'user');
+                      const turn = messages.slice(0, index).reverse().find((m) => m.sender === 'user' && !grantedContinuation(m));
                       onOpenDiffReview(files, idx, turn?.content);
                     }}
                     onRetryWithPermission={
-                      i === messages.length - 1 && !isGenerating && onRetryWithPermission ? () => onRetryWithPermission(msg) : undefined
+                      t === turns.length - 1 && !isGenerating && onRetryWithPermission ? () => onRetryWithPermission(msg) : undefined
                     }
                     onOpenInTerminal={onOpenInTerminal}
                   />

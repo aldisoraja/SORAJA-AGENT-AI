@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Search,
   ShieldAlert,
+  ShieldCheck,
   SquareTerminal,
   Wrench,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ const STEP_META: Record<TrajectoryStep['type'], { Icon: typeof Brain; verb: stri
   plan: { Icon: ListChecks, verb: 'Rencana kerja', tone: { dark: 'text-blue-300 bg-blue-500/10 border-blue-500/20', light: 'text-blue-600 bg-blue-50 border-blue-200' } },
   tool: { Icon: Wrench, verb: 'Memakai', tone: { dark: 'text-slate-300 bg-white/[0.04] border-white/[0.08]', light: 'text-slate-600 bg-slate-100 border-slate-200' } },
   text: { Icon: MessageSquareText, verb: 'Menjelaskan', tone: { dark: 'text-slate-300 bg-white/[0.04] border-white/[0.08]', light: 'text-slate-600 bg-slate-100 border-slate-200' } },
+  granted: { Icon: ShieldCheck, verb: 'Diizinkan', tone: { dark: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20', light: 'text-emerald-600 bg-emerald-50 border-emerald-200' } },
   running: { Icon: Loader2, verb: 'Memproses', tone: { dark: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20', light: 'text-cyan-600 bg-cyan-50 border-cyan-200' } },
 };
 
@@ -116,7 +118,7 @@ export function TimelineStep({ step, isLight, now, verbose, diff, onOpenDiff }: 
         )}
       </>
     );
-  } else if (step.type === 'command') {
+  } else if (step.type === 'command' || step.type === 'granted') {
     object = (
       <code
         title={step.command || step.label}
@@ -177,7 +179,11 @@ export function TimelineStep({ step, isLight, now, verbose, diff, onOpenDiff }: 
           {failed && <span className="px-1.5 py-0.5 rounded-md font-semibold text-rose-500 bg-rose-500/10">gagal</span>}
           {denied && (
             <span
-              title="Ditolak kebijakan izin mode aman. Buka sesi di Terminal untuk menyetujuinya."
+              title={
+                step.resolved
+                  ? 'Ditolak mode aman, lalu Anda izinkan dan agen mengulangnya.'
+                  : 'Ditolak kebijakan izin mode aman. Buka sesi di Terminal untuk menyetujuinya.'
+              }
               className={`px-1.5 py-0.5 rounded-md font-semibold ${isLight ? 'text-amber-700 bg-amber-50' : 'text-amber-300 bg-amber-500/10'}`}
             >
               ditolak

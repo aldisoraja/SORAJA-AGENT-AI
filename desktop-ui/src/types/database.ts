@@ -66,7 +66,8 @@ export interface PlanItem {
 }
 
 export interface TrajectoryStep {
-  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool' | 'plan' | 'web' | 'text';
+  /** `granted` = baris "Diizinkan" di antara segmen giliran yang dilanjutkan setelah izin (hanya tampilan, lihat `chatTurns.ts`). */
+  type: 'explored' | 'edited' | 'running' | 'thought' | 'analyzed' | 'command' | 'tool' | 'plan' | 'web' | 'text' | 'granted';
   label: string;
   /** Segmen teks jawaban agen (langkah `text`), disisipkan kronologis di antara langkah tool. */
   text?: string;
@@ -82,6 +83,8 @@ export interface TrajectoryStep {
   thoughtContent?: string;
   /** Status langkah tool di mode CLI headless. */
   status?: StepStatus;
+  /** Langkah `denied` yang kemudian diizinkan pengguna lalu diulang di giliran lanjutan. */
+  resolved?: boolean;
   /** Id panggilan tool dari CLI (korelasi event running → done). */
   toolId?: string;
   /** Nama tool asli dari CLI (Read, Bash, view_file, …). */
@@ -151,6 +154,11 @@ export interface MessageRecord {
   deniedActions?: string[];
   /** Perintah persis yang ditolak Antigravity headless → modal HITL lalu sesi dilanjutkan. */
   deniedCommands?: string[];
+  /**
+   * Pesan pengguna otomatis yang melanjutkan giliran setelah izin diberikan (berisi aksi/perintah yang diizinkan).
+   * Tidak tampil sebagai bubble: jawaban agen sebelum & sesudahnya digabung jadi satu giliran.
+   */
+  grantContinuation?: string[];
 }
 
 /** Kedalaman penalaran agen di Chat GUI (dikirim sebagai flag effort CLI). */

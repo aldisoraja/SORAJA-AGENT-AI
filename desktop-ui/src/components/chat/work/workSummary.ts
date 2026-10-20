@@ -32,7 +32,7 @@ export function countSteps(steps: TrajectoryStep[], codeEdits?: CodeEditChunk[])
   const editedFiles = new Map<string, { additions: number; deletions: number }>();
   for (const s of steps) {
     if (s.status === 'error') c.errors++;
-    if (s.status === 'denied') c.denied++;
+    if (s.status === 'denied' && !s.resolved) c.denied++;
     if (s.type === 'thought') c.thoughts++;
     else if (s.type === 'analyzed') c.reads++;
     else if (s.type === 'explored') c.searches++;
