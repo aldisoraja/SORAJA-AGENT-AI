@@ -18,7 +18,7 @@ interface TerminalToolsMenuProps {
   onClearScreen: () => void;
   onPasteText: () => void;
   onPasteImage: () => void;
-  onPickImageFile: () => void;
+  onPickFiles: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -39,7 +39,7 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
   onClearScreen,
   onPasteText,
   onPasteImage,
-  onPickImageFile,
+  onPickFiles,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -114,9 +114,9 @@ export const TerminalToolsMenu: React.FC<TerminalToolsMenuProps> = ({
             isLight={isLight}
             icon={FolderOpen}
             tone="amber"
-            title="Pilih Berkas Gambar dari Komputer"
-            subtitle="Buka dialog untuk memilih berkas gambar"
-            onClick={run(onPickImageFile)}
+            title="Sisipkan Berkas dari Komputer"
+            subtitle="Pilih gambar, PDF, dokumen, atau kode untuk dibaca agen"
+            onClick={run(onPickFiles)}
           />
 
           <MenuDivider isLight={isLight} />

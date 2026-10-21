@@ -1,10 +1,12 @@
 /**
  * useTerminalImageInsert.ts
- * Menyisipkan gambar ke prompt CLI di terminal: dari clipboard (tombol "Tempel Gambar" / Ctrl+V)
- * atau dari berkas yang dipilih pengguna secara eksplisit. Gambar disimpan lewat IPC Tauri
- * `save_chat_attachment`, lalu path-nya diketik ke prompt CLI yang aktif.
+ * Menyisipkan gambar/berkas ke prompt CLI di terminal: gambar dari clipboard (tombol "Tempel Gambar" /
+ * Ctrl+V) disimpan lewat IPC Tauri `save_chat_attachment`; berkas apa pun yang dipilih pengguna secara
+ * eksplisit disisipkan sebagai path absolut. Agen CLI lalu membaca berkas dari path tersebut.
  */
 import { useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from '../../services/headlessTransport';
 import { blobToBase64, readImageFromClipboard, saveBase64ImageToServer } from '../../utils/imagePasteHelper';
 
 interface Deps {
@@ -23,10 +25,10 @@ export function useTerminalImageInsert({ targetDir, sendInput, focusTerminal, sh
       const res = await saveBase64ImageToServer(targetDir, await blobToBase64(blob), filename);
       if (res.success && res.filePath) {
         sendInput(`"${res.filePath}" `);
-        showToast(`🖼️ Gambar (${res.filename}) disisipkan ke prompt!`);
+        showToast(`📎 Berkas (${res.filename}) disisipkan ke prompt!`);
         return true;
       }
-      showToast(`⚠️ Gagal menyimpan gambar: ${res.error ?? 'penyebab tidak diketahui'}`);
+      showToast(`⚠️ Gagal menyimpan berkas:${res.error ?? 'penyebab tidak diketahui'}`);
       return false;
     },
     [targetDir, sendInput, showToast]
@@ -48,19 +50,40 @@ export function useTerminalImageInsert({ targetDir, sendInput, focusTerminal, sh
     }
   }, [focusTerminal, insertImage, showToast]);
 
-  /** Pilihan eksplisit pengguna: buka dialog untuk memilih berkas gambar dari komputer. */
-  const pickImageFile = useCallback(() => fileInputRef.current?.click(), []);
+  /**
+   * Pilihan eksplisit pengguna: buka dialog untuk memilih satu/lebih berkas apa pun dari komputer.
+   * Desktop: dialog native (`plugin:dialog|open`) → path absolut asli langsung diketik ke prompt,
+   * tanpa menyalin berkas. Browser dev: `<input type="file">` → berkas disalin ke `.soraja/attachments/`.
+   */
+  const pickFiles = useCallback(async () => {
+    if (!isTauriRuntime) {
+      fileInputRef.current?.click();
+      return;
+    }
+    const selected = await invoke<string | string[] | null>('plugin:dialog|open', {
+      options: { multiple: true, directory: false, title: 'Pilih berkas untuk disisipkan ke prompt CLI' },
+    }).catch((err) => {
+      console.warn('Dialog berkas gagal:', err);
+      showToast('⚠️ Gagal membuka dialog pemilihan berkas.');
+      return null;
+    });
+    const paths = (Array.isArray(selected) ? selected : selected ? [selected] : []).filter(Boolean);
+    if (paths.length > 0) {
+      sendInput(paths.map((p) => `"${p}" `).join(''));
+      showToast(`📎 ${paths.length} berkas disisipkan ke prompt!`);
+    }
+    focusTerminal();
+  }, [sendInput, focusTerminal, showToast]);
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+      const files = Array.from(e.target.files ?? []);
       e.target.value = '';
-      if (!file) return;
       try {
-        await insertImage(file, file.name);
+        for (const file of files) await insertImage(file, file.name);
       } catch (err) {
-        console.error('Gagal mengunggah gambar:', err);
-        showToast('⚠️ Gagal menyisipkan gambar yang dipilih.');
+        console.error('Gagal mengunggah berkas:', err);
+        showToast('⚠️ Gagal menyisipkan berkas yang dipilih.');
       } finally {
         focusTerminal();
       }
@@ -68,5 +91,5 @@ export function useTerminalImageInsert({ targetDir, sendInput, focusTerminal, sh
     [insertImage, focusTerminal, showToast]
   );
 
-  return { fileInputRef, pasteImageFromClipboard, pickImageFile, handleFilePicked };
+  return { fileInputRef, pasteImageFromClipboard, pickFiles, handleFilePicked };
 }

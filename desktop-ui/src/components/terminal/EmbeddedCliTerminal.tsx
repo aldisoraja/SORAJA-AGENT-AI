@@ -331,7 +331,7 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
             onClearScreen={clearActiveTerminal}
             onPasteText={handlePasteText}
             onPasteImage={imageInsert.pasteImageFromClipboard}
-            onPickImageFile={imageInsert.pickImageFile}
+            onPickFiles={imageInsert.pickFiles}
             onZoomIn={zoom.handleZoomIn}
             onZoomOut={zoom.handleZoomOut}
             onResetZoom={zoom.handleResetZoom}
@@ -339,7 +339,7 @@ export const EmbeddedCliTerminal: React.FC<EmbeddedCliTerminalProps> = ({
           <input
             ref={imageInsert.fileInputRef}
             type="file"
-            accept="image/*"
+            multiple
             onChange={imageInsert.handleFilePicked}
             className="hidden"
           />
