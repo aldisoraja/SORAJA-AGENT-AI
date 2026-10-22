@@ -55,9 +55,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      # Versi pnpm dibaca dari `packageManager` di package.json; jangan isi `version` di sini (action menolak dua sumber).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12
       - uses: actions/setup-node@v4
         with:
           node-version: 24
