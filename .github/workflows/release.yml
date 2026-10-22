@@ -13,7 +13,26 @@ permissions:
   contents: write
 
 jobs:
+  # Tag `v<versi>` wajib sama dengan versi di tauri.conf.json (yang dipakai nama Release & installer),
+  # agar tag yang lupa diiringi naik versi tidak menerbitkan ulang installer versi lama.
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cocokkan tag dengan versi aplikasi
+        if: github.ref_type == 'tag'
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CONF_VERSION=$(node -p "require('./crates/soraja-desktop/tauri.conf.json').version")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Tag: $GITHUB_REF_NAME | tauri.conf.json: $CONF_VERSION | package.json: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$CONF_VERSION" ] || [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME tidak cocok dengan versi aplikasi ($CONF_VERSION / $PKG_VERSION). Naikkan versi di tauri.conf.json & package.json, commit, lalu buat ulang tag."
+            exit 1
+          fi
+
   build:
+    needs: verify-version
     strategy:
       fail-fast: false
       matrix:
@@ -64,9 +83,10 @@ jobs:
           args: ${{ matrix.args }}
 
   manifest:
-    needs: build
-    # Tetap jalan bila sebagian build OS gagal, agar tombol unduh OS yang berhasil tidak ikut rusak.
-    if: ${{ !cancelled() }}
+    needs: [verify-version, build]
+    # Tetap jalan bila sebagian build OS gagal, agar tombol unduh OS yang berhasil tidak ikut rusak,
+    # tetapi tidak bila tag ditolak verify-version.
+    if: ${{ !cancelled() && needs.verify-version.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
