@@ -369,12 +369,17 @@ Setiap modifikasi sistem wajib dicatat di sini dan di SpecKit (`specs/`):
 29. **Spesifikasi Formal SDD SpecKit (`specs/sdd-speckit.md`):**
     - Pembuatan cetak biru arsitektur lengkap dalam `specs/sdd-speckit.md` sebagai *Single Source of Truth* bagi AI Coding Assistant dan pengembang untuk mencegah halusinasi kode dan menjaga paritas kontrak IPC, skema database, dan guardrails keamanan.
 
-### ??? Rilis v1.2.0 (Dynamic Headless CLI Integration)
+### 📌 Rilis v1.1.1 (Headless CLI, Kuota Langsung dari CLI & Lampiran Berkas Terminal)
 30. **Headless Native CLI Orchestration:**
-    - Integrasi penuh dengan mesin eksekusi Antigravity CLI secara headless tanpa intervensi terminal manual.
-    - Resolusi dinamis profil pengguna (email & paket berlangganan) dengan membaca langsung dari TUI environment/konfigurasi sistem, menghindari hardcode UI.
-    - *Real-time Quota Fetching*: \get_antigravity_stats\ pada \soraja-core\ memicu subprocess \gy\ secara background, mengirimkan input \/usage\, dan melakukan parsing Regex terhadap \stdout\ untuk memperoleh sisa *Weekly Limit* dan *Five Hour Limit* secara live dan sangat akurat.
-    - Perbaikan \syncLiveQuota\ di frontend untuk me-render metrik dan *statusMessage* kuota CLI ke komponen \ModelsUsageDashboard.tsx\.
+    - Integrasi penuh dengan mesin eksekusi CLI agen secara headless tanpa intervensi terminal manual.
+    - Resolusi dinamis profil pengguna (email & paket berlangganan) dibaca langsung dari konfigurasi CLI (`get_user_cli_profile`), tanpa hardcode di UI.
+    - *Real-time Quota Fetching*: `get_agent_token_stats` di `soraja-core` membaca sisa *Weekly Limit* dan *Five Hour Limit* dari data milik CLI; jendela kuota yang tidak dilaporkan tampil sebagai "Tidak dilaporkan oleh CLI".
+    - `syncLiveQuota` di frontend me-render metrik dan *statusMessage* kuota CLI ke komponen `ModelsUsageDashboard.tsx`.
+31. **Sisipkan Berkas Apa Pun ke Prompt Terminal CLI:**
+    - Menu alat terminal membuka dialog native (bisa pilih banyak berkas sekaligus) dan mengetik path absolut berkas langsung ke prompt CLI tanpa menyalin berkasnya.
+    - Fallback dev server browser menerima semua jenis berkas dan banyak berkas.
+32. **Perbaikan Build Rilis:**
+    - Build macOS x86_64 tidak lagi bergantung pada OpenSSL (fitur https/ssh `git2` dimatikan), dan job manifest tetap berjalan bila build salah satu OS gagal.
 
 
 ---
