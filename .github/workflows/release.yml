@@ -31,8 +31,25 @@ jobs:
             exit 1
           fi
 
-  build:
+  # Release dibuat sekali di sini. Bila tiap runner build membuatnya sendiri, runner yang kalah balapan
+  # gagal dengan `already_exists` (terjadi pada build Windows v1.1.1).
+  create-release:
     needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buat Release v<versi> bila belum ada
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./crates/soraja-desktop/tauri.conf.json').version")
+          gh release view "v$VERSION" >/dev/null 2>&1 || gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "SORAJA ENGINE v$VERSION" \
+            --notes "Unduh installer dari halaman web Soraja Engine atau dari daftar aset di bawah."
+
+  build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -82,10 +99,10 @@ jobs:
           args: ${{ matrix.args }}
 
   manifest:
-    needs: [verify-version, build]
+    needs: [create-release, build]
     # Tetap jalan bila sebagian build OS gagal, agar tombol unduh OS yang berhasil tidak ikut rusak,
-    # tetapi tidak bila tag ditolak verify-version.
-    if: ${{ !cancelled() && needs.verify-version.result == 'success' }}
+    # tetapi tidak bila tag ditolak verify-version atau Release gagal dibuat.
+    if: ${{ !cancelled() && needs.create-release.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
