@@ -6,7 +6,7 @@
 mod commands;
 
 use commands::{
-    antigravity_grants, attachments, catalog, headless, language_rules, permission_bridge, pty, session_control, skills,
+    antigravity_grants, app_update, attachments, catalog, headless, language_rules, permission_bridge, pty, session_control, skills,
     workspace,
 };
 
@@ -15,6 +15,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         // Dialog folder native → path absolut proyek (pengganti showDirectoryPicker)
         .plugin(tauri_plugin_dialog::init())
+        // Pembaruan otomatis dari GitHub Release (latest.json + tanda tangan .sig)
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(app_update::PendingUpdate::default())
         .manage(pty::PtyState::default())
         // Jembatan izin HITL Chat GUI (MCP lokal untuk `--permission-prompt-tool` Claude)
         .manage(permission_bridge::PermissionBridge::default())
@@ -57,6 +60,9 @@ fn main() {
             workspace::list_workspace_files,
             // Lampiran Chat GUI (gambar/dokumen → berkas yang dibaca CLI agen)
             attachments::save_chat_attachment,
+            // Pembaruan aplikasi
+            app_update::check_app_update,
+            app_update::install_app_update,
         ])
         .run(tauri::generate_context!())
         .expect("gagal menjalankan aplikasi Tauri");

@@ -156,7 +156,8 @@ agent-soraja-ai/
 │   ├── headlessBridge.ts, cliBridge.ts, modelsBridge.ts  # Jembatan dev Vite (CLI dari browser)
 │   └── tests/                      # Tes node:test (`pnpm --filter desktop-ui test`)
 ├── web-landing/                    # Portal unduhan Astro
-├── scripts/publish-release.mjs     # Penerbit manifest installer
+├── scripts/publish-release.mjs     # Penerbit manifest installer (web)
+├── scripts/updater-manifest.mjs    # Penulis latest.json untuk pembaruan otomatis di aplikasi
 └── .github/workflows/release.yml   # Build installer multi-OS
 ```
 
@@ -207,6 +208,15 @@ memuat halaman dari server Vite dev (`127.0.0.1:5173`), sehingga webview ikut *f
 ### Installer (`.msi` / `-setup.exe`)
 Dibangun otomatis oleh GitHub Actions saat tag `v*` di-push. Untuk build lokal dibutuhkan Tauri CLI
 (`cargo install tauri-cli --version "^2"`), lalu jalankan `cargo tauri build` di `crates/soraja-desktop`.
+
+Sejak v1.1.2 setiap bundle ditandatangani untuk pembaruan otomatis (`bundle.createUpdaterArtifacts`), sehingga build
+(lokal maupun CI) membutuhkan kunci privat updater:
+* **CI:** secret repo `TAURI_SIGNING_PRIVATE_KEY` (isi berkas kunci privat) dan `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+  (boleh kosong bila kunci tanpa kata sandi).
+* **Lokal:** set env yang sama sebelum `cargo tauri build`, mis. `TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/soraja-engine.key)`.
+
+Kunci publiknya ada di `tauri.conf.json` → `plugins.updater.pubkey`. Jangan mengganti pasangan kunci: instalasi lama hanya
+menerima pembaruan yang ditandatangani kunci yang sama.
 
 ---
 
@@ -380,6 +390,16 @@ Setiap modifikasi sistem wajib dicatat di sini dan di SpecKit (`specs/`):
     - Fallback dev server browser menerima semua jenis berkas dan banyak berkas.
 32. **Perbaikan Build Rilis:**
     - Build macOS x86_64 tidak lagi bergantung pada OpenSSL (fitur https/ssh `git2` dimatikan), dan job manifest tetap berjalan bila build salah satu OS gagal.
+
+### 📌 Rilis v1.1.2 (Pembaruan Otomatis di Aplikasi)
+33. **Pembaruan Otomatis (`tauri-plugin-updater`):**
+    - Soraja memeriksa versi terbaru di GitHub Release beberapa detik setelah dibuka (lalu tiap 6 jam) dan menampilkan kartu "Versi baru tersedia" dengan tombol **Perbarui sekarang** atau **Nanti**.
+    - Pengaturan > Data & Bantuan kini menampilkan versi terpasang, tombol **Periksa pembaruan**, dan catatan rilis versi baru.
+    - Unduhan menampilkan progres; setelah terpasang aplikasi dibuka ulang otomatis (Windows: installer berjalan tanpa dialog).
+    - Paket pembaruan diverifikasi dengan tanda tangan digital sebelum dipasang.
+34. **Pipeline Rilis:**
+    - Installer ditandatangani di CI, dan `latest.json` ditulis sekali setelah semua build selesai (`scripts/updater-manifest.mjs`) agar tidak ada OS yang hilang dari manifest pembaruan.
+    - Catatan: pengguna v1.1.1 atau lebih lama perlu memasang v1.1.2 secara manual satu kali; versi berikutnya diperbarui otomatis.
 
 
 ---

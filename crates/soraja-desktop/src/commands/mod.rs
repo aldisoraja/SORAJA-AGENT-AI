@@ -1,4 +1,5 @@
 pub mod antigravity_grants;
+pub mod app_update;
 pub mod attachments;
 pub mod catalog;
 pub mod headless;

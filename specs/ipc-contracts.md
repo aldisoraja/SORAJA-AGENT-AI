@@ -2,7 +2,7 @@
 
 > **Sumber kebenaran:** `crates/soraja-desktop/src/main.rs` (`tauri::generate_handler![...]`), implementasi di
 > `crates/soraja-desktop/src/commands/*.rs` (`pty`, `headless`, `session_control`, `permission_bridge`, `antigravity_grants`,
-> `catalog`, `language_rules`, `skills`, `workspace`, `attachments`).
+> `catalog`, `language_rules`, `skills`, `workspace`, `attachments`, `app_update`).
 > Dokumen ini WAJIB diperbarui di commit yang sama setiap kali command/event ditambah, diubah, atau dihapus.
 > Dilarang memanggil `invoke('<nama>')` yang tidak tercantum di sini.
 
@@ -240,6 +240,7 @@ Mengaktifkan skill yang membuat total `token_cost` skill aktif melewati `max_tok
 | `agent:token_stream` | `{ sessionId: string, chunk: string }` | `spawn_headless_agent` (1 baris stdout/stderr + `\n`) | `agentStreamParser.ts` → `cli/streamParsers.ts` (NDJSON → `UiAgentEvent`) |
 | `agent:session_end` | `{ sessionId: string, exitCode: number, summary: string }` | `spawn_headless_agent` | `useAgentStreamBridge`: tutup bubble & simpan pesan; `useHitlPermissions`: buang antrean izin sesi itu |
 | `agent:permission_request` | `{ sessionId: string, requestId: string, toolName: string, input: object }` | `prepare_permission_bridge` (MCP `tools/call` dari CLI) | `useHitlPermissions`: aturan "selalu izinkan" atau Modal HITL 5 opsi → `approve_human_in_the_loop` |
+| `app:update_progress` | `{ downloaded: number, total: number \| null }` | `install_app_update` (tiap ≥ 256 KB dan saat unduhan selesai) | `services/appUpdater.ts` → progres di `UpdateBanner` & Pengaturan > Data & Bantuan |
 
 Tidak ada event Tauri lain. Nama lama `agent:thinking_step`, `agent:tool_invoked`, `agent:diff_preview` **tidak dipakai lagi**: parsing terjadi di frontend dan menghasilkan `UiAgentEvent` ([`agent-protocols.md`](./agent-protocols.md) §3). Bila kelak parsing dipindah ke Rust, emit `UiAgentEvent` apa adanya dengan nama `agent:ui_event`.
 
@@ -255,3 +256,34 @@ Masih terbuka:
 2. `crates/soraja-core/src/db.rs` (pool SQLite + migrasi dari `database-schema.sql`) belum dipanggil aplikasi; data UI masih disimpan di `localStorage` WebView oleh `desktop-ui/src/services/db.ts` (bukan `%APPDATA%\soraja-ai\soraja.db`).
 3. Registri skill belum punya UI dan isinya belum disuntikkan ke CLI agen (`get_skills`/`toggle_skill` belum dipanggil frontend).
 4. Anak proses yang dibuat CLI sebelum `AssignProcessToJobObject` (jendela mikrodetik setelah spawn) tidak ikut job.
+
+---
+
+## 8. Pembaruan Aplikasi (`tauri-plugin-updater`)
+
+Implementasi: `commands/app_update.rs`; frontend: `desktop-ui/src/services/appUpdater.ts` (store bersama banner & Pengaturan).
+Plugin didaftarkan di `main.rs`, tetapi frontend **tidak** memanggil `plugin:updater|*` langsung (tidak ada izin `updater:*` di capability):
+seluruh alur lewat dua command di bawah. Versi terpasang dibaca dengan `getVersion()` dari `@tauri-apps/api/app` (termasuk `core:default`).
+* **Konfigurasi:** `tauri.conf.json` → `plugins.updater` (`pubkey` minisign, endpoint
+  `https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/latest/download/latest.json`, Windows `installMode: "passive"`) dan
+  `bundle.createUpdaterArtifacts: true` (setiap bundle diberi berkas `.sig`).
+* **Manifest:** `latest.json` ditulis sekali oleh job `manifest` di `release.yml` lewat `scripts/updater-manifest.mjs` (kunci
+  `<os>-<arch>` dan `<os>-<arch>-<installer>`; catatan rilis dari README bagian "Rilis v<versi>"). `tauri-action` memakai
+  `includeUpdaterJson: false` agar runner paralel tidak saling menimpa manifest.
+* **Jadwal:** pemeriksaan otomatis 8 detik setelah aplikasi dibuka lalu tiap 6 jam (`startAppUpdateAutoCheck`), plus tombol
+  "Periksa pembaruan" di Pengaturan > Data & Bantuan. Tidak ada di browser (Vite dev).
+
+### `check_app_update`
+Memeriksa endpoint updater. Hasil (termasuk `None`) disimpan di state `PendingUpdate` untuk `install_app_update`.
+* **Input:** `()`
+* **Output:** `Result<AppUpdateInfo | null, String>` — `null` = sudah versi terbaru
+```ts
+interface AppUpdateInfo { version: string; currentVersion: string; notes: string | null; }
+```
+
+### `install_app_update`
+Mengunduh, memverifikasi tanda tangan, dan memasang versi hasil `check_app_update` terakhir, lalu memulai ulang aplikasi. Di Windows
+plugin menutup aplikasi sebelum installer (passive) berjalan, sehingga seluruh proses agen ikut berhenti (Job Object).
+* **Input:** `()`
+* **Output:** `Result<(), String>` — error bila belum ada pembaruan yang diperiksa, unduhan gagal, atau tanda tangan tidak cocok
+* **Event dipicu:** `app:update_progress`

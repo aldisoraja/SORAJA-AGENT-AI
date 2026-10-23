@@ -2,6 +2,8 @@
 # Dipicu oleh push tag `v*` (mis. `git tag v1.0.0 && git push origin v1.0.0`) atau manual via "Run workflow".
 # Job `manifest` lalu menyalin installer dengan nama `soraja-engine_<versi>_<arch>.<ext>` ke Release dan
 # memperbarui `web-landing/src/data/releases.json` agar tombol Unduh di web langsung mengunduh berkasnya.
+# Job yang sama menulis `latest.json` (pembaruan otomatis di aplikasi, tauri-plugin-updater). Installer ditandatangani
+# dengan secret `TAURI_SIGNING_PRIVATE_KEY` (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`); pasangannya `plugins.updater.pubkey`.
 name: Release
 
 on:
@@ -89,6 +91,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Wajib karena `createUpdaterArtifacts`: tanpa kunci ini build gagal saat menandatangani bundle updater.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: crates/soraja-desktop
           tagName: v__VERSION__
@@ -96,6 +101,9 @@ jobs:
           releaseBody: Unduh installer dari halaman web Soraja Engine atau dari daftar aset di bawah.
           releaseDraft: false
           prerelease: false
+          # latest.json ditulis sekali oleh job manifest; bila tiap runner menggabungkannya sendiri, runner yang
+          # balapan bisa saling menimpa sehingga sebagian OS hilang dari manifest updater.
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
   manifest:
@@ -112,7 +120,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Unduh aset Release & tulis manifest web
+      - name: Unduh aset Release, tulis manifest web & latest.json updater
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -121,6 +129,8 @@ jobs:
           gh release download "v$VERSION" --dir "$RUNNER_TEMP/bundle" --clobber
           node scripts/publish-release.mjs --from "$RUNNER_TEMP/bundle"
           gh release upload "v$VERSION" web-landing/public/downloads/"$VERSION"/* --clobber
+          node scripts/updater-manifest.mjs --from "$RUNNER_TEMP/bundle" --out "$RUNNER_TEMP/latest.json"
+          gh release upload "v$VERSION" "$RUNNER_TEMP/latest.json" --clobber
 
       - name: Commit releases.json
         run: |
