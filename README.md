@@ -408,6 +408,14 @@ Setiap modifikasi sistem wajib dicatat di sini dan di SpecKit (`specs/`):
 36. **Perbaikan UI:**
     - Badge branch "main" yang selalu statis dihapus dari tampilan.
 
+### 📌 Rilis v1.1.4 (Perbaikan Judul Sesi Terminal CLI)
+37. **Perbaikan Judul Sesi Terminal CLI:**
+    - Judul sesi kini diambil dari prompt pertama, termasuk teks yang ditempel (paste); sebelumnya teks tempelan terbuang dan judul memakai ketikan berikutnya.
+    - Sesi CLI baru tidak lagi tertelan oleh sesi lama yang sudah berjudul (proyek & agen sama), sehingga judul sesi setelah aplikasi dibuka ulang ikut berubah.
+    - Perintah slash (mis. `/usage`, `/model`) tidak dijadikan judul sesi.
+38. **Web Unduhan:**
+    - Badge versi di header hanya menampilkan versi rilis; label LOCAL/SERVER yang bisa diklik dihapus.
+
 
 ---
 
