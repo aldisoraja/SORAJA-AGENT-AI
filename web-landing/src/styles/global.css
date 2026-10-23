@@ -157,13 +157,7 @@ a {
   color: var(--accent-cyan);
   border: 1px solid var(--border-accent);
   letter-spacing: 0.05em;
-  cursor: pointer;
   user-select: none;
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-}
-
-.brand-pill:hover {
-  transform: scale(1.05);
 }
 
 .pill-dot {
@@ -171,26 +165,8 @@ a {
   height: 6px;
   border-radius: 50%;
   display: inline-block;
-}
-
-.mode-local {
-  background: rgba(34, 197, 94, 0.12) !important;
-  color: #22c55e !important;
-  border-color: rgba(34, 197, 94, 0.4) !important;
-}
-.mode-local .pill-dot {
-  background-color: #22c55e;
-  box-shadow: 0 0 8px #22c55e;
-}
-
-.mode-server {
-  background: rgba(59, 130, 246, 0.12) !important;
-  color: #60a5fa !important;
-  border-color: rgba(59, 130, 246, 0.4) !important;
-}
-.mode-server .pill-dot {
-  background-color: #3b82f6;
-  box-shadow: 0 0 8px #3b82f6;
+  background-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
 }
 
 .nav-menu {

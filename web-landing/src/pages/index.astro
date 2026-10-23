@@ -22,10 +22,9 @@ const APP_VERSION = releases.version;
           <img src="/logo-mark.png" alt="SORAJA ENGINE Logo" class="brand-logo-img" />
           <div class="brand-title-group">
             <span class="brand-name">SORAJA ENGINE</span>
-            <span id="runtime-badge" class="brand-pill mode-local" title="Status Engine: Klik untuk beralih mode LOCAL/SERVER">
+            <span class="brand-pill" title={`Versi rilis terbaru: v${APP_VERSION}`}>
               <span class="pill-dot"></span>
-              <span id="version-text">v{APP_VERSION}</span>
-              <span id="env-mode-text">LOCAL</span>
+              <span>v{APP_VERSION}</span>
             </span>
           </div>
         </a>
@@ -97,7 +96,7 @@ const APP_VERSION = releases.version;
     </footer>
   </div>
 
-  <!-- Tema & badge runtime -->
+  <!-- Tema & tinggi navbar -->
   <script is:inline>
     const themeToggleBtn = document.getElementById('theme-toggle');
     function applyTheme(theme) {
@@ -117,28 +116,5 @@ const APP_VERSION = releases.version;
       setNavH();
       new ResizeObserver(setNavH).observe(navbar);
     }
-
-    const envModeText = document.getElementById('env-mode-text');
-    const runtimeBadge = document.getElementById('runtime-badge');
-    const host = window.location.hostname;
-    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
-    let currentMode = localStorage.getItem('soraja_runtime_mode') || (isLocalHost ? 'LOCAL' : 'SERVER');
-    function updateRuntimeBadge(mode) {
-      if (envModeText) envModeText.innerText = mode;
-      if (!runtimeBadge) return;
-      runtimeBadge.classList.toggle('mode-local', mode === 'LOCAL');
-      runtimeBadge.classList.toggle('mode-server', mode !== 'LOCAL');
-      runtimeBadge.setAttribute(
-        'title',
-        mode === 'LOCAL' ? 'Status: Local Engine Active (Klik untuk toggle SERVER)' : 'Status: Remote Server Cloud Active (Klik untuk toggle LOCAL)'
-      );
-    }
-    updateRuntimeBadge(currentMode);
-    runtimeBadge?.addEventListener('click', (e) => {
-      e.preventDefault();
-      currentMode = currentMode === 'LOCAL' ? 'SERVER' : 'LOCAL';
-      localStorage.setItem('soraja_runtime_mode', currentMode);
-      updateRuntimeBadge(currentMode);
-    });
   </script>
 </Layout>
