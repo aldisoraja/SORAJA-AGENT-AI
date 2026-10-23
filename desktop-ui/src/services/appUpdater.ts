@@ -79,15 +79,17 @@ export async function installAppUpdate(): Promise<void> {
   const info = current.kind === 'available' ? current.info : current.kind === 'error' ? current.info : null;
   if (!info) return;
   setState({ status: { kind: 'installing', info, downloaded: 0, total: null } });
-  const unlisten = await listen<{ downloaded: number; total: number | null }>('app:update_progress', ({ payload }) => {
-    if (state.status.kind === 'installing') setState({ status: { ...state.status, ...payload } });
-  });
+  let unlisten: (() => void) | undefined;
   try {
+    // Di dalam try: bila listen gagal, status tidak boleh tertahan di `installing` (tombol terkunci selamanya).
+    unlisten = await listen<{ downloaded: number; total: number | null }>('app:update_progress', ({ payload }) => {
+      if (state.status.kind === 'installing') setState({ status: { ...state.status, ...payload } });
+    });
     await invoke('install_app_update');
   } catch (e) {
     setState({ status: { kind: 'error', message: errorMessage(e), info } });
   } finally {
-    unlisten();
+    unlisten?.();
   }
 }
 

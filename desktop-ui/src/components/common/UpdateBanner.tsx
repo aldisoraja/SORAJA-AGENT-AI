@@ -24,7 +24,8 @@ export function UpdateBanner({ isLight, currentAccent }: UpdateBannerProps) {
   useEffect(() => startAppUpdateAutoCheck(), []);
 
   const info = status.kind === 'available' || status.kind === 'installing' ? status.info : status.kind === 'error' ? status.info : null;
-  if (!info || (status.kind === 'available' && dismissedVersion === info.version)) return null;
+  // Banner gagal-pasang ("Coba lagi") juga harus bisa ditutup lewat "Nanti"/X; hanya progres pemasangan yang selalu tampil.
+  if (!info || (status.kind !== 'installing' && dismissedVersion === info.version)) return null;
 
   const installing = status.kind === 'installing';
   const muted = isLight ? 'text-slate-500' : 'text-slate-400';
