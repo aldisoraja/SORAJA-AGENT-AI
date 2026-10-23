@@ -4,6 +4,7 @@ import type { AppSettings } from '../../types/database';
 import { sorajaDb } from '../../services/db';
 import { DEFAULT_SETTINGS } from '../../services/dbDefaults';
 import { SettingRow, SettingsCard, SettingsSection, settingsTone } from './SettingsControls';
+import { AppUpdateSection } from './AppUpdateSection';
 
 interface DataHelpTabProps {
   isLight: boolean;
@@ -22,7 +23,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl + 0', 'Kembalikan ukuran huruf Terminal'],
 ];
 
-/** Tab "Data & Bantuan": isi penyimpanan lokal, reset pengaturan, dan pintasan keyboard. */
+/** Tab "Data & Bantuan": versi & pembaruan aplikasi, isi penyimpanan lokal, reset pengaturan, dan pintasan keyboard. */
 export function DataHelpTab({ isLight, currentAccent, onSaveMultipleSettings }: DataHelpTabProps) {
   const t = settingsTone(isLight);
   const [health, setHealth] = useState<Health | null>(null);
@@ -43,6 +44,8 @@ export function DataHelpTab({ isLight, currentAccent, onSaveMultipleSettings }: 
 
   return (
     <div className="space-y-7">
+      <AppUpdateSection isLight={isLight} currentAccent={currentAccent} />
+
       {/* 1. Data di komputer ini */}
       <SettingsSection
         isLight={isLight}

@@ -92,6 +92,7 @@ sequenceDiagram
 2. **`write_workspace_file(path, content)`** — tombol *Abaikan/Revert* di panel diff dan penulisan berkas konfigurasi adapter.
 3. **`list_workspace_files(base_path)`** — autocomplete `@` (kedalaman 8, lewati `.*`, `node_modules`, `target`, `dist`).
 4. **`run_workspace_terminal(workspace_path, command)`** — perintah cepat non-interaktif (mis. `git diff`), dengan guardrail anti-destruktif.
+5. **`check_app_update()` / `install_app_update()`** — pembaruan otomatis aplikasi dari GitHub Release (lihat bagian 7D dan [`ipc-contracts.md`](./ipc-contracts.md) bagian 8).
 
 ### Mode Demo (Fallback)
 `agentEngine.ts::generateIntelligentAgentResponse` hanya berjalan bila CLI agen belum terpasang atau tanpa Tauri (browser dev). Wajib menampilkan banner "mode demo" dan tidak boleh dijalankan bersamaan dengan CLI asli.
@@ -172,6 +173,14 @@ Setiap proses CLI agen — mode Terminal (PTY) maupun Chat GUI (headless) — di
 * **Soraja ditutup atau crash:** OS menutup handle job → semua proses agen ikut mati.
 * **CLI selesai normal:** batas kill-on-close dicabut sebelum job dilepas, sehingga proses latar yang sengaja ditinggal agen tetap hidup (perilaku sama seperti CLI dijalankan dari terminal biasa).
 * Fallback bila job gagal dibuat: `taskkill /F /T /PID` (Stop) / proses induk saja (Jeda).
+
+### D. Pembaruan Otomatis Bertanda Tangan
+* `tauri-plugin-updater` hanya memasang bundle yang tanda tangan minisign-nya cocok dengan `plugins.updater.pubkey` di `tauri.conf.json`.
+  Kunci privat **tidak pernah** masuk repo: disimpan sebagai secret GitHub `TAURI_SIGNING_PRIVATE_KEY`
+  (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) dan cadangan offline milik pemelihara. Kunci hilang = semua instalasi lama tidak bisa
+  diperbarui otomatis lagi (pengguna harus memasang ulang manual dari web).
+* Pembaruan tidak pernah dipasang diam-diam: pengguna memilih "Perbarui sekarang" (banner) atau tombol di Pengaturan, dengan peringatan
+  bahwa aplikasi ditutup dan agen yang berjalan ikut berhenti.
 
 ---
 

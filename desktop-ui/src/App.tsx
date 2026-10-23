@@ -10,6 +10,7 @@ import { ChatInputBar } from './components/chat/ChatInputBar';
 import { DiffReviewPanel } from './components/diff/DiffReviewPanel';
 import { AppModals } from './components/AppModals';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { UpdateBanner } from './components/common/UpdateBanner';
 import { useBlockBrowserShortcuts } from './hooks/useBlockBrowserShortcuts';
 import { EmbeddedCliTerminal } from './components/terminal/EmbeddedCliTerminal';
 import { isNewConversationShortcut } from './components/terminal/terminalInput';
@@ -135,6 +136,9 @@ export default function App() {
           <span className="font-medium">{ws.toastMessage}</span>
         </div>
       )}
+
+      {/* Pembaruan aplikasi (pemeriksaan otomatis saat dibuka) */}
+      <UpdateBanner isLight={ws.isLight} currentAccent={ws.currentAccent} />
 
       {/* 1. Sidebar */}
       <Sidebar
