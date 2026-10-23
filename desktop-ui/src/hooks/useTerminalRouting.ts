@@ -18,8 +18,8 @@ export function useTerminalRouting(
   setActiveViewMode: (mode: 'chat' | 'terminal') => void,
   activeViewMode: 'chat' | 'terminal'
 ) {
-  // Tab yang label sesi CLI-nya sudah diurus (pelabelan placeholder bawaan cukup sekali per tab).
-  const labeledTabs = useRef(new Set<string>());
+  // Sesi PTY yang judul percakapannya sudah diurus (pelabelan cukup sekali per sesi CLI).
+  const labeledSessions = useRef(new Set<string>());
 
   // Sinkronisasi dua arah agen ↔ tab terminal HANYA saat mode Terminal aktif, agar pilihan agen
   // di Chat GUI tidak tertimpa tab terminal (dan tidak memicu spawn CLI di latar belakang).
@@ -49,72 +49,57 @@ export function useTerminalRouting(
 
   // Catatan: tab terminal TIDAK otomatis dicatat sebagai percakapan di sidebar Chat GUI.
 
-  // Input pertama pengguna di terminal CLI: beri label sesi CLI proyek+agen itu ("CLI · <input>").
-  // Hanya menyentuh sesi `conv-cli-*`; placeholder "Percakapan baru" milik Chat GUI tidak diubah.
+  // Prompt pertama pengguna di sesi terminal CLI: beri label "CLI · <prompt>" pada percakapan milik tab itu.
+  // Dicatat per sesi PTY (ganti agen / tab baru = sesi CLI baru). Perintah slash (/usage, /model) bukan prompt.
+  // Hanya menyentuh percakapan tab itu sendiri: sesi CLI lain proyek+agen yang sama (sudah berjudul) tidak
+  // boleh "menelan" sesi baru, karena dulu itu membuat judul sesi baru tidak pernah berubah.
   const handleCliFirstInput = async (tab: TerminalTab, line: string) => {
+    if (line.startsWith('/') || labeledSessions.current.has(tab.sessionId)) return;
     const norm = (p?: string) => (p || '').toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
     const proj = ws.projects.find((p) => norm(p.path) === norm(tab.projectPath));
     if (!proj) return;
-
-    // Draf "Percakapan baru (N)" kosong yang sedang aktif lalu dipakai mengetik di terminal:
-    // draf itu menjadi sesi CLI berlabel input pertama (draf kosong dihapus agar tidak tersisa label salah).
-    const draft = ws.activeConversation;
-    if (draft && draft.projectId === proj.id && !isCliConversation(draft) && isPlaceholderTitle(draft.title)) {
-      const draftMsgs = await sorajaDb.getMessages(draft.id);
-      if (draftMsgs.length === 0) {
-        const titles = (await sorajaDb.getConversations())
-          .filter((c) => c.projectId === proj.id && c.id !== draft.id)
-          .map((c) => c.title);
-        const now = new Date().toISOString();
-        const newConv: ConversationRecord = {
-          id: `conv-cli-${tab.agent.id}-${Date.now()}`,
-          projectId: proj.id,
-          title: uniqueConversationTitle(cliTitleFromInput(line), titles),
-          agentId: tab.agent.id,
-          modelId: tab.agent.models[0]?.id || 'default',
-          status: 'active',
-          timeAgo: 'Baru saja',
-          createdAt: now,
-          updatedAt: now,
-        };
-        await sorajaDb.deleteConversation(draft.id);
-        ws.setConversations(await sorajaDb.createConversation(newConv));
-        ws.setActiveConversation(newConv);
-        ws.touchProjectActivity(proj.id);
-        return;
-      }
-    }
-
-    if (labeledTabs.current.has(tab.id)) return;
-    labeledTabs.current.add(tab.id);
+    labeledSessions.current.add(tab.sessionId);
 
     const all = await sorajaDb.getConversations();
-    const cliConv =
-      all.find((c) => c.id === tab.conversationId && isCliConversation(c)) ??
-      all.find((c) => c.projectId === proj.id && c.agentId === tab.agent.id && isCliConversation(c));
-    if (cliConv && !isCliPlaceholderTitle(cliConv.title)) return; // sesi sudah berlabel; dipakai ulang
+    const own = all.find((c) => c.id === tab.conversationId && isCliConversation(c));
+    if (own && !isCliPlaceholderTitle(own.title)) return; // sesi CLI yang di-resume mempertahankan judulnya
 
-    const otherTitles = all.filter((c) => c.projectId === proj.id && c.id !== cliConv?.id).map((c) => c.title);
+    // Draf "Percakapan baru (N)" kosong yang sedang aktif lalu dipakai mengetik di terminal:
+    // draf itu menjadi sesi CLI berlabel prompt pertama (draf dihapus agar tidak tersisa label salah).
+    const draft = ws.activeConversation;
+    const draftId =
+      !own &&
+      draft &&
+      draft.projectId === proj.id &&
+      !isCliConversation(draft) &&
+      isPlaceholderTitle(draft.title) &&
+      (await sorajaDb.getMessages(draft.id)).length === 0
+        ? draft.id
+        : null;
+
+    const otherTitles = all
+      .filter((c) => c.projectId === proj.id && c.id !== own?.id && c.id !== draftId)
+      .map((c) => c.title);
     const title = uniqueConversationTitle(cliTitleFromInput(line), otherTitles);
 
-    if (cliConv) {
-      ws.setConversations(await sorajaDb.updateConversationTitle(cliConv.id, title));
+    if (own) {
+      ws.setConversations(await sorajaDb.updateConversationTitle(own.id, title));
     } else {
       const now = new Date().toISOString();
-      const id = tab.conversationId && tab.conversationId.startsWith('conv-cli-') ? tab.conversationId : `conv-cli-${tab.agent.id}-${Date.now()}`;
-      ws.setConversations(
-        await sorajaDb.createConversation({
-          id,
-          projectId: proj.id,
-          title,
-          agentId: tab.agent.id,
-          modelId: tab.agent.models[0]?.id || 'default',
-          status: 'active',
-          timeAgo: 'Baru saja',
-          createdAt: now,
-          updatedAt: now,
-        })
-      );
+      const newConv: ConversationRecord = {
+        id: tab.conversationId?.startsWith('conv-cli-') ? tab.conversationId : `conv-cli-${tab.agent.id}-${Date.now()}`,
+        projectId: proj.id,
+        title,
+        agentId: tab.agent.id,
+        modelId: tab.agent.models[0]?.id || 'default',
+        status: 'active',
+        timeAgo: 'Baru saja',
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (draftId) await sorajaDb.deleteConversation(draftId);
+      ws.setConversations(await sorajaDb.createConversation(newConv));
+      if (draftId) ws.setActiveConversation(newConv);
     }
     ws.touchProjectActivity(proj.id);
   };
@@ -129,9 +114,12 @@ export function useTerminalRouting(
     if (targetProj) {
       ws.setActiveProject(targetProj);
       ws.touchProjectActivity(targetProj.id);
-      // Sesi CLI dipakai ulang per proyek+agen; TIDAK menjadi percakapan aktif Chat GUI (chat & CLI terpisah)
+      // Sesi CLI baru (tanpa resume) hanya memakai ulang placeholder "Sesi <agen> CLI" yang belum berjudul;
+      // sesi lama yang sudah berjudul tidak dipakai agar prompt pertama sesi ini menjadi judulnya sendiri.
+      // TIDAK menjadi percakapan aktif Chat GUI (chat & CLI terpisah).
       const existingConv = ws.conversations.find(
-        (c) => c.projectId === targetProj.id && c.agentId === agent.id && isCliConversation(c)
+        (c) =>
+          c.projectId === targetProj.id && c.agentId === agent.id && isCliConversation(c) && isCliPlaceholderTitle(c.title)
       );
       if (existingConv) {
         convId = existingConv.id;

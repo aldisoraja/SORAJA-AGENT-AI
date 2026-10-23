@@ -10,6 +10,7 @@ import { prepareLanguageRules } from '../../services/cliAdapters';
 import { fontSizeForZoom, minimumContrastFor, xtermTheme } from './xtermThemes';
 import { adaptOutputForLightTheme } from './lightTerminalColors';
 import { isTauri, ptyRelease, ptyResize, ptyRetain, ptySpawn, ptyWrite, subscribePty } from './ptyTransport';
+import { createInputLineTracker } from './inputLineTracker';
 import { createKeyHandler } from './terminalInput';
 import { enableEmojiWidths } from './unicodeWidth';
 
@@ -65,7 +66,6 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
   onStatusChangeRef.current = onStatusChange;
   const onFirstInputRef = useRef(onFirstInput);
   onFirstInputRef.current = onFirstInput;
-  const inputLineRef = useRef('');
   const isLightRef = useRef(isLight);
   isLightRef.current = isLight;
   const tabRef = useRef(tab);
@@ -206,25 +206,12 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
     );
 
     // Input terminal murni dikirim ke PTY; tidak boleh memicu pembuatan percakapan di sidebar chat.
+    // Setiap baris terkirim (ketikan maupun tempelan) dilaporkan; penerima yang memutuskan apakah baris itu
+    // memberi label sesi CLI.
+    const trackInputLine = createInputLineTracker((line) => onFirstInputRef.current?.(line));
     term.onData((data) => {
       sendInput(data);
-      if (data.startsWith('\x1b')) return;
-      // Kumpulkan ketikan sampai Enter; setiap baris terkirim dilaporkan, penerima yang memutuskan
-      // apakah baris itu memberi label sesi CLI (sesi berlabel / bukan draf kosong diabaikan).
-      for (const ch of data) {
-        if (ch === '\r' || ch === '\n') {
-          const line = inputLineRef.current.trim();
-          inputLineRef.current = '';
-          if (line) {
-            onFirstInputRef.current?.(line);
-            return;
-          }
-        } else if (ch === '\x7f' || ch === '\b') {
-          inputLineRef.current = inputLineRef.current.slice(0, -1);
-        } else if (ch >= ' ') {
-          inputLineRef.current += ch;
-        }
-      }
+      trackInputLine(data);
     });
 
     term.onResize(({ cols, rows }) => {
