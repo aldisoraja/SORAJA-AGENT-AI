@@ -401,6 +401,13 @@ Setiap modifikasi sistem wajib dicatat di sini dan di SpecKit (`specs/`):
     - Installer ditandatangani di CI, dan `latest.json` ditulis sekali setelah semua build selesai (`scripts/updater-manifest.mjs`) agar tidak ada OS yang hilang dari manifest pembaruan.
     - Catatan: pengguna v1.1.1 atau lebih lama perlu memasang v1.1.2 secara manual satu kali; versi berikutnya diperbarui otomatis.
 
+### 📌 Rilis v1.1.3 (Perbaikan Pembaruan Otomatis & UI)
+35. **Perbaikan Pembaruan Otomatis:**
+    - Kartu pembaruan yang gagal dipasang kini bisa ditutup lewat **Nanti** atau **X** (sebelumnya menempel terus di layar).
+    - Status tidak lagi tertahan di "Memperbarui…" bila pendaftaran progres unduhan gagal; pesan galat tampil dan pemasangan bisa dicoba lagi.
+36. **Perbaikan UI:**
+    - Badge branch "main" yang selalu statis dihapus dari tampilan.
+
 
 ---
 
