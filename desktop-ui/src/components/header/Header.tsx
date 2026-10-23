@@ -78,17 +78,6 @@ export function Header({
             >
               <FolderGit2 className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-blue-600' : 'text-cyan-400'}`} />
               <span className="truncate max-w-[130px] sm:max-w-[200px] md:max-w-[260px] font-bold">{activeProject.name}</span>
-              {activeProject.branch && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-medium hidden sm:inline-block ${
-                    isLight
-                      ? 'text-blue-700 soraja-grad-soft border border-blue-200/60'
-                      : 'text-cyan-400/90 bg-cyan-950/60 border border-cyan-800/50'
-                  }`}
-                >
-                  {activeProject.branch}
-                </span>
-              )}
             </div>
 
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 shrink-0" />

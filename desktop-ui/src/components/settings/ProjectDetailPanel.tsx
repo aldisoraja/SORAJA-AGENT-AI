@@ -38,16 +38,13 @@ export function ProjectDetailPanel({ project, isLight, onSelectProject, onToggle
               <h3 className={`text-lg font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {project.name}
               </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                  branch: {project.branch || 'main'}
-                </span>
-                {project.isPinned && (
+              {project.isPinned && (
+                <div className="flex items-center gap-2 mt-1">
                   <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
                     <Pin className="w-3 h-3 fill-amber-400" /> Disematkan
                   </span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
