@@ -1,5 +1,5 @@
 {
-  "version": "1.1.3",
+  "version": "1.1.4",
   "releasedAt": "2026-10-23",
   "files": [
     {
@@ -7,70 +7,70 @@
       "os": "linux",
       "arch": "x64",
       "label": "AppImage",
-      "file": "soraja-engine_1.1.3_x64.AppImage",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.AppImage",
-      "sizeBytes": 83548664,
-      "sha256": "d18ed342841fd5fa0617a113672bfcec476114fe7853aea3af4a39cd590fce57"
+      "file": "soraja-engine_1.1.4_x64.AppImage",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.AppImage",
+      "sizeBytes": 83544568,
+      "sha256": "f4c9d6af1bcf4f5a960d34931011a31bb18cccafa92e558acd8e9d9c2d884a35"
     },
     {
       "id": "linux-deb-x64",
       "os": "linux",
       "arch": "x64",
       "label": "Paket .deb",
-      "file": "soraja-engine_1.1.3_x64.deb",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.deb",
-      "sizeBytes": 5160970,
-      "sha256": "bc35a97a59187997ece1989507da1bfaefdca7ee5f5cbc5428d1c1fab437b534"
+      "file": "soraja-engine_1.1.4_x64.deb",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.deb",
+      "sizeBytes": 5159474,
+      "sha256": "05ac1ddc5ef2c1f8429e8ca4bb3198b4e684af221adbc938c15fbacd53605e86"
     },
     {
       "id": "linux-rpm-x64",
       "os": "linux",
       "arch": "x64",
       "label": "Paket .rpm",
-      "file": "soraja-engine_1.1.3_x64.rpm",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.rpm",
-      "sizeBytes": 5165976,
-      "sha256": "a2b15e3ad2308f057f7bcb8dad2a27acfadcae9453c360baf4f18c855dfbbc94"
+      "file": "soraja-engine_1.1.4_x64.rpm",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.rpm",
+      "sizeBytes": 5164609,
+      "sha256": "b2ef4db7591ceec3abf3c4bec328b0cd032a2e3d132bb3c714912c6088f3e512"
     },
     {
       "id": "macos-dmg-arm64",
       "os": "macos",
       "arch": "arm64",
       "label": "Disk image .dmg",
-      "file": "soraja-engine_1.1.3_arm64.dmg",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_arm64.dmg",
-      "sizeBytes": 6137048,
-      "sha256": "08974fd6670f411ed5d6f0f0bbc20d5320413a7874badb64b9469c3a5b9474af"
+      "file": "soraja-engine_1.1.4_arm64.dmg",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_arm64.dmg",
+      "sizeBytes": 6140207,
+      "sha256": "fa0d37fbb1bf2acbd9e0b8378cea61636dcb8db691eb41e9adbb0c768baf77e7"
     },
     {
       "id": "macos-dmg-x64",
       "os": "macos",
       "arch": "x64",
       "label": "Disk image .dmg",
-      "file": "soraja-engine_1.1.3_x64.dmg",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.dmg",
-      "sizeBytes": 6354048,
-      "sha256": "fcda1c021995503c1955cbd9d19f286b8eb851fef50f2be266f91e8169df78b3"
+      "file": "soraja-engine_1.1.4_x64.dmg",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.dmg",
+      "sizeBytes": 6358566,
+      "sha256": "33fa6ed667b51b47ee1486502acef4b5dfb230bee3e5a9ab94b02b93d54170bd"
     },
     {
       "id": "windows-exe-x64",
       "os": "windows",
       "arch": "x64",
       "label": "Installer .exe",
-      "file": "soraja-engine_1.1.3_x64.setup.exe",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.setup.exe",
-      "sizeBytes": 3062772,
-      "sha256": "2709289b2312ce26e15a0d4376e462f30df2e6cb767242221f058b8d552f1bc5"
+      "file": "soraja-engine_1.1.4_x64.setup.exe",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.setup.exe",
+      "sizeBytes": 3063769,
+      "sha256": "ae91ef012536164426a576349d7439cffefafd4500a51e12b54070e7cac53aec"
     },
     {
       "id": "windows-msi-x64",
       "os": "windows",
       "arch": "x64",
       "label": "Installer .msi",
-      "file": "soraja-engine_1.1.3_x64.msi",
-      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.3/soraja-engine_1.1.3_x64.msi",
+      "file": "soraja-engine_1.1.4_x64.msi",
+      "url": "https://github.com/aldisoraja/SORAJA-AGENT-AI/releases/download/v1.1.4/soraja-engine_1.1.4_x64.msi",
       "sizeBytes": 4091904,
-      "sha256": "6fd81da8ce44ccfef2ef42fa725e998cca285a7732dd8b0fc873f57aa2ef3c98"
+      "sha256": "4fde046fe762614e3525185bf07c1222cdc6c85c06ce468c1637e4d859e4614d"
     }
   ]
 }
