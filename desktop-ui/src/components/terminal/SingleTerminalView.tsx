@@ -101,8 +101,9 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
     if (!term) return;
 
     const t = tabRef.current;
-    const dims = fitAddonRef.current?.proposeDimensions();
     const languageRulesPath = isTauri ? await prepareLanguageRules(t.agent.id) : undefined;
+    // Ukuran diambil SETELAH await: resize selama menunggu tidak sampai ke PTY yang belum ada.
+    const dims = fitAddonRef.current?.proposeDimensions();
     const command = buildInteractiveCommand({
       agentId: t.agent.id,
       executable: t.agent.binaryPath || t.agent.executable || t.agent.id,
@@ -126,6 +127,10 @@ export const SingleTerminalView: React.FC<SingleTerminalViewProps> = ({
         onStatusChangeRef.current?.(false, -1);
       } else {
         onStatusChangeRef.current?.(true, null);
+        // Samakan lebar PTY dengan xterm saat ini. Selisih 1 kolom membuat baris selebar layar
+        // (mis. pesan tempelan berlatar abu-abu) bergeser 1 kolom per baris.
+        lastColsRows.current = { cols: term.cols, rows: term.rows };
+        ptyResize(t.sessionId, term.cols, term.rows);
       }
     } catch (err) {
       term.writeln(`\r\n\x1b[1;31m[Tauri PTY Error]\x1b[0m Gagal spawn CLI: ${String(err)}\r\n`);
